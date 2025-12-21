@@ -1,19 +1,30 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createServerFn } from "@tanstack/solid-start";
-import { createSignal, onMount } from "solid-js";
+import { createSignal, onCleanup, onMount } from "solid-js";
 
-export const Route = createFileRoute("/room/")({
+export const Route = createFileRoute("/room/$roomId/")({
     component: RouteComponent,
 });
 
 function RouteComponent() {
+    const params = Route.useParams();
     let ws: WebSocket;
+    const loaderData = Route.useLoaderData();
 
     onMount(async () => {
-        ws = new WebSocket("ws://localhost:3000/api/room/hey");
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const host = window.location.host;
+        const wsUrl = `${protocol}//${host}/api/room/${params().roomId}`;
+
+        ws = new WebSocket(wsUrl);
         ws.onmessage = (e) => {
             console.log(e.data);
         };
+    });
+
+    onCleanup(() => {
+        if (ws) {
+            ws.close();
+        }
     });
 
     const connect = (name: string) => {

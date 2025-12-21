@@ -23,6 +23,7 @@ import { Route as UsersUserIdRouteImport } from './routes/users.$userId'
 import { Route as PostsPostIdRouteImport } from './routes/posts.$postId'
 import { Route as ApiUsersRouteImport } from './routes/api/users'
 import { Route as PathlessLayoutNestedLayoutRouteImport } from './routes/_pathlessLayout/_nested-layout'
+import { Route as RoomRoomIdIndexRouteImport } from './routes/room/$roomId/index'
 import { Route as PostsPostIdDeepRouteImport } from './routes/posts_.$postId.deep'
 import { Route as ApiUsersUserIdRouteImport } from './routes/api/users.$userId'
 import { Route as ApiRoomRoomIdRouteImport } from './routes/api/room/$roomId'
@@ -98,6 +99,11 @@ const PathlessLayoutNestedLayoutRoute =
     id: '/_nested-layout',
     getParentRoute: () => PathlessLayoutRoute,
   } as any)
+const RoomRoomIdIndexRoute = RoomRoomIdIndexRouteImport.update({
+  id: '/room/$roomId/',
+  path: '/room/$roomId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PostsPostIdDeepRoute = PostsPostIdDeepRouteImport.update({
   id: '/posts_/$postId/deep',
   path: '/posts/$postId/deep',
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
   '/posts/$postId/deep': typeof PostsPostIdDeepRoute
+  '/room/$roomId': typeof RoomRoomIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -161,6 +168,7 @@ export interface FileRoutesByTo {
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
   '/posts/$postId/deep': typeof PostsPostIdDeepRoute
+  '/room/$roomId': typeof RoomRoomIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -183,6 +191,7 @@ export interface FileRoutesById {
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
   '/posts_/$postId/deep': typeof PostsPostIdDeepRoute
+  '/room/$roomId/': typeof RoomRoomIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/api/room/$roomId'
     | '/api/users/$userId'
     | '/posts/$postId/deep'
+    | '/room/$roomId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/api/room/$roomId'
     | '/api/users/$userId'
     | '/posts/$postId/deep'
+    | '/room/$roomId'
   id:
     | '__root__'
     | '/'
@@ -242,6 +253,7 @@ export interface FileRouteTypes {
     | '/api/room/$roomId'
     | '/api/users/$userId'
     | '/posts_/$postId/deep'
+    | '/room/$roomId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -256,6 +268,7 @@ export interface RootRouteChildren {
   RoomIndexRoute: typeof RoomIndexRoute
   ApiRoomRoomIdRoute: typeof ApiRoomRoomIdRoute
   PostsPostIdDeepRoute: typeof PostsPostIdDeepRoute
+  RoomRoomIdIndexRoute: typeof RoomRoomIdIndexRoute
 }
 
 declare module '@tanstack/solid-router' {
@@ -357,6 +370,13 @@ declare module '@tanstack/solid-router' {
       fullPath: ''
       preLoaderRoute: typeof PathlessLayoutNestedLayoutRouteImport
       parentRoute: typeof PathlessLayoutRoute
+    }
+    '/room/$roomId/': {
+      id: '/room/$roomId/'
+      path: '/room/$roomId'
+      fullPath: '/room/$roomId'
+      preLoaderRoute: typeof RoomRoomIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/posts_/$postId/deep': {
       id: '/posts_/$postId/deep'
@@ -474,6 +494,7 @@ const rootRouteChildren: RootRouteChildren = {
   RoomIndexRoute: RoomIndexRoute,
   ApiRoomRoomIdRoute: ApiRoomRoomIdRoute,
   PostsPostIdDeepRoute: PostsPostIdDeepRoute,
+  RoomRoomIdIndexRoute: RoomRoomIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
