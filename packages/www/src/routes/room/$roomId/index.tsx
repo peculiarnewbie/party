@@ -17,7 +17,11 @@ function RouteComponent() {
 
         ws = new WebSocket(wsUrl);
         ws.onmessage = (e) => {
-            console.log(e.data);
+            const json = JSON.parse(e.data);
+            // if (json.type === "info") {
+            //     console.log(JSON.parse(json.data));
+            // }
+            console.log(json);
         };
     });
 
@@ -28,7 +32,23 @@ function RouteComponent() {
     });
 
     const connect = (name: string) => {
-        ws.send(JSON.stringify({ user: name, data: { message: "hello" } }));
+        ws.send(
+            JSON.stringify({
+                user: name,
+                data: { message: "hello" },
+                type: "join",
+            }),
+        );
+    };
+
+    const disconnect = (name: string) => {
+        ws.send(
+            JSON.stringify({
+                user: name,
+                data: { message: "hello" },
+                type: "leave",
+            }),
+        );
     };
 
     const [name, setName] = createSignal("");
@@ -42,6 +62,7 @@ function RouteComponent() {
                 oninput={(e) => setName(e.currentTarget.value)}
             />
             <button onclick={() => connect(name())}>Connect</button>
+            <button onclick={() => connect(name())}>Disconnect</button>
         </div>
     );
 }
