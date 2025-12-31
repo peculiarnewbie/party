@@ -22,15 +22,28 @@ export class GameRoom extends DurableObject {
 
     async fetch(request: Request): Promise<Response> {
         const webSocketPair = new WebSocketPair();
-        const [client, server] = Object.values(webSocketPair);
+        const [client, serverWs] = Object.values(webSocketPair);
 
-        this.ctx.acceptWebSocket(server);
+        this.ctx.acceptWebSocket(serverWs);
 
         const id = crypto.randomUUID();
+        serverWs.serializeAttachment({ id });
+        this.sessions.set(serverWs, { id });
 
-        server.serializeAttachment({ id });
+        const send = (msg: string) => serverWs.send(msg);
 
-        this.sessions.set(server, { id });
+        const players = await server().getPlayers(this.ctx);
+        const hostId = await server().getHostId(this.ctx);
+
+        send(
+            JSON.stringify({
+                type: "room_state",
+                data: {
+                    players: players || [],
+                    hostId: hostId || null,
+                },
+            }),
+        );
 
         return new Response(null, {
             status: 101,
@@ -39,31 +52,14 @@ export class GameRoom extends DurableObject {
     }
 
     async webSocketMessage(ws: WebSocket, message: string) {
-        const session = this.sessions.get(ws)!;
-
-        const json = JSON.parse(message) as {
-            user: string;
-            data: any;
-            type: MessageType;
+        const send = (msg: string) => ws.send(msg);
+        const broadcast = (msg: string) => {
+            this.sessions.forEach((_, connectedWs) => {
+                connectedWs.send(msg);
+            });
         };
 
-        const { user, data, type } = json;
-        const s = server();
-
-        if (type === "join") {
-            const res = await s.addPlayer(this.ctx, user);
-            const ret: { type: MessageType; data: any } = {
-                type: "info",
-                data: res,
-            };
-            ws.send(JSON.stringify(ret));
-
-            this.sessions.forEach((attachment, connectedWs) => {
-                if (connectedWs !== ws) {
-                    connectedWs.send(JSON.stringify(ret));
-                }
-            });
-        }
+        await server().processMessage(message, send, broadcast, this.ctx);
     }
 
     async webSocketClose(
@@ -72,7 +68,6 @@ export class GameRoom extends DurableObject {
         reason: string,
         wasClean: boolean,
     ) {
-        // If the client closes the connection, the runtime will invoke the webSocketClose() handler.
         this.sessions.delete(ws);
         ws.close(code, "Durable Object is closing WebSocket");
     }

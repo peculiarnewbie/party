@@ -1,27 +1,47 @@
-import { createFileRoute } from '@tanstack/solid-router'
-import { createServerFn } from '@tanstack/solid-start'
-import { env } from 'cloudflare:workers'
+import { createFileRoute, Link } from "@tanstack/solid-router";
+import { createSignal } from "solid-js";
 
-export const Route = createFileRoute('/')({
-  loader: () => getData(),
-  component: Home,
-})
+export const Route = createFileRoute("/")({
+    component: Index,
+});
 
-const getData = createServerFn().handler(() => {
-  return {
-    message: `Running in ${navigator.userAgent}`,
-    myVar: env.MY_VAR,
-  }
-})
+function Index() {
+    const [roomId, setRoomId] = createSignal("");
 
-function Home() {
-  const data = Route.useLoaderData()
+    const joinRoom = (e: Event) => {
+        e.preventDefault();
+        if (roomId()) {
+            window.location.href = `/room/${roomId()}`;
+        }
+    };
 
-  return (
-    <div class="p-2">
-      <h3>Welcome Home!!!</h3>
-      <p>{data().message}</p>
-      <p>{data().myVar}</p>
-    </div>
-  )
+    return (
+        <div class="min-h-screen flex flex-col items-center justify-center p-4">
+            <h1 class="text-4xl font-bold mb-8">Quiz Party</h1>
+            <form
+                onSubmit={joinRoom}
+                class="flex flex-col gap-4 w-full max-w-sm"
+            >
+                <input
+                    type="text"
+                    placeholder="Enter room name"
+                    value={roomId()}
+                    onInput={(e) => setRoomId(e.currentTarget.value)}
+                    class="px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                />
+                <button
+                    type="submit"
+                    disabled={!roomId()}
+                    class="px-4 py-3 text-lg bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                >
+                    Join Room
+                </button>
+            </form>
+            <div class="mt-8 text-gray-500">
+                <Link to="/home" class="hover:underline">
+                    Demo Home
+                </Link>
+            </div>
+        </div>
+    );
 }

@@ -30,6 +30,24 @@ bun run cf-typegen
 
 **Important**: `bun build` runs `vite build && tsc --noEmit` to validate TypeScript.
 
+## Testing
+
+```bash
+# Run all tests
+bun test
+
+# Run specific test file
+bun test src/game/game.test.ts
+
+# Run tests with coverage
+bun test --coverage
+```
+
+- Uses Bun's native test runner (no external dependencies)
+- Test files use `.test.ts` or `.test.tsx` extension
+- Bun test API is Vitest-compatible (`describe`, `it`, `expect`, `vi`)
+- No `@types/*` needed for test globals
+
 ## TypeScript Configuration
 
 - **Strict mode enabled** in `tsconfig.json`
@@ -86,6 +104,23 @@ function PostsIndexComponent() {
 - Use `createFileRoute` for file-based routing in `src/routes/`
 - Export `Route` as named export
 - Component functions are named PascalCase
+
+### SolidJS vs React Patterns
+
+**This is SolidJS, NOT React.** Avoid React patterns:
+
+| React Pattern             | SolidJS Equivalent                                   |
+| ------------------------- | ---------------------------------------------------- |
+| `condition ? <A/> : <B/>` | `<Show when={condition} fallback={<B/>}><A/></Show>` |
+| `{arr.map(x => <Item/>)}` | `<For each={arr}>{x => <Item/>}</For>`               |
+| `useEffect(() => {...})`  | `createEffect(() => {...})`                          |
+| `useState(initial)`       | `createSignal(initial)`                              |
+| `useMemo(() => compute)`  | `createMemo(() => compute)`                          |
+
+- Signals are functions: `count()` not `count`
+- Effects run automatically when dependencies change
+- No dependency array needed in effects
+- Components render once; effects rerun on dependency changes
 
 ### Error Handling
 
@@ -150,6 +185,12 @@ const preLogMiddleware = createMiddleware({ type: "function" })
 | Constants        | SCREAMING_SNAKE_CASE | `MAX_RETRIES`                |
 | Types/Interfaces | PascalCase           | `ErrorComponentProps`        |
 | Files (all)      | kebab-case           | `default-catch-boundary.tsx` |
+
+### IDs and Keys
+
+- Use `nanoid` from `nanoid` package for generating short, URL-friendly IDs
+- Client-side: `import { nanoid } from 'nanoid'; const id = nanoid(10);`
+- Server-side (Durable Objects): Can use `crypto.randomUUID()` or store nanoid from client
 
 ### Directory Structure
 
