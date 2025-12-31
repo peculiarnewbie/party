@@ -1,3 +1,5 @@
+import z from "zod";
+
 export const messageTypes = [
     "join",
     "leave",
@@ -20,17 +22,26 @@ interface Player {
     score?: number;
 }
 
-interface ClientMessage {
-    playerId: string;
-    playerName: string;
-    type: string;
-    data: Record<string, unknown>;
-}
+export const clientMessageSchema = z.object({
+    playerId: z.string(),
+    playerName: z.string(),
+    type: z.enum(messageTypes),
+    data: z.record(z.string(), z.unknown()),
+});
 
-interface ServerMessage {
-    type: string;
-    data: Record<string, unknown>;
-}
+export type ClientMessage = z.output<typeof clientMessageSchema>;
+
+export const serverMessageSchema = z.object({
+    type: z.enum([
+        "player_list",
+        "host_assigned",
+        "room_state",
+        "game_started",
+    ]),
+    data: z.record(z.string(), z.unknown()),
+});
+
+export type ServerMessage = z.output<typeof serverMessageSchema>;
 
 export const server = () => ({
     getOrSetHost: async (ctx: DurableObjectState, playerId: string) => {

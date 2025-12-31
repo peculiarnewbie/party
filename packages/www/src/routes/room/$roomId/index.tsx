@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/solid-router";
 import { createSignal, onMount, Show } from "solid-js";
 import { nanoid } from "nanoid";
 import { RoomLobby } from "~/components/room-lobby";
+import { MessageType, serverMessageSchema } from "~/game";
+import z from "zod";
 
 interface Player {
     id: string;
@@ -33,7 +35,7 @@ function RouteComponent() {
     };
 
     const send = (
-        type: string,
+        type: MessageType,
         name?: string,
         data?: Record<string, unknown>,
     ) => {
@@ -66,23 +68,31 @@ function RouteComponent() {
         ws = new WebSocket(wsUrl);
         ws.onmessage = (e) => {
             const json = JSON.parse(e.data);
-            if (json.type === "room_state") {
-                setPlayers(json.data.players);
-                setIsHost(json.data.hostId === playerId());
-                const currentPlayer = json.data.players.find(
+            const parseRes = z.safeParse(serverMessageSchema, json);
+
+            if (!parseRes.success) return;
+
+            const parsed = parseRes.data;
+
+            if (parsed.type === "room_state") {
+                const players = parsed.data.players as Player[];
+                setPlayers(players);
+                setIsHost(parsed.data.hostId === playerId());
+                const currentPlayer = players.find(
                     (p: Player) => p.id === playerId(),
                 );
                 if (currentPlayer) {
                     setName(currentPlayer.name);
                 }
             }
-            if (json.type === "player_list") {
-                setPlayers(json.data.players);
+            if (parsed.type === "player_list") {
+                const players = parsed.data.players as Player[];
+                setPlayers(players);
             }
-            if (json.type === "host_assigned") {
-                setIsHost(json.data.hostId === playerId());
+            if (parsed.type === "host_assigned") {
+                setIsHost(parsed.data.hostId === playerId());
             }
-            if (json.type === "game_started") {
+            if (parsed.type === "game_started") {
                 setGameState("playing");
             }
         };
