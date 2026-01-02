@@ -16,7 +16,7 @@ type RoomType = (typeof roomType)[number];
 const playersStorage = "players";
 const hostIdStorage = "hostId";
 
-interface Player {
+export interface Player {
     id: string;
     name: string;
     score?: number;
@@ -43,19 +43,15 @@ export const serverMessageSchema = z.object({
 
 export type ServerMessage = z.output<typeof serverMessageSchema>;
 
-export const server = () => ({
-    getOrSetHost: async (ctx: DurableObjectState, playerId: string) => {
+export const server = (ctx: DurableObjectState) => ({
+    getOrSetHost: async (playerId: string) => {
         const existing = await ctx.storage.get(hostIdStorage);
         if (existing) return existing as string;
         await ctx.storage.put(hostIdStorage, playerId);
         return playerId;
     },
 
-    addPlayer: async (
-        ctx: DurableObjectState,
-        playerId: string,
-        name: string,
-    ) => {
+    addPlayer: async (playerId: string, name: string) => {
         let players: Player[] = (await ctx.storage.get(playersStorage)) || [];
 
         const existingIndex = players.findIndex((p) => p.id === playerId);
@@ -70,33 +66,39 @@ export const server = () => ({
         return players;
     },
 
-    removePlayer: async (ctx: DurableObjectState, playerId: string) => {
+    removePlayer: async (playerId: string) => {
         let players: Player[] = (await ctx.storage.get(playersStorage)) || [];
         players = players.filter(({ id }) => id !== playerId);
         await ctx.storage.put(playersStorage, players);
         return players;
     },
 
-    getPlayers: async (ctx: DurableObjectState) => {
+    getPlayers: async () => {
         return (await ctx.storage.get(playersStorage)) as Player[] | undefined;
     },
 
-    getHostId: async (ctx: DurableObjectState) => {
+    getHostId: async () => {
         return (await ctx.storage.get(hostIdStorage)) as string | undefined;
     },
 
     processMessage: async (
         message: string,
-        send: (msg: string) => void,
         broadcast: (msg: string) => void,
-        ctx: DurableObjectState,
     ) => {
-        const msg: ClientMessage = JSON.parse(message);
-        const { playerId, playerName, type } = msg;
+        const json = JSON.parse(message);
+
+        const safeParsed = z.safeParse(clientMessageSchema, json);
+
+        if (!safeParsed.success)
+            return { error: "failed parsing client message" };
+
+        const parsed = safeParsed.data;
+
+        const { playerId, playerName, type } = parsed;
 
         if (type === "join") {
-            const players = await server().addPlayer(ctx, playerId, playerName);
-            const hostId = await server().getOrSetHost(ctx, playerId);
+            const players = await server(ctx).addPlayer(playerId, playerName);
+            const hostId = await server(ctx).getOrSetHost(playerId);
             const isHost = hostId === playerId;
 
             broadcast(
@@ -114,14 +116,18 @@ export const server = () => ({
                     } as ServerMessage),
                 );
             }
-        }
-
-        if (type === "leave") {
-            const players = await server().removePlayer(ctx, playerId);
+        } else if (type === "leave") {
+            const players = await server(ctx).removePlayer(playerId);
             broadcast(
                 JSON.stringify({
                     type: "player_list",
                     data: { players },
+                } as ServerMessage),
+            );
+        } else if (type === "start") {
+            broadcast(
+                JSON.stringify({
+                    type: "game_started",
                 } as ServerMessage),
             );
         }

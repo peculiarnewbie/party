@@ -2,13 +2,8 @@ import { createFileRoute } from "@tanstack/solid-router";
 import { createSignal, onMount, Show } from "solid-js";
 import { nanoid } from "nanoid";
 import { RoomLobby } from "~/components/room-lobby";
-import { MessageType, serverMessageSchema } from "~/game";
+import { MessageType, Player, serverMessageSchema } from "~/game";
 import z from "zod";
-
-interface Player {
-    id: string;
-    name: string;
-}
 
 export const Route = createFileRoute("/room/$roomId/")({
     component: RouteComponent,

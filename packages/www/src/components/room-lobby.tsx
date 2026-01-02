@@ -1,11 +1,14 @@
-import { Show, For, Component, createSignal, createEffect } from "solid-js";
+import {
+    Show,
+    For,
+    Component,
+    createSignal,
+    createEffect,
+    onMount,
+} from "solid-js";
+import { Player } from "~/game";
 
-interface Player {
-    id: string;
-    name: string;
-}
-
-interface RoomLobbyProps {
+export const RoomLobby: Component<{
     roomId: string;
     playerId: string | null;
     name: string;
@@ -16,11 +19,13 @@ interface RoomLobbyProps {
     onJoin: (name: string) => void;
     onLeave: () => void;
     onStart: () => void;
-}
-
-export const RoomLobby: Component<RoomLobbyProps> = (props) => {
+}> = (props) => {
     const [isEditing, setIsEditing] = createSignal(false);
     let inputRef: HTMLInputElement | undefined;
+
+    onMount(() => {
+        if (!props.isJoined) setIsEditing(true);
+    });
 
     createEffect(() => {
         if (isEditing()) {
@@ -66,9 +71,10 @@ export const RoomLobby: Component<RoomLobbyProps> = (props) => {
                         when={props.isJoined}
                         fallback={
                             <button
-                                onClick={() =>
-                                    props.name && props.onJoin(props.name)
-                                }
+                                onClick={() => {
+                                    setIsEditing(false);
+                                    props.name && props.onJoin(props.name);
+                                }}
                                 disabled={!props.name}
                                 class="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
                             >
@@ -102,7 +108,10 @@ export const RoomLobby: Component<RoomLobbyProps> = (props) => {
                         when={!props.isJoined}
                         fallback={
                             <button
-                                onClick={props.onLeave}
+                                onClick={() => {
+                                    props.onLeave();
+                                    setIsEditing(true);
+                                }}
                                 class="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600"
                             >
                                 Leave

@@ -32,8 +32,10 @@ export class GameRoom extends DurableObject {
 
         const send = (msg: string) => serverWs.send(msg);
 
-        const players = await server().getPlayers(this.ctx);
-        const hostId = await server().getHostId(this.ctx);
+        const serverInstance = server(this.ctx);
+
+        const players = await serverInstance.getPlayers();
+        const hostId = await serverInstance.getHostId();
 
         send(
             JSON.stringify({
@@ -52,14 +54,13 @@ export class GameRoom extends DurableObject {
     }
 
     async webSocketMessage(ws: WebSocket, message: string) {
-        const send = (msg: string) => ws.send(msg);
         const broadcast = (msg: string) => {
             this.sessions.forEach((_, connectedWs) => {
                 connectedWs.send(msg);
             });
         };
 
-        await server().processMessage(message, send, broadcast, this.ctx);
+        await server(this.ctx).processMessage(message, broadcast);
     }
 
     async webSocketClose(

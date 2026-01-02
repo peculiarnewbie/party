@@ -116,6 +116,7 @@
 - [ ] check if tanstack start have cookie helper. currently we're doing weird parsing and it's not http only. idk if it's necessary to be http only though
 - [ ] review how the user id refresh. probably fine right now unless we add user logins
 - [ ] gotta update agents.md about how i'd like it to use typescript. it's not using it enough at all
+- [ ] i think adding online states of the players might be trivial, implement if it is
 
 ---
 
