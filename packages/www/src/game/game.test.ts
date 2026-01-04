@@ -12,8 +12,7 @@ describe("Game Logic", () => {
             } as any;
 
             const { server } = await import("~/game");
-            const result = await server().addPlayer(
-                mockCtx,
+            const result = await server(mockCtx).addPlayer(
                 "player-123",
                 "Alice",
             );
@@ -39,8 +38,7 @@ describe("Game Logic", () => {
             } as any;
 
             const { server } = await import("~/game");
-            const result = await server().addPlayer(
-                mockCtx,
+            const result = await server(mockCtx).addPlayer(
                 "player-123",
                 "Alice Updated",
             );
@@ -63,11 +61,7 @@ describe("Game Logic", () => {
             } as any;
 
             const { server } = await import("~/game");
-            const result = await server().addPlayer(
-                mockCtx,
-                "player-456",
-                "Bob",
-            );
+            const result = await server(mockCtx).addPlayer("player-456", "Bob");
 
             expect(result).toHaveLength(2);
             expect(result[0].name).toBe("Alice");
@@ -88,7 +82,7 @@ describe("Game Logic", () => {
             } as any;
 
             const { server } = await import("~/game");
-            const result = await server().removePlayer(mockCtx, "player-123");
+            const result = await server(mockCtx).removePlayer("player-123");
 
             expect(result).toHaveLength(1);
             expect(result[0].id).toBe("player-456");
@@ -106,7 +100,7 @@ describe("Game Logic", () => {
             } as any;
 
             const { server } = await import("~/game");
-            const hostId = await server().getOrSetHost(mockCtx, "player-123");
+            const hostId = await server(mockCtx).getOrSetHost("player-123");
 
             expect(hostId).toBe("player-123");
         });
@@ -121,7 +115,7 @@ describe("Game Logic", () => {
             } as any;
 
             const { server } = await import("~/game");
-            const hostId = await server().getOrSetHost(mockCtx, "player-456");
+            const hostId = await server(mockCtx).getOrSetHost("player-456");
 
             expect(hostId).toBe("player-123");
         });

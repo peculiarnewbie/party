@@ -15,6 +15,7 @@ type RoomType = (typeof roomType)[number];
 
 const playersStorage = "players";
 const hostIdStorage = "hostId";
+const answersStorage = "answers";
 
 export interface Player {
     id: string;
@@ -37,6 +38,7 @@ export const serverMessageSchema = z.object({
         "host_assigned",
         "room_state",
         "game_started",
+        "player_answered",
     ]),
     data: z.record(z.string(), z.unknown()),
 });
@@ -79,6 +81,20 @@ export const server = (ctx: DurableObjectState) => ({
 
     getHostId: async () => {
         return (await ctx.storage.get(hostIdStorage)) as string | undefined;
+    },
+
+    saveAnswer: async (playerId: string, answer: string) => {
+        const answers: Record<string, string> =
+            (await ctx.storage.get(answersStorage)) || {};
+        answers[playerId] = answer;
+        await ctx.storage.put(answersStorage, answers);
+        return answers;
+    },
+
+    getAnswers: async () => {
+        return (await ctx.storage.get(answersStorage)) as
+            | Record<string, string>
+            | undefined;
     },
 
     processMessage: async (
@@ -128,6 +144,18 @@ export const server = (ctx: DurableObjectState) => ({
             broadcast(
                 JSON.stringify({
                     type: "game_started",
+                    data: { gameType: "quiz" },
+                } as ServerMessage),
+            );
+        } else if (type === "answer") {
+            const answer = parsed.data.answer as string;
+            await server(ctx).saveAnswer(playerId, answer);
+            const players = await server(ctx).getPlayers();
+            const answers = await server(ctx).getAnswers();
+            broadcast(
+                JSON.stringify({
+                    type: "player_answered",
+                    data: { players, answers },
                 } as ServerMessage),
             );
         }

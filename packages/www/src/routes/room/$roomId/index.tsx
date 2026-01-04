@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createSignal, onMount, Show } from "solid-js";
+import { createSignal, onMount, Switch, Match } from "solid-js";
 import { nanoid } from "nanoid";
 import { RoomLobby } from "~/components/room-lobby";
+import { SampleQuizRoom } from "~/components/sample-quiz-room";
 import { MessageType, Player, serverMessageSchema } from "~/game";
 import z from "zod";
 
@@ -64,10 +65,18 @@ function RouteComponent() {
         ws.onmessage = (e) => {
             const json = JSON.parse(e.data);
             const parseRes = z.safeParse(serverMessageSchema, json);
+            console.log(parseRes);
 
-            if (!parseRes.success) return;
+            if (!parseRes.success) {
+                console.log({
+                    message: "failed parsing server message",
+                    parseRes,
+                });
+                return;
+            }
 
             const parsed = parseRes.data;
+            console.log(parsed);
 
             if (parsed.type === "room_state") {
                 const players = parsed.data.players as Player[];
@@ -88,28 +97,38 @@ function RouteComponent() {
                 setIsHost(parsed.data.hostId === playerId());
             }
             if (parsed.type === "game_started") {
+                console.log("play");
                 setGameState("playing");
             }
         };
     });
 
     return (
-        <Show
-            when={gameState() === "lobby"}
-            fallback={<div>Game in progress...</div>}
-        >
-            <RoomLobby
-                roomId={params().roomId}
-                playerId={playerId()}
-                name={name()}
-                setName={setName}
-                players={players()}
-                isHost={isHost()}
-                isJoined={isJoined()}
-                onJoin={join}
-                onLeave={leave}
-                onStart={startGame}
-            />
-        </Show>
+        <Switch>
+            <Match when={gameState() === "lobby"}>
+                <RoomLobby
+                    roomId={params().roomId}
+                    playerId={playerId()}
+                    name={name()}
+                    setName={setName}
+                    players={players()}
+                    isHost={isHost()}
+                    isJoined={isJoined()}
+                    onJoin={join}
+                    onLeave={leave}
+                    onStart={startGame}
+                />
+            </Match>
+            <Match when={gameState() === "playing"}>
+                <SampleQuizRoom
+                    roomId={params().roomId}
+                    playerId={playerId()}
+                    isHost={isHost()}
+                />
+            </Match>
+            <Match when={gameState() === "ended"}>
+                <div>Game ended</div>
+            </Match>
+        </Switch>
     );
 }
