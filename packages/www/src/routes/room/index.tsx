@@ -54,8 +54,8 @@ function RouteComponent() {
                 </button>
             </form>
             <div class="mt-8 text-gray-500">
-                <Link to="/home" class="hover:underline">
-                    Demo Home
+                <Link to="/" class="hover:underline">
+                    Home
                 </Link>
             </div>
         </div>

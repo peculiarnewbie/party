@@ -4,6 +4,28 @@ This document provides guidelines for agentic coding agents operating in this re
 
 ## Project Overview
 
+This is a casual multiplayer party game app built with TanStack Solid Start and deployed on Cloudflare Workers.
+
+### App Goals
+
+- A fun, casual gaming platform for groups — think word games, poker, rock paper scissors, trivia (Kahoot-style), and similar party games
+- Support a wide range of player counts: from 2-player games (e.g. chess, RPS) up to large-group games with hundreds of players (e.g. trivia, polls)
+- Frictionless onboarding: players join anonymously by default — no account required, just pick a display name when invited
+- Sharing and inviting should be as simple as sending a link
+
+### Player Model
+
+- **Host**: creates a room, selects the game, controls game flow
+- **Guest**: joins via invite link, enters a display name, no account needed
+- Optionally support persistent accounts in the future, but anonymous play is the default and must always work
+
+### Game Design Principles
+
+- Each game defines its own min/max player count
+- Games should be self-contained modules under `src/game/`
+- Real-time state sync is handled via Cloudflare Durable Objects + WebSockets (see `src/worker/`)
+- Keep game logic pure and testable (separate from UI and transport)
+
 This is a TanStack Solid Start application with Cloudflare Workers deployment. It uses TypeScript, Tailwind CSS, and Vite.
 
 ## Build Commands

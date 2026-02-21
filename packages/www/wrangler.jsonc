@@ -27,6 +27,12 @@
             },
         ],
     },
+  "routes": [
+    {
+      "pattern": "party.peculiarnewbie.com",
+      "custom_domain": true,
+    },
+  ],
     "migrations": [
         {
             "tag": "v1",
