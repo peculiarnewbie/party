@@ -1,21 +1,12 @@
 import { describe, it, expect } from "bun:test";
+import { server, messageTypes } from "~/game";
+import type { GameState } from "~/game";
 
 describe("Game Logic", () => {
     describe("Player Management", () => {
-        it("adds a new player to empty room", async () => {
-            const mockStorage = new Map();
-            const mockCtx = {
-                storage: {
-                    get: mockResolvedValue(undefined),
-                    put: mockResolvedValue(undefined),
-                },
-            } as any;
-
-            const { server } = await import("~/game");
-            const result = await server(mockCtx).addPlayer(
-                "player-123",
-                "Alice",
-            );
+        it("adds a new player to empty room", () => {
+            const state: GameState = { players: [], hostId: null, answers: {} };
+            const result = server(state).addPlayer("player-123", "Alice");
 
             expect(result).toHaveLength(1);
             expect(result[0]).toEqual({
@@ -25,20 +16,13 @@ describe("Game Logic", () => {
             });
         });
 
-        it("updates existing player name on reconnect", async () => {
-            const existingPlayers = [
-                { id: "player-123", name: "Alice", score: 10 },
-            ];
-            const mockStorage = new Map([["players", existingPlayers]]);
-            const mockCtx = {
-                storage: {
-                    get: (key: string) => mockStorage.get(key),
-                    put: mockResolvedValue(undefined),
-                },
-            } as any;
-
-            const { server } = await import("~/game");
-            const result = await server(mockCtx).addPlayer(
+        it("updates existing player name on reconnect", () => {
+            const state: GameState = {
+                players: [{ id: "player-123", name: "Alice", score: 10 }],
+                hostId: null,
+                answers: {},
+            };
+            const result = server(state).addPlayer(
                 "player-123",
                 "Alice Updated",
             );
@@ -48,41 +32,29 @@ describe("Game Logic", () => {
             expect(result[0].score).toBe(10);
         });
 
-        it("adds new player alongside existing ones", async () => {
-            const existingPlayers = [
-                { id: "player-123", name: "Alice", score: 0 },
-            ];
-            const mockStorage = new Map([["players", existingPlayers]]);
-            const mockCtx = {
-                storage: {
-                    get: (key: string) => mockStorage.get(key),
-                    put: mockResolvedValue(undefined),
-                },
-            } as any;
-
-            const { server } = await import("~/game");
-            const result = await server(mockCtx).addPlayer("player-456", "Bob");
+        it("adds new player alongside existing ones", () => {
+            const state: GameState = {
+                players: [{ id: "player-123", name: "Alice", score: 0 }],
+                hostId: null,
+                answers: {},
+            };
+            const result = server(state).addPlayer("player-456", "Bob");
 
             expect(result).toHaveLength(2);
             expect(result[0].name).toBe("Alice");
             expect(result[1].name).toBe("Bob");
         });
 
-        it("removes player from room", async () => {
-            const existingPlayers = [
-                { id: "player-123", name: "Alice", score: 0 },
-                { id: "player-456", name: "Bob", score: 0 },
-            ];
-            const mockStorage = new Map([["players", existingPlayers]]);
-            const mockCtx = {
-                storage: {
-                    get: (key: string) => mockStorage.get(key),
-                    put: mockResolvedValue(undefined),
-                },
-            } as any;
-
-            const { server } = await import("~/game");
-            const result = await server(mockCtx).removePlayer("player-123");
+        it("removes player from room", () => {
+            const state: GameState = {
+                players: [
+                    { id: "player-123", name: "Alice", score: 0 },
+                    { id: "player-456", name: "Bob", score: 0 },
+                ],
+                hostId: null,
+                answers: {},
+            };
+            const result = server(state).removePlayer("player-123");
 
             expect(result).toHaveLength(1);
             expect(result[0].id).toBe("player-456");
@@ -90,46 +62,33 @@ describe("Game Logic", () => {
     });
 
     describe("Host Assignment", () => {
-        it("assigns first player as host", async () => {
-            const mockStorage = new Map();
-            const mockCtx = {
-                storage: {
-                    get: mockResolvedValue(undefined),
-                    put: mockResolvedValue(undefined),
-                },
-            } as any;
-
-            const { server } = await import("~/game");
-            const hostId = await server(mockCtx).getOrSetHost("player-123");
+        it("assigns first player as host", () => {
+            const state: GameState = { players: [], hostId: null, answers: {} };
+            const hostId = server(state).getOrSetHost("player-123");
 
             expect(hostId).toBe("player-123");
         });
 
-        it("returns existing host on subsequent calls", async () => {
-            const mockStorage = new Map([["hostId", "player-123"]]);
-            const mockCtx = {
-                storage: {
-                    get: (key: string) => mockStorage.get(key),
-                    put: mockResolvedValue(undefined),
-                },
-            } as any;
-
-            const { server } = await import("~/game");
-            const hostId = await server(mockCtx).getOrSetHost("player-456");
+        it("returns existing host on subsequent calls", () => {
+            const state: GameState = {
+                players: [],
+                hostId: "player-123",
+                answers: {},
+            };
+            const hostId = server(state).getOrSetHost("player-456");
 
             expect(hostId).toBe("player-123");
         });
     });
 
     describe("Message Types", () => {
-        it("contains all expected message types", async () => {
-            const gameModule = await import("~/game");
-            expect(gameModule.messageTypes).toContain("join");
-            expect(gameModule.messageTypes).toContain("leave");
-            expect(gameModule.messageTypes).toContain("start");
-            expect(gameModule.messageTypes).toContain("end");
-            expect(gameModule.messageTypes).toContain("info");
-            expect(gameModule.messageTypes).toContain("answer");
+        it("contains all expected message types", () => {
+            expect(messageTypes).toContain("join");
+            expect(messageTypes).toContain("leave");
+            expect(messageTypes).toContain("start");
+            expect(messageTypes).toContain("end");
+            expect(messageTypes).toContain("info");
+            expect(messageTypes).toContain("answer");
         });
     });
 });
@@ -177,7 +136,3 @@ describe("Quiz Questions Schema", () => {
         ).toThrow();
     });
 });
-
-function mockResolvedValue(value: unknown) {
-    return () => Promise.resolve(value);
-}
