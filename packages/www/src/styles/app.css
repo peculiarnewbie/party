@@ -1,4 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
+
+@theme {
+  --font-bebas: 'Bebas Neue', sans-serif;
+  --font-karla: Karla, sans-serif;
+}
+
+@keyframes bob1 {
+  0%, 100% { transform: translateY(0) rotate(8deg); }
+  50%       { transform: translateY(-12px) rotate(8deg); }
+}
+@keyframes bob2 {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50%       { transform: translateY(-10px) rotate(-6deg); }
+}
+@keyframes bob3 {
+  0%, 100% { transform: translateY(0) rotate(14deg); }
+  50%       { transform: translateY(-8px) rotate(14deg); }
+}
 
 @layer base {
   *,
