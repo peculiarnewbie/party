@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoomIndexRouteImport } from './routes/room/index'
+import { Route as DevAssetRouteImport } from './routes/dev/asset'
 import { Route as ApiUsersRouteImport } from './routes/api/users'
 import { Route as RoomRoomIdIndexRouteImport } from './routes/room/$roomId/index'
 import { Route as ApiUsersUserIdRouteImport } from './routes/api/users.$userId'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 const RoomIndexRoute = RoomIndexRouteImport.update({
   id: '/room/',
   path: '/room/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevAssetRoute = DevAssetRouteImport.update({
+  id: '/dev/asset',
+  path: '/dev/asset',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiUsersRoute = ApiUsersRouteImport.update({
@@ -50,6 +56,7 @@ const ApiRoomRoomIdRoute = ApiRoomRoomIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/users': typeof ApiUsersRouteWithChildren
+  '/dev/asset': typeof DevAssetRoute
   '/room': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/users': typeof ApiUsersRouteWithChildren
+  '/dev/asset': typeof DevAssetRoute
   '/room': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/users': typeof ApiUsersRouteWithChildren
+  '/dev/asset': typeof DevAssetRoute
   '/room/': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/api/users'
+    | '/dev/asset'
     | '/room'
     | '/api/room/$roomId'
     | '/api/users/$userId'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/api/users'
+    | '/dev/asset'
     | '/room'
     | '/api/room/$roomId'
     | '/api/users/$userId'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/api/users'
+    | '/dev/asset'
     | '/room/'
     | '/api/room/$roomId'
     | '/api/users/$userId'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiUsersRoute: typeof ApiUsersRouteWithChildren
+  DevAssetRoute: typeof DevAssetRoute
   RoomIndexRoute: typeof RoomIndexRoute
   ApiRoomRoomIdRoute: typeof ApiRoomRoomIdRoute
   RoomRoomIdIndexRoute: typeof RoomRoomIdIndexRoute
@@ -121,6 +134,13 @@ declare module '@tanstack/solid-router' {
       path: '/room'
       fullPath: '/room'
       preLoaderRoute: typeof RoomIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dev/asset': {
+      id: '/dev/asset'
+      path: '/dev/asset'
+      fullPath: '/dev/asset'
+      preLoaderRoute: typeof DevAssetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/users': {
@@ -169,6 +189,7 @@ const ApiUsersRouteWithChildren = ApiUsersRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiUsersRoute: ApiUsersRouteWithChildren,
+  DevAssetRoute: DevAssetRoute,
   RoomIndexRoute: RoomIndexRoute,
   ApiRoomRoomIdRoute: ApiRoomRoomIdRoute,
   RoomRoomIdIndexRoute: RoomRoomIdIndexRoute,
