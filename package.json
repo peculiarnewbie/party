@@ -1,15 +1,19 @@
 {
-    "name": "al-audi",
+    "name": "party",
     "type": "module",
     "private": true,
     "workspaces": [
         "packages/*"
     ],
+    "scripts": {
+        "deploy": "pnpm --filter www run deploy"
+    },
     "devDependencies": {
         "@types/bun": "latest",
         "prettier": "^3.7.4"
     },
     "peerDependencies": {
         "typescript": "^5"
-    }
+    },
+    "packageManager": "pnpm@10.33.0"
 }

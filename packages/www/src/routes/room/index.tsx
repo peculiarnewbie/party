@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
-import { createServerFn } from "@tanstack/solid-start";
 import { createSignal, onMount } from "solid-js";
+import { normalizeRoomId } from "~/utils/room-id";
 
 export const Route = createFileRoute("/room/")({
     component: RouteComponent,
@@ -16,18 +16,13 @@ function RouteComponent() {
         };
     });
 
-    const connect = (name: string) => {
-        ws.send(JSON.stringify({ user: name, data: { message: "hello" } }));
-    };
-
-    const [name, setName] = createSignal("");
-
     const [roomId, setRoomId] = createSignal("");
 
     const joinRoom = (e: Event) => {
         e.preventDefault();
-        if (roomId()) {
-            window.location.href = `/room/${roomId()}`;
+        const nextRoomId = normalizeRoomId(roomId());
+        if (nextRoomId) {
+            window.location.href = `/room/${nextRoomId}`;
         }
     };
 
@@ -42,7 +37,7 @@ function RouteComponent() {
                     type="text"
                     placeholder="Enter room name"
                     value={roomId()}
-                    onInput={(e) => setRoomId(e.currentTarget.value)}
+                    onInput={(e) => setRoomId(normalizeRoomId(e.currentTarget.value))}
                     class="px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
                 />
                 <button

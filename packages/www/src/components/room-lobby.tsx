@@ -6,7 +6,7 @@ import {
     createEffect,
     onMount,
 } from "solid-js";
-import { Player } from "~/game";
+import { GAME_RULES, getGameStartValidation, type GameType, type Player } from "~/game";
 
 export const RoomLobby: Component<{
     roomId: string;
@@ -16,12 +16,21 @@ export const RoomLobby: Component<{
     players: Player[];
     isHost: boolean;
     isJoined: boolean;
+    selectedGameType: GameType;
     onJoin: (name: string) => void;
     onLeave: () => void;
     onStart: () => void;
+    onSelectGame: (gameType: GameType) => void;
 }> = (props) => {
     const [isEditing, setIsEditing] = createSignal(false);
     let inputRef: HTMLInputElement | undefined;
+
+    const startValidation = () =>
+        getGameStartValidation(props.selectedGameType, props.players.length);
+    const gameOptions = Object.entries(GAME_RULES) as [
+        GameType,
+        (typeof GAME_RULES)[GameType],
+    ][];
 
     onMount(() => {
         if (!props.isJoined) setIsEditing(true);
@@ -160,6 +169,60 @@ export const RoomLobby: Component<{
                     </div>
                 </div>
 
+                <div class="mb-8">
+                    <div class="flex items-baseline gap-3 mb-3">
+                        <span class="font-bebas text-[.7rem] tracking-[.28em] text-[#9a9080]">
+                            GAME SELECT
+                        </span>
+                        <Show when={!props.isHost}>
+                            <span class="font-bebas text-[.7rem] tracking-[.18em] text-[#1a3a6e]">
+                                HOST DECIDES
+                            </span>
+                        </Show>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 xl:grid-cols-4 max-sm:grid-cols-1">
+                        <For each={gameOptions}>
+                            {([gameType, config]) => {
+                                const isSelected = () =>
+                                    props.selectedGameType === gameType;
+                                const maxLabel =
+                                    config.maxPlayers === null
+                                        ? "2+ PLAYERS"
+                                        : `${config.minPlayers}-${config.maxPlayers} PLAYERS`;
+
+                                return (
+                                    <button
+                                        type="button"
+                                        disabled={!props.isHost}
+                                        onClick={() => props.onSelectGame(gameType)}
+                                        class={`text-left border-2 px-4 py-4 transition-all duration-[120ms] ${
+                                            isSelected()
+                                                ? "border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] shadow-[4px_4px_0_#1a1a1a]"
+                                                : "border-[#b8ae9e] bg-[#c9c0b0] text-[#1a1a1a]"
+                                        } ${props.isHost ? "cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5" : "cursor-default opacity-90"}`}
+                                    >
+                                        <div class="font-bebas text-[1.1rem] tracking-[.09em]">
+                                            {config.label}
+                                        </div>
+                                        <div
+                                            class={`font-bebas text-[.68rem] tracking-[.18em] mt-1 ${
+                                                isSelected()
+                                                    ? "text-[#ddd5c4]/70"
+                                                    : "text-[#5a5040]"
+                                            }`}
+                                        >
+                                            {maxLabel}
+                                        </div>
+                                    </button>
+                                );
+                            }}
+                        </For>
+                    </div>
+                    <div class="mt-3 font-bebas text-[.75rem] tracking-[.18em] text-[#9a9080]">
+                        SELECTED: {GAME_RULES[props.selectedGameType].label.toUpperCase()}
+                    </div>
+                </div>
+
                 {/* Actions */}
                 <div class="flex gap-3 flex-wrap">
                     <Show
@@ -186,17 +249,17 @@ export const RoomLobby: Component<{
                     <Show when={props.isHost}>
                         <button
                             onClick={props.onStart}
-                            disabled={props.players.length < 2}
+                            disabled={!startValidation().canStart}
                             class="flex-1 font-bebas text-[1.25rem] tracking-[.12em] bg-[#1a1a1a] text-[#ddd5c4] border-2 border-[#1a1a1a] py-[.85rem] cursor-pointer shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] disabled:opacity-40 disabled:cursor-default disabled:shadow-none enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[5px_5px_0_#9a9080]"
                         >
-                            + Start Game
+                            + Start {GAME_RULES[props.selectedGameType].label}
                         </button>
                     </Show>
                 </div>
 
-                <Show when={props.isHost && props.players.length < 2}>
+                <Show when={props.isHost && !startValidation().canStart}>
                     <div class="mt-3 font-bebas text-[.75rem] tracking-[.18em] text-[#b8ae9e]">
-                        NEED AT LEAST 2 PLAYERS TO START
+                        {startValidation().reason?.toUpperCase()}
                     </div>
                 </Show>
             </div>

@@ -1,10 +1,19 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { createSignal, onMount, Switch, Match } from "solid-js";
 import { nanoid } from "nanoid";
+import z from "zod";
 import { RoomLobby } from "~/components/room-lobby";
 import { SampleQuizRoom } from "~/components/sample-quiz-room";
-import { MessageType, Player, serverMessageSchema } from "~/game";
-import z from "zod";
+import { GoFishRoom } from "~/components/go-fish/go-fish-room";
+import { PokerRoom } from "~/components/poker/poker-room";
+import {
+    type GameType,
+    type MessageType,
+    type Player,
+    isPokerGameType,
+    serverMessageSchema,
+} from "~/game";
+import { normalizeRoomId } from "~/utils/room-id";
 
 export const Route = createFileRoute("/room/$roomId/")({
     component: RouteComponent,
@@ -12,15 +21,20 @@ export const Route = createFileRoute("/room/$roomId/")({
 
 function RouteComponent() {
     const params = Route.useParams();
+    const roomId = () => normalizeRoomId(params().roomId);
     let ws: WebSocket;
 
     const [playerId, setPlayerId] = createSignal<string | null>(null);
     const [name, setName] = createSignal("");
     const [players, setPlayers] = createSignal<Player[]>([]);
     const [isHost, setIsHost] = createSignal(false);
-    const [gameState, setGameState] = createSignal<
-        "lobby" | "playing" | "ended"
-    >("lobby");
+    const [roomPhase, setRoomPhase] = createSignal<"lobby" | "playing">(
+        "lobby",
+    );
+    const [selectedGameType, setSelectedGameType] =
+        createSignal<GameType>("quiz");
+    const [activeGameType, setActiveGameType] =
+        createSignal<GameType | null>(null);
 
     const refreshPlayerId = () => {
         const match = document.cookie.match(/playerId=([^;]+)/);
@@ -32,7 +46,7 @@ function RouteComponent() {
 
     const send = (
         type: MessageType,
-        name?: string,
+        nextName?: string,
         data?: Record<string, unknown>,
     ) => {
         const pid = playerId();
@@ -40,94 +54,152 @@ function RouteComponent() {
         ws.send(
             JSON.stringify({
                 playerId: pid,
-                playerName: name || "",
+                playerName: nextName ?? name(),
                 type,
                 data: data ?? {},
             }),
         );
     };
 
-    const join = (name: string) => send("join", name);
+    const join = (nextName: string) => send("join", nextName);
     const leave = () => send("leave");
+    const selectGame = (gameType: GameType) =>
+        send("select_game", undefined, { gameType });
     const startGame = () => send("start");
+    const endGame = () => send("end");
+    const returnToLobby = () => send("return_to_lobby");
 
-    const isJoined = () => players().some((p) => p.id === playerId());
+    const isJoined = () => players().some((player) => player.id === playerId());
+    const getWs = () => ws;
+    const isActivePokerGame = () => isPokerGameType(activeGameType());
 
     onMount(() => {
+        if (roomId() !== params().roomId) {
+            window.location.replace(`/room/${roomId()}`);
+            return;
+        }
+
         const pid = refreshPlayerId();
         setPlayerId(pid);
 
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const host = window.location.host;
-        const wsUrl = `${protocol}//${host}/api/room/${params().roomId}`;
+        const wsUrl = `${protocol}//${host}/api/room/${roomId()}`;
 
         ws = new WebSocket(wsUrl);
         ws.onmessage = (e) => {
             const json = JSON.parse(e.data);
-            const parseRes = z.safeParse(serverMessageSchema, json);
-            console.log(parseRes);
 
+            if (
+                typeof json.type === "string" &&
+                (json.type.startsWith("go_fish:") ||
+                    json.type.startsWith("poker:"))
+            ) {
+                return;
+            }
+
+            const parseRes = z.safeParse(serverMessageSchema, json);
             if (!parseRes.success) {
-                console.log({
-                    message: "failed parsing server message",
-                    parseRes,
-                });
                 return;
             }
 
             const parsed = parseRes.data;
-            console.log(parsed);
 
             if (parsed.type === "room_state") {
-                const players = parsed.data.players as Player[];
-                setPlayers(players);
-                setIsHost(parsed.data.hostId === playerId());
-                const currentPlayer = players.find(
-                    (p: Player) => p.id === playerId(),
+                const nextPlayers = parsed.data.players as Player[];
+                const hostId = parsed.data.hostId as string | null;
+                const phase = parsed.data.phase as "lobby" | "playing";
+                const nextSelectedGameType = parsed.data
+                    .selectedGameType as GameType;
+                const nextActiveGameType = parsed.data
+                    .activeGameType as GameType | null;
+
+                setPlayers(nextPlayers);
+                setIsHost(hostId === playerId());
+                setRoomPhase(phase);
+                setSelectedGameType(nextSelectedGameType);
+                setActiveGameType(nextActiveGameType);
+
+                const currentPlayer = nextPlayers.find(
+                    (player) => player.id === playerId(),
                 );
                 if (currentPlayer) {
                     setName(currentPlayer.name);
                 }
             }
+
             if (parsed.type === "player_list") {
-                const players = parsed.data.players as Player[];
-                setPlayers(players);
+                setPlayers(parsed.data.players as Player[]);
             }
+
             if (parsed.type === "host_assigned") {
                 setIsHost(parsed.data.hostId === playerId());
             }
+
+            if (parsed.type === "game_selected") {
+                setSelectedGameType(parsed.data.gameType as GameType);
+            }
+
             if (parsed.type === "game_started") {
-                console.log("play");
-                setGameState("playing");
+                setActiveGameType(parsed.data.gameType as GameType);
+                setRoomPhase("playing");
+            }
+
+            if (parsed.type === "game_ended") {
+                setActiveGameType(parsed.data.gameType as GameType);
+                setRoomPhase("playing");
             }
         };
     });
 
     return (
         <Switch>
-            <Match when={gameState() === "lobby"}>
+            <Match when={roomPhase() === "lobby"}>
                 <RoomLobby
-                    roomId={params().roomId}
+                    roomId={roomId()}
                     playerId={playerId()}
                     name={name()}
                     setName={setName}
                     players={players()}
                     isHost={isHost()}
                     isJoined={isJoined()}
+                    selectedGameType={selectedGameType()}
                     onJoin={join}
                     onLeave={leave}
+                    onSelectGame={selectGame}
                     onStart={startGame}
                 />
             </Match>
-            <Match when={gameState() === "playing"}>
-                <SampleQuizRoom
-                    roomId={params().roomId}
+            <Match when={roomPhase() === "playing" && activeGameType() === "go_fish"}>
+                <GoFishRoom
+                    roomId={roomId()}
                     playerId={playerId()}
                     isHost={isHost()}
+                    ws={getWs()}
                 />
             </Match>
-            <Match when={gameState() === "ended"}>
-                <div>Game ended</div>
+            <Match when={roomPhase() === "playing" && isActivePokerGame()}>
+                <PokerRoom
+                    roomId={roomId()}
+                    playerId={playerId()}
+                    isHost={isHost()}
+                    ws={getWs()}
+                    title={
+                        activeGameType() === "backwards_poker"
+                            ? "Backwards Poker"
+                            : "Texas Hold'em"
+                    }
+                    onEndGame={endGame}
+                    onReturnToLobby={returnToLobby}
+                />
+            </Match>
+            <Match when={roomPhase() === "playing" && activeGameType() === "quiz"}>
+                <SampleQuizRoom
+                    roomId={roomId()}
+                    playerId={playerId()}
+                    isHost={isHost()}
+                    ws={getWs()}
+                />
             </Match>
         </Switch>
     );

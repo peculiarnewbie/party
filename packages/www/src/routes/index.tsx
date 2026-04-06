@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { createSignal, For } from "solid-js";
-import { nanoid } from "nanoid";
 import { SvgDice } from "~/assets/svg-dice";
 import { SvgPawn } from "~/assets/svg-pawn";
 import { SvgCard } from "~/assets/svg-card";
@@ -9,6 +8,7 @@ import { SvgStar } from "~/assets/svg-star";
 import { SvgBrain } from "~/assets/svg-brain";
 import { SvgLetterA } from "~/assets/svg-letter-a";
 import { SvgTimer } from "~/assets/svg-timer";
+import { createRoomId, normalizeRoomId } from "~/utils/room-id";
 
 export const Route = createFileRoute("/")({
     component: Index,
@@ -41,12 +41,12 @@ function Index() {
 
     const join = (e: Event) => {
         e.preventDefault();
-        if (roomCode().trim())
-            window.location.href = `/room/${roomCode().trim()}`;
+        const roomId = normalizeRoomId(roomCode());
+        if (roomId) window.location.href = `/room/${roomId}`;
     };
 
     const create = () => {
-        window.location.href = `/room/${nanoid(6)}`;
+        window.location.href = `/room/${createRoomId()}`;
     };
 
     return (
@@ -74,9 +74,7 @@ function Index() {
                             class="flex-1 min-w-0 bg-[#c9c0b0] border-2 border-[#b8ae9e] px-4 py-[.85rem] font-bebas text-[1.25rem] tracking-[.1em] text-[#1a1a1a] outline-none transition-[border-color] duration-150 focus:border-[#1a1a1a] placeholder:text-[#9a9080]"
                             placeholder="ROOM CODE"
                             value={roomCode()}
-                            onInput={(e) =>
-                                setRoomCode(e.currentTarget.value)
-                            }
+                            onInput={(e) => setRoomCode(normalizeRoomId(e.currentTarget.value))}
                             autocomplete="off"
                             spellcheck={false}
                         />

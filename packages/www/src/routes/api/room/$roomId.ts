@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { json } from "@tanstack/solid-start";
 import { env } from "cloudflare:workers";
+import { normalizeRoomId } from "~/utils/room-id";
 
 export const Route = createFileRoute("/api/room/$roomId")({
     server: {
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/room/$roomId")({
                         status: 426,
                     });
                 }
-                const stub = env.WS.getByName(params.roomId);
+                const stub = env.WS.getByName(normalizeRoomId(params.roomId));
                 return await stub.fetch(request);
             },
         },

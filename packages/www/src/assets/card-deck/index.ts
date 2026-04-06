@@ -1,3 +1,12 @@
 export { SvgSpade, SpadeSymbol, SPADE_PATH } from "./suit-spade";
+export { SvgHeart, HeartSymbol, HEART_PATH } from "./suit-heart";
+export { SvgDiamond, DiamondSymbol, DIAMOND_PATH } from "./suit-diamond";
+export { SvgClub, ClubSymbol, CLUB_PATH } from "./suit-club";
 export { SpadeCard } from "./spade-card";
+export { PlayingCard } from "./playing-card";
+export { CardBack } from "./card-back";
+export { PIPS, PIP_SIZE } from "./pip-layouts";
+export type { Pip } from "./pip-layouts";
+export type { Suit, Rank, Card } from "./types";
+export { SUITS, RANKS, RANK_LABEL, SUIT_COLOR } from "./types";
 export type { SpadeRank } from "./spade-card";

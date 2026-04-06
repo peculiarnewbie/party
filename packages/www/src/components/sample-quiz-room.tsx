@@ -1,4 +1,11 @@
-import { Component, createSignal, onMount, For, Show } from "solid-js";
+import {
+    Component,
+    createSignal,
+    createEffect,
+    onCleanup,
+    For,
+    Show,
+} from "solid-js";
 import { Player } from "~/game";
 
 type PlayerAnswer = {
@@ -58,37 +65,37 @@ export const SampleQuizRoom: Component<{
     roomId: string;
     playerId: string | null;
     isHost: boolean;
+    ws: WebSocket;
 }> = (props) => {
     const [playerAnswer, setPlayerAnswer] = createSignal<string | null>(null);
     const [playerAnswers, setPlayerAnswers] = createSignal<PlayerAnswer[]>([]);
-    let ws: WebSocket;
 
-    onMount(() => {
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const host = window.location.host;
-        const wsUrl = `${protocol}//${host}/api/room/${props.roomId}`;
+    const handleMessage = (e: MessageEvent) => {
+        const json = JSON.parse(e.data);
+        if (json.type === "player_answered") {
+            const players = json.data.players as Player[];
+            const answers = json.data.answers as Record<string, string>;
+            setPlayerAnswers(
+                players
+                    .filter((p: Player) => answers[p.id])
+                    .map((p: Player) => ({
+                        player: p,
+                        answer: answers[p.id],
+                    })),
+            );
+        }
+    };
 
-        ws = new WebSocket(wsUrl);
-        ws.onmessage = (e) => {
-            const json = JSON.parse(e.data);
-            if (json.type === "player_answered") {
-                const players = json.data.players as Player[];
-                const answers = json.data.answers as Record<string, string>;
-                setPlayerAnswers(
-                    players
-                        .filter((p: Player) => answers[p.id])
-                        .map((p: Player) => ({
-                            player: p,
-                            answer: answers[p.id],
-                        })),
-                );
-            }
-        };
+    createEffect(() => {
+        props.ws.addEventListener("message", handleMessage);
+        onCleanup(() => {
+            props.ws.removeEventListener("message", handleMessage);
+        });
     });
 
     const submitAnswer = (answer: string) => {
         setPlayerAnswer(answer);
-        ws.send(
+        props.ws.send(
             JSON.stringify({
                 playerId: props.playerId,
                 playerName: "",
