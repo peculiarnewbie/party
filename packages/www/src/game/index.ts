@@ -1,6 +1,6 @@
 import z from "zod";
 
-export const gameTypes = ["quiz", "go_fish", "poker", "backwards_poker", "blackjack"] as const;
+export const gameTypes = ["quiz", "go_fish", "poker", "backwards_poker", "blackjack", "yahtzee"] as const;
 export type GameType = (typeof gameTypes)[number];
 
 export const GAME_RULES: Record<
@@ -31,6 +31,11 @@ export const GAME_RULES: Record<
         label: "Blackjack",
         minPlayers: 1,
         maxPlayers: 7,
+    },
+    yahtzee: {
+        label: "Yahtzee",
+        minPlayers: 2,
+        maxPlayers: 10,
     },
 };
 

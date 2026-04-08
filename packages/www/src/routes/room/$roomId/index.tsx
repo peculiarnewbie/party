@@ -7,6 +7,7 @@ import { SampleQuizRoom } from "~/components/sample-quiz-room";
 import { GoFishRoom } from "~/components/go-fish/go-fish-room";
 import { PokerRoom } from "~/components/poker/poker-room";
 import { BlackjackRoom } from "~/components/blackjack/blackjack-room";
+import { YahtzeeRoom } from "~/components/yahtzee/yahtzee-room";
 import {
     type GameType,
     type MessageType,
@@ -95,7 +96,8 @@ function RouteComponent() {
                 typeof json.type === "string" &&
                 (json.type.startsWith("go_fish:") ||
                     json.type.startsWith("poker:") ||
-                    json.type.startsWith("blackjack:"))
+                    json.type.startsWith("blackjack:") ||
+                    json.type.startsWith("yahtzee:"))
             ) {
                 return;
             }
@@ -197,6 +199,16 @@ function RouteComponent() {
             </Match>
             <Match when={roomPhase() === "playing" && activeGameType() === "blackjack"}>
                 <BlackjackRoom
+                    roomId={roomId()}
+                    playerId={playerId()}
+                    isHost={isHost()}
+                    ws={getWs()}
+                    onEndGame={endGame}
+                    onReturnToLobby={returnToLobby}
+                />
+            </Match>
+            <Match when={roomPhase() === "playing" && activeGameType() === "yahtzee"}>
+                <YahtzeeRoom
                     roomId={roomId()}
                     playerId={playerId()}
                     isHost={isHost()}

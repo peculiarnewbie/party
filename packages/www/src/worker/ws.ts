@@ -11,6 +11,11 @@ import {
     blackjackServer,
     type BlackjackState,
 } from "~/game/blackjack";
+import {
+    yahtzeeClientMessageSchema,
+    yahtzeeServer,
+    type YahtzeeState,
+} from "~/game/yahtzee";
 
 function getPokerVisibilityMode(gameType: GameState["activeGameType"]) {
     return gameType === "backwards_poker" ? "backwards" : "standard";
@@ -22,6 +27,7 @@ export class GameRoom extends DurableObject {
     goFishState: { current: GoFishState | null };
     pokerState: { current: PokerState | null };
     blackjackState: { current: BlackjackState | null };
+    yahtzeeState: { current: YahtzeeState | null };
     nextHandTimer: ReturnType<typeof setTimeout> | null;
 
     constructor(ctx: DurableObjectState, env: Env) {
@@ -38,6 +44,7 @@ export class GameRoom extends DurableObject {
         this.goFishState = { current: null };
         this.pokerState = { current: null };
         this.blackjackState = { current: null };
+        this.yahtzeeState = { current: null };
         this.nextHandTimer = null;
     }
 
@@ -148,6 +155,20 @@ export class GameRoom extends DurableObject {
                 return;
             }
 
+            if (
+                typeof json.type === "string" &&
+                json.type.startsWith("yahtzee:")
+            ) {
+                const parsed = yahtzeeClientMessageSchema.safeParse(json);
+                if (!parsed.success) return;
+                yahtzeeServer(this.yahtzeeState).processMessage(
+                    parsed.data,
+                    broadcast,
+                    sendTo,
+                );
+                return;
+            }
+
             const wasPoker = isPokerGameType(this.state.activeGameType);
             const currentPokerState = this.pokerState.current;
             const wasSeatedPokerPlayer =
@@ -220,10 +241,24 @@ export class GameRoom extends DurableObject {
                     blackjackServer(this.blackjackState, {
                         scheduleNextRound: scheduleBlackjackNextRound,
                     }).initGame(players, broadcast, sendTo);
+                } else if (processResult.gameType === "yahtzee") {
+                    const players = this.state.players.map((player) => ({
+                        id: player.id,
+                        name: player.name,
+                    }));
+                    this.goFishState.current = null;
+                    this.pokerState.current = null;
+                    this.blackjackState.current = null;
+                    yahtzeeServer(this.yahtzeeState).initGame(
+                        players,
+                        broadcast,
+                        sendTo,
+                    );
                 } else {
                     this.goFishState.current = null;
                     this.pokerState.current = null;
                     this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
                 }
                 return;
             }
@@ -247,6 +282,7 @@ export class GameRoom extends DurableObject {
                 this.goFishState.current = null;
                 this.pokerState.current = null;
                 this.blackjackState.current = null;
+                this.yahtzeeState.current = null;
             }
         });
 
