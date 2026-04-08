@@ -66,17 +66,42 @@ export const CATEGORY_LABELS: Record<ScoringCategory, string> = {
 
 export type Dice = [number, number, number, number, number];
 export type HeldDice = [boolean, boolean, boolean, boolean, boolean];
+export type YahtzeeMode = "standard" | "lying";
 
 export interface YahtzeePlayer {
     id: string;
     name: string;
     scorecard: Partial<Record<ScoringCategory, number>>;
     yahtzeeBonus: number;
+    penaltyPoints: number;
 }
 
-export type YahtzeePhase = "pre_roll" | "mid_turn" | "game_over";
+export interface LyingClaim {
+    playerId: string;
+    category: ScoringCategory;
+    claimedDice: Dice;
+    claimedPoints: number;
+}
+
+export interface LyingTurnReveal {
+    playerId: string;
+    category: ScoringCategory;
+    actualDice: Dice;
+    claimedDice: Dice;
+    claimedPoints: number;
+    outcome: "accepted" | "truthful_challenge" | "caught_lying";
+    penaltyPlayerId: string | null;
+    penaltyPoints: number;
+}
+
+export type YahtzeePhase =
+    | "pre_roll"
+    | "mid_turn"
+    | "awaiting_response"
+    | "game_over";
 
 export interface YahtzeeState {
+    mode: YahtzeeMode;
     players: YahtzeePlayer[];
     currentPlayerIndex: number;
     dice: Dice;
@@ -85,12 +110,22 @@ export interface YahtzeeState {
     phase: YahtzeePhase;
     round: number;
     winners: string[] | null;
+    pendingClaim: LyingClaim | null;
+    lastTurnReveal: LyingTurnReveal | null;
 }
 
 export type YahtzeeAction =
     | { type: "roll"; playerId: string }
     | { type: "toggle_hold"; playerId: string; diceIndex: number }
-    | { type: "score"; playerId: string; category: ScoringCategory };
+    | { type: "score"; playerId: string; category: ScoringCategory }
+    | {
+          type: "claim";
+          playerId: string;
+          category: ScoringCategory;
+          claimedDice: Dice;
+      }
+    | { type: "accept_claim"; playerId: string }
+    | { type: "challenge_claim"; playerId: string };
 
 export type YahtzeeResult =
     | { type: "error"; message: string }
@@ -108,6 +143,20 @@ export type YahtzeeResult =
           points: number;
           yahtzeeBonus: boolean;
       }
+    | {
+          type: "claim_submitted";
+          playerId: string;
+          category: ScoringCategory;
+          claimedDice: Dice;
+          claimedPoints: number;
+      }
+    | ({
+          type: "claim_resolved";
+          playerId: string;
+          category: ScoringCategory;
+          points: number;
+          yahtzeeBonus: boolean;
+      } & LyingTurnReveal)
     | { type: "game_over"; winners: string[]; finalScores: FinalScore[] };
 
 export interface FinalScore {

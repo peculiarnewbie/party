@@ -156,6 +156,7 @@ describe("score totals", () => {
                 chance: 22,
             } as any,
             yahtzeeBonus: 1,
+            penaltyPoints: 0,
         };
         const upper = 3 + 6 + 9 + 16 + 20 + 18;
         const lower = 50 + 22;
@@ -202,6 +203,14 @@ describe("initGame", () => {
         expect(state.phase).toBe("pre_roll");
         expect(state.round).toBe(1);
         expect(state.winners).toBeNull();
+        expect(state.mode).toBe("standard");
+    });
+
+    it("creates lying mode state when requested", () => {
+        const state = initGame(PLAYERS, { mode: "lying" });
+        expect(state.mode).toBe("lying");
+        expect(state.pendingClaim).toBeNull();
+        expect(state.lastTurnReveal).toBeNull();
     });
 });
 
@@ -521,6 +530,103 @@ describe("processAction", () => {
             expect(lastResult!.winners).toHaveLength(2);
         }
     });
+
+    it("accepts a lying yahtzee claim and scores the claimed dice", () => {
+        const state = initGame(PLAYERS, { mode: "lying" });
+
+        processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            fixedRollFn([1, 1, 1, 2, 3]),
+        );
+        const claim = processAction(state, {
+            type: "claim",
+            playerId: "p1",
+            category: "full_house",
+            claimedDice: [2, 2, 3, 3, 3],
+        });
+
+        expect(claim).toEqual({
+            type: "claim_submitted",
+            playerId: "p1",
+            category: "full_house",
+            claimedDice: [2, 2, 3, 3, 3],
+            claimedPoints: 25,
+        });
+
+        const resolution = processAction(state, {
+            type: "accept_claim",
+            playerId: "p2",
+        });
+
+        expect(resolution.type).toBe("claim_resolved");
+        expect(state.players[0].scorecard.full_house).toBe(25);
+        expect(state.players[1].penaltyPoints).toBe(0);
+        expect(state.lastTurnReveal?.actualDice).toEqual([1, 1, 1, 2, 3]);
+        expect(state.lastTurnReveal?.claimedDice).toEqual([2, 2, 3, 3, 3]);
+        expect(state.lastTurnReveal?.outcome).toBe("accepted");
+    });
+
+    it("fills the claimed category with a negative score when a lie is caught", () => {
+        const state = initGame(PLAYERS, { mode: "lying" });
+
+        processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            fixedRollFn([1, 1, 1, 2, 3]),
+        );
+        processAction(state, {
+            type: "claim",
+            playerId: "p1",
+            category: "full_house",
+            claimedDice: [2, 2, 3, 3, 3],
+        });
+
+        const resolution = processAction(state, {
+            type: "challenge_claim",
+            playerId: "p2",
+        });
+
+        expect(resolution.type).toBe("claim_resolved");
+        if (resolution.type === "claim_resolved") {
+            expect(resolution.points).toBe(-25);
+            expect(resolution.outcome).toBe("caught_lying");
+        }
+        expect(state.players[0].scorecard.full_house).toBe(-25);
+        expect(state.players[1].penaltyPoints).toBe(0);
+        expect(getTotalScore(state.players[0])).toBe(-25);
+    });
+
+    it("penalizes the challenger without burning a slot when the claim is truthful", () => {
+        const state = initGame(PLAYERS, { mode: "lying" });
+
+        processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            fixedRollFn([2, 2, 3, 3, 3]),
+        );
+        processAction(state, {
+            type: "claim",
+            playerId: "p1",
+            category: "full_house",
+            claimedDice: [3, 3, 2, 2, 3],
+        });
+
+        const resolution = processAction(state, {
+            type: "challenge_claim",
+            playerId: "p2",
+        });
+
+        expect(resolution.type).toBe("claim_resolved");
+        if (resolution.type === "claim_resolved") {
+            expect(resolution.points).toBe(25);
+            expect(resolution.outcome).toBe("truthful_challenge");
+        }
+        expect(state.players[0].scorecard.full_house).toBe(25);
+        expect(state.players[1].penaltyPoints).toBe(25);
+        expect(state.players[1].scorecard.full_house).toBeUndefined();
+        expect(getTotalScore(state.players[1])).toBe(-25);
+    });
 });
 
 describe("getPlayerView", () => {
@@ -560,6 +666,40 @@ describe("getPlayerView", () => {
         expect(view.potentialScores).toBeNull();
     });
 
+    it("hides active dice from the opponent in lying mode", () => {
+        const state = initGame(PLAYERS, { mode: "lying" });
+        processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            fixedRollFn([3, 3, 4, 4, 5]),
+        );
+
+        const view = getPlayerView(state, "p2");
+        expect(view.dice).toEqual([0, 0, 0, 0, 0]);
+        expect(view.canAcceptClaim).toBe(false);
+    });
+
+    it("shows pending claim and response actions in lying mode", () => {
+        const state = initGame(PLAYERS, { mode: "lying" });
+        processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            fixedRollFn([3, 3, 4, 4, 5]),
+        );
+        processAction(state, {
+            type: "claim",
+            playerId: "p1",
+            category: "chance",
+            claimedDice: [6, 6, 6, 6, 6],
+        });
+
+        const view = getPlayerView(state, "p2");
+        expect(view.phase).toBe("awaiting_response");
+        expect(view.pendingClaim?.claimedPoints).toBe(30);
+        expect(view.canAcceptClaim).toBe(true);
+        expect(view.canChallengeClaim).toBe(true);
+    });
+
     it("includes computed score totals", () => {
         const state = initGame(PLAYERS);
         state.players[0].scorecard.sixes = 18;
@@ -582,6 +722,7 @@ describe("getFilledCount", () => {
             name: "Test",
             scorecard: { ones: 3, twos: 6, chance: 22 },
             yahtzeeBonus: 0,
+            penaltyPoints: 0,
         };
         expect(getFilledCount(player)).toBe(3);
     });

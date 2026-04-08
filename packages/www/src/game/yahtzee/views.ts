@@ -4,6 +4,9 @@ import type {
     ScoringCategory,
     Dice,
     HeldDice,
+    YahtzeeMode,
+    LyingClaim,
+    LyingTurnReveal,
 } from "./types";
 import { SCORING_CATEGORIES } from "./types";
 import {
@@ -18,12 +21,14 @@ export interface YahtzeePlayerInfo {
     name: string;
     scorecard: Partial<Record<ScoringCategory, number>>;
     yahtzeeBonus: number;
+    penaltyPoints: number;
     upperTotal: number;
     upperBonus: number;
     totalScore: number;
 }
 
 export interface YahtzeePlayerView {
+    mode: YahtzeeMode;
     myId: string;
     phase: YahtzeePhase;
     round: number;
@@ -36,6 +41,11 @@ export interface YahtzeePlayerView {
     potentialScores: Partial<Record<ScoringCategory, number>> | null;
     canRoll: boolean;
     canScore: boolean;
+    canClaim: boolean;
+    canAcceptClaim: boolean;
+    canChallengeClaim: boolean;
+    pendingClaim: LyingClaim | null;
+    lastTurnReveal: LyingTurnReveal | null;
     winners: string[] | null;
 }
 
@@ -51,6 +61,7 @@ export function getPlayerView(
         name: p.name,
         scorecard: { ...p.scorecard },
         yahtzeeBonus: p.yahtzeeBonus,
+        penaltyPoints: p.penaltyPoints,
         upperTotal: getUpperSectionTotal(p.scorecard),
         upperBonus: getUpperBonus(p.scorecard),
         totalScore: getTotalScore(p),
@@ -75,13 +86,40 @@ export function getPlayerView(
         (state.phase === "pre_roll" ||
             (state.phase === "mid_turn" && state.rollsLeft > 0));
 
-    const canScore = isMyTurn && state.phase === "mid_turn";
+    const canScore =
+        state.mode === "standard" && isMyTurn && state.phase === "mid_turn";
+    const canClaim =
+        state.mode === "lying" && isMyTurn && state.phase === "mid_turn";
+    const canAcceptClaim =
+        state.mode === "lying" &&
+        !isMyTurn &&
+        state.phase === "awaiting_response" &&
+        state.pendingClaim?.playerId !== playerId;
+    const canChallengeClaim = canAcceptClaim;
+    const hiddenDice =
+        state.mode === "lying" && !isMyTurn && state.phase !== "game_over";
+    const pendingClaim = state.pendingClaim
+        ? {
+              ...state.pendingClaim,
+              claimedDice: [...state.pendingClaim.claimedDice] as Dice,
+          }
+        : null;
+    const lastTurnReveal = state.lastTurnReveal
+        ? {
+              ...state.lastTurnReveal,
+              actualDice: [...state.lastTurnReveal.actualDice] as Dice,
+              claimedDice: [...state.lastTurnReveal.claimedDice] as Dice,
+          }
+        : null;
 
     return {
+        mode: state.mode,
         myId: playerId,
         phase: state.phase,
         round: state.round,
-        dice: [...state.dice] as Dice,
+        dice: hiddenDice
+            ? [0, 0, 0, 0, 0]
+            : ([...state.dice] as Dice),
         held: [...state.held] as HeldDice,
         rollsLeft: state.rollsLeft,
         currentPlayerId: currentPlayer?.id ?? "",
@@ -90,6 +128,11 @@ export function getPlayerView(
         potentialScores,
         canRoll,
         canScore,
+        canClaim,
+        canAcceptClaim,
+        canChallengeClaim,
+        pendingClaim,
+        lastTurnReveal,
         winners: state.winners,
     };
 }

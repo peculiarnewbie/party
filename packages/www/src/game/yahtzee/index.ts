@@ -8,6 +8,9 @@ export type {
     Dice,
     HeldDice,
     FinalScore,
+    YahtzeeMode,
+    LyingClaim,
+    LyingTurnReveal,
 } from "./types";
 export {
     SCORING_CATEGORIES,

@@ -213,6 +213,18 @@ function RouteComponent() {
                     playerId={playerId()}
                     isHost={isHost()}
                     ws={getWs()}
+                    title="Yahtzee"
+                    onEndGame={endGame}
+                    onReturnToLobby={returnToLobby}
+                />
+            </Match>
+            <Match when={roomPhase() === "playing" && activeGameType() === "lying_yahtzee"}>
+                <YahtzeeRoom
+                    roomId={roomId()}
+                    playerId={playerId()}
+                    isHost={isHost()}
+                    ws={getWs()}
+                    title="Lying Yahtzee"
                     onEndGame={endGame}
                     onReturnToLobby={returnToLobby}
                 />

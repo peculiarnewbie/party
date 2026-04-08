@@ -21,6 +21,10 @@ function getPokerVisibilityMode(gameType: GameState["activeGameType"]) {
     return gameType === "backwards_poker" ? "backwards" : "standard";
 }
 
+function getYahtzeeMode(gameType: GameState["activeGameType"]) {
+    return gameType === "lying_yahtzee" ? "lying" : "standard";
+}
+
 export class GameRoom extends DurableObject {
     sessions: Map<WebSocket, { id: string; playerId: string | null }>;
     state: GameState;
@@ -241,7 +245,10 @@ export class GameRoom extends DurableObject {
                     blackjackServer(this.blackjackState, {
                         scheduleNextRound: scheduleBlackjackNextRound,
                     }).initGame(players, broadcast, sendTo);
-                } else if (processResult.gameType === "yahtzee") {
+                } else if (
+                    processResult.gameType === "yahtzee" ||
+                    processResult.gameType === "lying_yahtzee"
+                ) {
                     const players = this.state.players.map((player) => ({
                         id: player.id,
                         name: player.name,
@@ -249,7 +256,9 @@ export class GameRoom extends DurableObject {
                     this.goFishState.current = null;
                     this.pokerState.current = null;
                     this.blackjackState.current = null;
-                    yahtzeeServer(this.yahtzeeState).initGame(
+                    yahtzeeServer(this.yahtzeeState, {
+                        mode: getYahtzeeMode(processResult.gameType),
+                    }).initGame(
                         players,
                         broadcast,
                         sendTo,

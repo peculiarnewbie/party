@@ -8,21 +8,27 @@ import {
 } from "solid-js";
 import type { Component } from "solid-js";
 import { SvgDice } from "~/assets/svg-dice";
-import type { YahtzeePlayerView, YahtzeePlayerInfo } from "~/game/yahtzee";
-import {
-    SCORING_CATEGORIES,
-    UPPER_CATEGORIES,
-    LOWER_CATEGORIES,
-    CATEGORY_LABELS,
-    UPPER_BONUS_THRESHOLD,
+import type {
+    Dice,
+    LyingTurnReveal,
+    ScoringCategory,
+    YahtzeePlayerView,
 } from "~/game/yahtzee";
-import type { ScoringCategory } from "~/game/yahtzee";
+import {
+    CATEGORY_LABELS,
+    LOWER_CATEGORIES,
+    SCORING_CATEGORIES,
+    UPPER_BONUS_THRESHOLD,
+    UPPER_CATEGORIES,
+    calculateScore,
+} from "~/game/yahtzee";
 
 interface YahtzeeRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
     ws: WebSocket;
+    title: string;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
@@ -33,6 +39,10 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
     );
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
     const [announcementKey, setAnnouncementKey] = createSignal(0);
+    const [selectedClaimCategory, setSelectedClaimCategory] =
+        createSignal<ScoringCategory | null>(null);
+    const [claimedDice, setClaimedDice] = createSignal<Dice>([1, 1, 1, 1, 1]);
+    const [claimSeedKey, setClaimSeedKey] = createSignal("");
 
     const showAnnouncement = (text: string) => {
         setAnnouncement(null);
@@ -40,6 +50,15 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
         setTimeout(() => {
             setAnnouncement(text);
         }, 30);
+    };
+
+    const playerName = (id: string) => {
+        const view = gameView();
+        if (!view) return "SOMEONE";
+        return (
+            view.players.find((p) => p.id === id)?.name?.toUpperCase() ??
+            "SOMEONE"
+        );
     };
 
     const handleMessage = (e: MessageEvent) => {
@@ -57,15 +76,41 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
         if (data.type === "yahtzee:action") {
             const d = data.data;
             if (d.type === "rolled" && d.playerId !== props.playerId) {
-                const name = playerName(d.playerId);
-                showAnnouncement(`${name} ROLLED`);
+                showAnnouncement(`${playerName(d.playerId)} ROLLED`);
             }
             if (d.type === "scored") {
-                const name = playerName(d.playerId);
                 const catLabel =
                     CATEGORY_LABELS[d.category as ScoringCategory] ??
                     d.category;
-                showAnnouncement(`${name}: ${catLabel} FOR ${d.points}`);
+                showAnnouncement(
+                    `${playerName(d.playerId)}: ${catLabel} FOR ${d.points}`,
+                );
+            }
+            if (d.type === "claim_submitted") {
+                const catLabel =
+                    CATEGORY_LABELS[d.category as ScoringCategory] ??
+                    d.category;
+                showAnnouncement(
+                    `${playerName(d.playerId)} CLAIMS ${catLabel} FOR ${d.claimedPoints}`,
+                );
+            }
+            if (d.type === "claim_resolved") {
+                if (d.outcome === "caught_lying") {
+                    showAnnouncement(
+                        `${playerName(d.playerId)} GOT CAUGHT LYING`,
+                    );
+                } else if (d.outcome === "truthful_challenge") {
+                    showAnnouncement(
+                        `${playerName(d.playerId)} TOLD THE TRUTH`,
+                    );
+                } else {
+                    const catLabel =
+                        CATEGORY_LABELS[d.category as ScoringCategory] ??
+                        d.category;
+                    showAnnouncement(
+                        `${playerName(d.playerId)} BANKS ${catLabel}`,
+                    );
+                }
             }
         }
 
@@ -87,14 +132,53 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
         );
     });
 
-    const playerName = (id: string) => {
+    createEffect(() => {
         const view = gameView();
-        if (!view) return "SOMEONE";
-        return (
-            view.players.find((p) => p.id === id)?.name?.toUpperCase() ??
-            "SOMEONE"
-        );
-    };
+        if (
+            !view ||
+            view.mode !== "lying" ||
+            !view.isMyTurn ||
+            view.phase !== "mid_turn"
+        ) {
+            if (selectedClaimCategory() !== null) {
+                setSelectedClaimCategory(null);
+            }
+            if (claimSeedKey()) {
+                setClaimSeedKey("");
+            }
+            return;
+        }
+
+        const nextKey = [
+            view.currentPlayerId,
+            view.round,
+            view.phase,
+            view.dice.join(","),
+        ].join(":");
+
+        if (claimSeedKey() !== nextKey) {
+            setClaimSeedKey(nextKey);
+            setClaimedDice(
+                view.dice.some((die) => die > 0)
+                    ? ([...view.dice] as Dice)
+                    : [1, 1, 1, 1, 1],
+            );
+
+            const currentCategory = selectedClaimCategory();
+            const me = view.players.find((player) => player.id === view.myId);
+            if (
+                currentCategory &&
+                me?.scorecard[currentCategory] === undefined
+            ) {
+                return;
+            }
+
+            const firstOpenCategory = SCORING_CATEGORIES.find(
+                (category) => me?.scorecard[category] === undefined,
+            );
+            setSelectedClaimCategory(firstOpenCategory ?? null);
+        }
+    });
 
     const me = createMemo(() => {
         const view = gameView();
@@ -126,6 +210,30 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
         sendMsg("yahtzee:toggle_hold", { diceIndex: i });
     const score = (category: ScoringCategory) =>
         sendMsg("yahtzee:score", { category });
+    const submitClaim = () => {
+        const category = selectedClaimCategory();
+        if (!category) return;
+        sendMsg("yahtzee:claim", {
+            category,
+            claimedDice: claimedDice(),
+        });
+    };
+    const acceptClaim = () => sendMsg("yahtzee:accept_claim");
+    const challengeClaim = () => sendMsg("yahtzee:challenge_claim");
+
+    const cycleClaimDie = (index: number) => {
+        setClaimedDice((current) => {
+            const next = [...current] as Dice;
+            next[index] = next[index] === 6 ? 1 : next[index] + 1;
+            return next;
+        });
+    };
+
+    const useRealRollForClaim = () => {
+        const view = gameView();
+        if (!view) return;
+        setClaimedDice([...view.dice] as Dice);
+    };
 
     const diceColor = (i: number) => {
         const view = gameView();
@@ -146,13 +254,18 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
         return view?.isMyTurn && view?.phase === "mid_turn";
     };
 
+    const claimPoints = createMemo(() => {
+        const category = selectedClaimCategory();
+        if (!category) return null;
+        return calculateScore(claimedDice(), category);
+    });
+
     return (
         <div class="min-h-screen bg-[#8b2500] font-karla flex flex-col">
-            {/* Top bar */}
             <div class="flex items-center justify-between px-4 py-2 bg-[#5c1a00] border-b-[3px] border-[#3d1100]">
                 <div class="flex items-center gap-3">
                     <span class="font-bebas text-[1.1rem] tracking-[.12em] text-[#ddd5c4]">
-                        YAHTZEE
+                        {props.title.toUpperCase()}
                     </span>
                     <Show when={gameView()}>
                         <span class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8a87c]">
@@ -177,8 +290,7 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                 </div>
             </div>
 
-            {/* Dice area */}
-            <div class="flex flex-col items-center pt-5 pb-3">
+            <div class="flex flex-col items-center pt-5 pb-3 px-3">
                 <Show when={gameView()?.phase !== "game_over"}>
                     <div class="flex gap-3 mb-3">
                         <For each={[0, 1, 2, 3, 4]}>
@@ -233,7 +345,6 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                     </div>
                 </Show>
 
-                {/* Roll button */}
                 <Show when={gameView()?.canRoll}>
                     <button
                         class="font-bebas text-[1.2rem] tracking-[.12em] bg-[#ddd5c4] text-[#1a1a1a] border-2 border-[#1a1a1a] px-8 py-2 shadow-[3px_3px_0_#3d1100] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#3d1100] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
@@ -247,12 +358,25 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                     </button>
                 </Show>
 
-                {/* Waiting message */}
+                <Show
+                    when={
+                        gameView()?.mode === "lying" &&
+                        gameView()?.phase !== "game_over" &&
+                        !gameView()?.isMyTurn &&
+                        !gameView()?.pendingClaim
+                    }
+                >
+                    <span class="font-bebas text-[.7rem] tracking-[.18em] text-[#e8a87c] mt-1">
+                        OPPONENT ROLL IS HIDDEN
+                    </span>
+                </Show>
+
                 <Show
                     when={
                         gameView() &&
                         !gameView()!.isMyTurn &&
-                        gameView()!.phase !== "game_over"
+                        gameView()!.phase !== "game_over" &&
+                        !gameView()!.pendingClaim
                     }
                 >
                     <span class="font-bebas text-[.8rem] tracking-[.2em] text-[#e8a87c] mt-1">
@@ -261,7 +385,116 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                 </Show>
             </div>
 
-            {/* Announcement */}
+            <Show when={gameView()?.mode === "lying" && gameView()?.canClaim}>
+                <div class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#5c1a00]/60 px-4 py-3">
+                    <Show
+                        when={selectedClaimCategory()}
+                        fallback={
+                            <div class="font-bebas text-[.8rem] tracking-[.16em] text-[#e8a87c]">
+                                SELECT A SCORECARD SLOT TO MAKE YOUR CLAIM
+                            </div>
+                        }
+                    >
+                        <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+                            <span class="font-bebas text-[.85rem] tracking-[.16em] text-[#ddd5c4]">
+                                CLAIMING {CATEGORY_LABELS[selectedClaimCategory()!].toUpperCase()}
+                            </span>
+                            <span class="font-bebas text-[.8rem] tracking-[.14em] text-[#e8a87c]">
+                                {claimPoints()} PTS
+                            </span>
+                        </div>
+                        <div class="flex gap-3 mb-3 flex-wrap">
+                            <For each={[0, 1, 2, 3, 4]}>
+                                {(i) => (
+                                    <button
+                                        class="transition-transform hover:scale-105 active:scale-95"
+                                        onClick={() => cycleClaimDie(i)}
+                                    >
+                                        <SvgDice
+                                            side={
+                                                claimedDice()[i] as
+                                                    | 1
+                                                    | 2
+                                                    | 3
+                                                    | 4
+                                                    | 5
+                                                    | 6
+                                            }
+                                            color="#ddd5c4"
+                                            dotColor="#1a1a1a"
+                                            size={48}
+                                        />
+                                    </button>
+                                )}
+                            </For>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <button
+                                class="font-bebas text-[.72rem] tracking-[.16em] text-[#ddd5c4] border border-[#e8a87c]/30 px-3 py-1 hover:bg-[#e8a87c]/10 transition-colors"
+                                onClick={useRealRollForClaim}
+                            >
+                                USE REAL ROLL
+                            </button>
+                            <button
+                                class="font-bebas text-[.82rem] tracking-[.16em] bg-[#ddd5c4] text-[#1a1a1a] border border-[#1a1a1a] px-4 py-1 hover:bg-white transition-colors"
+                                onClick={submitClaim}
+                            >
+                                SEND CLAIM
+                            </button>
+                        </div>
+                    </Show>
+                </div>
+            </Show>
+
+            <Show when={gameView()?.pendingClaim}>
+                <div class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#5c1a00]/60 px-4 py-3">
+                    <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
+                        <span class="font-bebas text-[.9rem] tracking-[.16em] text-[#ddd5c4]">
+                            {playerName(gameView()!.pendingClaim!.playerId)} CLAIMS{" "}
+                            {CATEGORY_LABELS[gameView()!.pendingClaim!.category].toUpperCase()}
+                        </span>
+                        <span class="font-bebas text-[.82rem] tracking-[.16em] text-[#e8a87c]">
+                            {gameView()!.pendingClaim!.claimedPoints} PTS
+                        </span>
+                    </div>
+                    <div class="flex gap-3 mb-3">
+                        <For each={gameView()!.pendingClaim!.claimedDice}>
+                            {(die) => (
+                                <SvgDice
+                                    side={die as 1 | 2 | 3 | 4 | 5 | 6}
+                                    color="#ddd5c4"
+                                    dotColor="#1a1a1a"
+                                    size={42}
+                                />
+                            )}
+                        </For>
+                    </div>
+                    <Show
+                        when={gameView()?.canAcceptClaim}
+                        fallback={
+                            <span class="font-bebas text-[.72rem] tracking-[.16em] text-[#e8a87c]">
+                                WAITING FOR RESPONSE
+                            </span>
+                        }
+                    >
+                        <div class="flex gap-2 flex-wrap">
+                            <button
+                                class="font-bebas text-[.78rem] tracking-[.16em] bg-[#ddd5c4] text-[#1a1a1a] border border-[#1a1a1a] px-4 py-1 hover:bg-white transition-colors"
+                                onClick={acceptClaim}
+                            >
+                                BELIEVE
+                            </button>
+                            <button
+                                class="font-bebas text-[.78rem] tracking-[.16em] text-[#c0261a] border border-[#c0261a]/40 px-4 py-1 hover:bg-[#c0261a]/10 transition-colors"
+                                onClick={challengeClaim}
+                            >
+                                LIAR
+                            </button>
+                        </div>
+                    </Show>
+                </div>
+            </Show>
+
             <Show when={announcement()}>
                 <div
                     class="text-center py-1 px-4 animate-fade-in"
@@ -273,19 +506,71 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                 </div>
             </Show>
 
-            {/* Scorecard */}
+            <Show when={gameView()?.lastTurnReveal}>
+                <div class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#3d1100]/60 px-4 py-3">
+                    <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
+                        <span class="font-bebas text-[.82rem] tracking-[.16em] text-[#ddd5c4]">
+                            LAST TURN: {playerName(gameView()!.lastTurnReveal!.playerId)} ON{" "}
+                            {CATEGORY_LABELS[gameView()!.lastTurnReveal!.category].toUpperCase()}
+                        </span>
+                        <span class="font-bebas text-[.72rem] tracking-[.16em] text-[#e8a87c]">
+                            {revealOutcomeLabel(gameView()!.lastTurnReveal!.outcome)}
+                        </span>
+                    </div>
+                    <div class="flex gap-6 flex-wrap">
+                        <div>
+                            <div class="font-bebas text-[.62rem] tracking-[.18em] text-[#e8a87c] mb-1">
+                                CLAIMED ({gameView()!.lastTurnReveal!.claimedPoints} PTS)
+                            </div>
+                            <div class="flex gap-2">
+                                <For each={gameView()!.lastTurnReveal!.claimedDice}>
+                                    {(die) => (
+                                        <SvgDice
+                                            side={die as 1 | 2 | 3 | 4 | 5 | 6}
+                                            color="#ddd5c4"
+                                            dotColor="#1a1a1a"
+                                            size={34}
+                                        />
+                                    )}
+                                </For>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="font-bebas text-[.62rem] tracking-[.18em] text-[#e8a87c] mb-1">
+                                ACTUAL
+                            </div>
+                            <div class="flex gap-2">
+                                <For each={gameView()!.lastTurnReveal!.actualDice}>
+                                    {(die) => (
+                                        <SvgDice
+                                            side={die as 1 | 2 | 3 | 4 | 5 | 6}
+                                            color="#8b7355"
+                                            dotColor="white"
+                                            size={34}
+                                        />
+                                    )}
+                                </For>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Show>
+
             <div class="flex-1 px-3 py-2 overflow-x-auto">
                 <Show when={gameView()}>
                     <Scorecard
                         view={gameView()!}
                         myId={props.playerId}
                         canScore={gameView()!.canScore}
+                        canClaim={gameView()!.canClaim}
+                        selectedClaimCategory={selectedClaimCategory()}
+                        claimedDice={claimedDice()}
                         onScore={score}
+                        onSelectClaim={setSelectedClaimCategory}
                     />
                 </Show>
             </div>
 
-            {/* Game over */}
             <Show when={gameView()?.phase === "game_over"}>
                 <div class="px-4 py-4 bg-[#5c1a00]/80 border-t border-[#e8a87c]/20">
                     <div class="flex flex-col items-center gap-3">
@@ -293,7 +578,7 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                             GAME OVER
                         </span>
                         <div class="flex flex-col gap-1 items-center">
-                            <For each={gameView()!.players.sort((a, b) => b.totalScore - a.totalScore)}>
+                            <For each={[...gameView()!.players].sort((a, b) => b.totalScore - a.totalScore)}>
                                 {(player) => (
                                     <div class="flex items-center gap-2">
                                         <span
@@ -338,11 +623,23 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
     );
 };
 
+function revealOutcomeLabel(
+    outcome: LyingTurnReveal["outcome"],
+) {
+    if (outcome === "caught_lying") return "CAUGHT LYING";
+    if (outcome === "truthful_challenge") return "CHALLENGE FAILED";
+    return "UNCONTESTED";
+}
+
 function Scorecard(props: {
     view: YahtzeePlayerView;
     myId: string | null;
     canScore: boolean;
+    canClaim: boolean;
+    selectedClaimCategory: ScoringCategory | null;
+    claimedDice: Dice;
     onScore: (category: ScoringCategory) => void;
+    onSelectClaim: (category: ScoringCategory) => void;
 }) {
     const allPlayers = () => props.view.players;
 
@@ -357,21 +654,38 @@ function Scorecard(props: {
         const filled = player.scorecard[category] !== undefined;
         if (filled) return base + "text-[#ddd5c4]";
 
-        if (
-            playerId === props.myId &&
-            props.canScore &&
-            props.view.potentialScores
-        ) {
-            const potential = props.view.potentialScores[category];
-            if (potential !== undefined && potential > 0) {
+        if (props.view.mode === "standard") {
+            if (
+                playerId === props.myId &&
+                props.canScore &&
+                props.view.potentialScores
+            ) {
+                const potential = props.view.potentialScores[category];
+                if (potential !== undefined && potential > 0) {
+                    return (
+                        base +
+                        "text-[#e8a87c]/70 cursor-pointer hover:text-[#ffd700] hover:bg-[#5c1a00]/40 transition-colors"
+                    );
+                }
                 return (
                     base +
-                    "text-[#e8a87c]/70 cursor-pointer hover:text-[#ffd700] hover:bg-[#5c1a00]/40 transition-colors"
+                    "text-[#ddd5c4]/20 cursor-pointer hover:text-[#ddd5c4]/40 hover:bg-[#5c1a00]/40 transition-colors"
+                );
+            }
+
+            return base + "text-[#ddd5c4]/10";
+        }
+
+        if (playerId === props.myId && props.canClaim) {
+            if (props.selectedClaimCategory === category) {
+                return (
+                    base +
+                    "text-[#ffd700] cursor-pointer bg-[#5c1a00]/50 hover:bg-[#5c1a00]/70 transition-colors"
                 );
             }
             return (
                 base +
-                "text-[#ddd5c4]/20 cursor-pointer hover:text-[#ddd5c4]/40 hover:bg-[#5c1a00]/40 transition-colors"
+                "text-[#e8a87c]/70 cursor-pointer hover:text-[#ffd700] hover:bg-[#5c1a00]/40 transition-colors"
             );
         }
 
@@ -388,13 +702,24 @@ function Scorecard(props: {
         const filled = player.scorecard[category] !== undefined;
         if (filled) return String(player.scorecard[category]);
 
+        if (props.view.mode === "standard") {
+            if (
+                playerId === props.myId &&
+                props.canScore &&
+                props.view.potentialScores
+            ) {
+                const potential = props.view.potentialScores[category];
+                if (potential !== undefined) return String(potential);
+            }
+            return "";
+        }
+
         if (
             playerId === props.myId &&
-            props.canScore &&
-            props.view.potentialScores
+            props.canClaim &&
+            props.selectedClaimCategory === category
         ) {
-            const potential = props.view.potentialScores[category];
-            if (potential !== undefined) return String(potential);
+            return String(calculateScore(props.claimedDice, category));
         }
 
         return "";
@@ -405,11 +730,18 @@ function Scorecard(props: {
         category: ScoringCategory,
     ) => {
         if (playerId !== props.myId) return;
-        if (!props.canScore) return;
         const player = allPlayers().find((p) => p.id === playerId);
         if (!player) return;
         if (player.scorecard[category] !== undefined) return;
-        props.onScore(category);
+
+        if (props.view.mode === "standard") {
+            if (!props.canScore) return;
+            props.onScore(category);
+            return;
+        }
+
+        if (!props.canClaim) return;
+        props.onSelectClaim(category);
     };
 
     return (
@@ -422,8 +754,7 @@ function Scorecard(props: {
                             {(player) => (
                                 <th
                                     class={`font-bebas text-[.6rem] tracking-[.15em] text-center px-2 py-1 min-w-[55px] ${
-                                        player.id ===
-                                        props.view.currentPlayerId
+                                        player.id === props.view.currentPlayerId
                                             ? "text-[#ddd5c4]"
                                             : "text-[#e8a87c]/70"
                                     }`}
@@ -457,7 +788,6 @@ function Scorecard(props: {
                         )}
                     </For>
 
-                    {/* Upper section subtotal */}
                     <tr class="border-b-2 border-[#e8a87c]/30">
                         <td class="font-bebas text-[.55rem] tracking-[.15em] text-[#e8a87c]/60 px-2 py-1">
                             UPPER ({UPPER_BONUS_THRESHOLD} FOR BONUS)
@@ -504,7 +834,6 @@ function Scorecard(props: {
                         )}
                     </For>
 
-                    {/* Yahtzee bonus row */}
                     <tr class="border-b border-[#e8a87c]/10">
                         <td class="font-bebas text-[.55rem] tracking-[.15em] text-[#e8a87c]/60 px-2 py-1">
                             YAHTZEE BONUS
@@ -520,7 +849,21 @@ function Scorecard(props: {
                         </For>
                     </tr>
 
-                    {/* Total */}
+                    <tr class="border-b border-[#e8a87c]/10">
+                        <td class="font-bebas text-[.55rem] tracking-[.15em] text-[#e8a87c]/60 px-2 py-1">
+                            PENALTIES
+                        </td>
+                        <For each={allPlayers()}>
+                            {(player) => (
+                                <td class="font-karla text-[.7rem] text-center px-2 py-1 text-[#c0261a]">
+                                    <Show when={player.penaltyPoints > 0}>
+                                        -{player.penaltyPoints}
+                                    </Show>
+                                </td>
+                            )}
+                        </For>
+                    </tr>
+
                     <tr class="border-t-2 border-[#e8a87c]/40">
                         <td class="font-bebas text-[.7rem] tracking-[.15em] text-[#ddd5c4] px-2 py-1.5">
                             TOTAL

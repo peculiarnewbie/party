@@ -151,6 +151,25 @@ describe("Game Logic", () => {
             expect(state.selectedGameType).toBe("backwards_poker");
         });
 
+        it("allows selecting lying yahtzee as a distinct game", async () => {
+            const state = makeRoomState({
+                hostId: "host",
+                players: [{ id: "host", name: "Host", score: 0 }],
+            });
+
+            await server(state).processMessage(
+                JSON.stringify({
+                    playerId: "host",
+                    playerName: "Host",
+                    type: "select_game",
+                    data: { gameType: "lying_yahtzee" },
+                }),
+                () => undefined,
+            );
+
+            expect(state.selectedGameType).toBe("lying_yahtzee");
+        });
+
         it("ignores game selection from non-hosts", async () => {
             const state = makeRoomState({
                 hostId: "host",
@@ -250,6 +269,60 @@ describe("Game Logic", () => {
             });
             expect(state.activeGameType).toBe("backwards_poker");
             expect(state.phase).toBe("playing");
+        });
+
+        it("starts lying yahtzee using the selected game type", async () => {
+            const state = makeRoomState({
+                hostId: "host",
+                players: [
+                    { id: "host", name: "Host", score: 0 },
+                    { id: "guest", name: "Guest", score: 0 },
+                ],
+                selectedGameType: "lying_yahtzee",
+            });
+
+            const result = await server(state).processMessage(
+                JSON.stringify({
+                    playerId: "host",
+                    playerName: "Host",
+                    type: "start",
+                    data: {},
+                }),
+                () => undefined,
+            );
+
+            expect(result).toEqual({
+                kind: "start",
+                gameType: "lying_yahtzee",
+            });
+            expect(state.activeGameType).toBe("lying_yahtzee");
+            expect(state.phase).toBe("playing");
+        });
+
+        it("does not start lying yahtzee above two players", async () => {
+            const state = makeRoomState({
+                hostId: "host",
+                selectedGameType: "lying_yahtzee",
+                players: [
+                    { id: "host", name: "Host", score: 0 },
+                    { id: "guest-1", name: "Guest 1", score: 0 },
+                    { id: "guest-2", name: "Guest 2", score: 0 },
+                ],
+            });
+
+            const result = await server(state).processMessage(
+                JSON.stringify({
+                    playerId: "host",
+                    playerName: "Host",
+                    type: "start",
+                    data: {},
+                }),
+                () => undefined,
+            );
+
+            expect(result).toEqual({ kind: "none" });
+            expect(state.phase).toBe("lobby");
+            expect(state.activeGameType).toBeNull();
         });
     });
 });

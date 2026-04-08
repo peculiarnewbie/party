@@ -7,6 +7,8 @@ import type {
     Dice,
     HeldDice,
     FinalScore,
+    YahtzeeMode,
+    LyingTurnReveal,
 } from "./types";
 import { SCORING_CATEGORIES, UPPER_CATEGORIES } from "./types";
 
@@ -19,6 +21,9 @@ export const YAHTZEE_BONUS_POINTS = 100;
 export const YAHTZEE_BASE_POINTS = 50;
 
 export type RollFn = () => number;
+export interface YahtzeeInitOptions {
+    mode?: YahtzeeMode;
+}
 
 function defaultRoll(): number {
     return Math.floor(Math.random() * 6) + 1;
@@ -152,6 +157,7 @@ export function getTotalScore(player: YahtzeePlayer): number {
     }
     total += getUpperBonus(player.scorecard);
     total += player.yahtzeeBonus * YAHTZEE_BONUS_POINTS;
+    total -= player.penaltyPoints;
     return total;
 }
 
@@ -173,14 +179,16 @@ export function rollDice(
 
 export function initGame(
     players: { id: string; name: string }[],
-    rollFn?: RollFn,
+    opts?: YahtzeeInitOptions,
 ): YahtzeeState {
     return {
+        mode: opts?.mode ?? "standard",
         players: players.map((p) => ({
             id: p.id,
             name: p.name,
             scorecard: {},
             yahtzeeBonus: 0,
+            penaltyPoints: 0,
         })),
         currentPlayerIndex: 0,
         dice: [0, 0, 0, 0, 0],
@@ -189,6 +197,156 @@ export function initGame(
         phase: "pre_roll",
         round: 1,
         winners: null,
+        pendingClaim: null,
+        lastTurnReveal: null,
+    };
+}
+
+function diceMatch(a: Dice, b: Dice): boolean {
+    const left = [...a].sort((x, y) => x - y);
+    const right = [...b].sort((x, y) => x - y);
+    return left.every((value, index) => value === right[index]);
+}
+
+function maybeAwardYahtzeeBonus(
+    player: YahtzeePlayer,
+    dice: Dice,
+): boolean {
+    if (
+        isYahtzee(dice) &&
+        player.scorecard.yahtzee !== undefined &&
+        player.scorecard.yahtzee === YAHTZEE_BASE_POINTS
+    ) {
+        player.yahtzeeBonus++;
+        return true;
+    }
+
+    return false;
+}
+
+function buildFinalScores(state: YahtzeeState): FinalScore[] {
+    return state.players.map((p) => ({
+        playerId: p.id,
+        playerName: p.name,
+        total: getTotalScore(p),
+    }));
+}
+
+function resetTurnState(state: YahtzeeState) {
+    state.dice = [0, 0, 0, 0, 0];
+    state.held = [false, false, false, false, false];
+    state.rollsLeft = 3;
+    state.phase = "pre_roll";
+    state.pendingClaim = null;
+}
+
+function finishTurn(state: YahtzeeState): YahtzeeResult | null {
+    const nextPlayerIndex =
+        (state.currentPlayerIndex + 1) % state.players.length;
+    const roundComplete = nextPlayerIndex === 0;
+
+    if (roundComplete && state.round >= TOTAL_ROUNDS) {
+        state.phase = "game_over";
+
+        const scores = buildFinalScores(state);
+        const maxScore = Math.max(...scores.map((s) => s.total));
+        state.winners = scores
+            .filter((s) => s.total === maxScore)
+            .map((s) => s.playerId);
+
+        return {
+            type: "game_over",
+            winners: state.winners,
+            finalScores: scores,
+        };
+    }
+
+    state.currentPlayerIndex = nextPlayerIndex;
+    if (roundComplete) {
+        state.round++;
+    }
+
+    resetTurnState(state);
+    return null;
+}
+
+function resolveLyingClaim(
+    state: YahtzeeState,
+    responderId: string,
+    challenge: boolean,
+): YahtzeeResult {
+    const currentPlayer = state.players[state.currentPlayerIndex];
+    const responder = state.players.find((player) => player.id === responderId);
+    const claim = state.pendingClaim;
+
+    if (!currentPlayer || !responder || !claim) {
+        return { type: "error", message: "Invalid state" };
+    }
+
+    if (responder.id === currentPlayer.id) {
+        return { type: "error", message: "Waiting for opponent response" };
+    }
+
+    const truthful = diceMatch(state.dice, claim.claimedDice);
+    let scoredPoints = claim.claimedPoints;
+    let yahtzeeBonus = false;
+    let reveal: LyingTurnReveal;
+
+    if (!challenge) {
+        yahtzeeBonus = maybeAwardYahtzeeBonus(currentPlayer, claim.claimedDice);
+        currentPlayer.scorecard[claim.category] = claim.claimedPoints;
+        reveal = {
+            playerId: currentPlayer.id,
+            category: claim.category,
+            actualDice: [...state.dice] as Dice,
+            claimedDice: [...claim.claimedDice] as Dice,
+            claimedPoints: claim.claimedPoints,
+            outcome: "accepted",
+            penaltyPlayerId: null,
+            penaltyPoints: 0,
+        };
+    } else if (truthful) {
+        yahtzeeBonus = maybeAwardYahtzeeBonus(currentPlayer, claim.claimedDice);
+        currentPlayer.scorecard[claim.category] = claim.claimedPoints;
+        responder.penaltyPoints += claim.claimedPoints;
+        reveal = {
+            playerId: currentPlayer.id,
+            category: claim.category,
+            actualDice: [...state.dice] as Dice,
+            claimedDice: [...claim.claimedDice] as Dice,
+            claimedPoints: claim.claimedPoints,
+            outcome: "truthful_challenge",
+            penaltyPlayerId: responder.id,
+            penaltyPoints: claim.claimedPoints,
+        };
+    } else {
+        scoredPoints = -claim.claimedPoints;
+        currentPlayer.scorecard[claim.category] = scoredPoints;
+        reveal = {
+            playerId: currentPlayer.id,
+            category: claim.category,
+            actualDice: [...state.dice] as Dice,
+            claimedDice: [...claim.claimedDice] as Dice,
+            claimedPoints: claim.claimedPoints,
+            outcome: "caught_lying",
+            penaltyPlayerId: currentPlayer.id,
+            penaltyPoints: claim.claimedPoints,
+        };
+    }
+
+    state.lastTurnReveal = reveal;
+    state.pendingClaim = null;
+
+    const gameOver = finishTurn(state);
+    if (gameOver) {
+        return gameOver;
+    }
+
+    return {
+        type: "claim_resolved",
+        ...reveal,
+        points: scoredPoints,
+        yahtzeeBonus,
     };
 }
 
@@ -204,6 +362,22 @@ export function processAction(
     const currentPlayer = state.players[state.currentPlayerIndex];
     if (!currentPlayer) {
         return { type: "error", message: "Invalid state" };
+    }
+
+    if (action.type === "accept_claim" || action.type === "challenge_claim") {
+        if (state.mode !== "lying") {
+            return { type: "error", message: "Claims are not used in this game" };
+        }
+
+        if (state.phase !== "awaiting_response" || !state.pendingClaim) {
+            return { type: "error", message: "No claim to respond to" };
+        }
+
+        return resolveLyingClaim(
+            state,
+            action.playerId,
+            action.type === "challenge_claim",
+        );
     }
 
     if (action.playerId !== currentPlayer.id) {
@@ -246,6 +420,10 @@ export function processAction(
     }
 
     if (action.type === "score") {
+        if (state.mode !== "standard") {
+            return { type: "error", message: "Submit a claim instead" };
+        }
+
         if (state.phase !== "mid_turn") {
             return { type: "error", message: "Must roll first" };
         }
@@ -255,54 +433,16 @@ export function processAction(
             return { type: "error", message: "Category already filled" };
         }
 
-        let gotYahtzeeBonus = false;
-        if (isYahtzee(state.dice)) {
-            if (
-                currentPlayer.scorecard.yahtzee !== undefined &&
-                currentPlayer.scorecard.yahtzee === YAHTZEE_BASE_POINTS
-            ) {
-                currentPlayer.yahtzeeBonus++;
-                gotYahtzeeBonus = true;
-            }
-        }
+        const gotYahtzeeBonus = maybeAwardYahtzeeBonus(currentPlayer, state.dice);
 
         const points = calculateScore(state.dice, category);
         currentPlayer.scorecard[category] = points;
+        state.lastTurnReveal = null;
 
-        const nextPlayerIndex =
-            (state.currentPlayerIndex + 1) % state.players.length;
-        const roundComplete = nextPlayerIndex === 0;
-
-        if (roundComplete && state.round >= TOTAL_ROUNDS) {
-            state.phase = "game_over";
-
-            const scores: FinalScore[] = state.players.map((p) => ({
-                playerId: p.id,
-                playerName: p.name,
-                total: getTotalScore(p),
-            }));
-
-            const maxScore = Math.max(...scores.map((s) => s.total));
-            state.winners = scores
-                .filter((s) => s.total === maxScore)
-                .map((s) => s.playerId);
-
-            return {
-                type: "game_over",
-                winners: state.winners,
-                finalScores: scores,
-            };
+        const gameOver = finishTurn(state);
+        if (gameOver) {
+            return gameOver;
         }
-
-        state.currentPlayerIndex = nextPlayerIndex;
-        if (roundComplete) {
-            state.round++;
-        }
-
-        state.dice = [0, 0, 0, 0, 0];
-        state.held = [false, false, false, false, false];
-        state.rollsLeft = 3;
-        state.phase = "pre_roll";
 
         return {
             type: "scored",
@@ -310,6 +450,41 @@ export function processAction(
             category,
             points,
             yahtzeeBonus: gotYahtzeeBonus,
+        };
+    }
+
+    if (action.type === "claim") {
+        if (state.mode !== "lying") {
+            return { type: "error", message: "Claims are not used in this game" };
+        }
+
+        if (state.phase !== "mid_turn") {
+            return { type: "error", message: "Must roll first" };
+        }
+
+        if (currentPlayer.scorecard[action.category] !== undefined) {
+            return { type: "error", message: "Category already filled" };
+        }
+
+        const claimedPoints = calculateScore(
+            action.claimedDice,
+            action.category,
+        );
+
+        state.pendingClaim = {
+            playerId: action.playerId,
+            category: action.category,
+            claimedDice: [...action.claimedDice] as Dice,
+            claimedPoints,
+        };
+        state.phase = "awaiting_response";
+
+        return {
+            type: "claim_submitted",
+            playerId: action.playerId,
+            category: action.category,
+            claimedDice: [...action.claimedDice] as Dice,
+            claimedPoints,
         };
     }
 

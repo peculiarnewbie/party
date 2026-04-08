@@ -1,6 +1,14 @@
 import z from "zod";
 import { SCORING_CATEGORIES } from "./types";
 
+const diceSchema = z.tuple([
+    z.number().min(1).max(6),
+    z.number().min(1).max(6),
+    z.number().min(1).max(6),
+    z.number().min(1).max(6),
+    z.number().min(1).max(6),
+]);
+
 export const yahtzeeClientMessageSchema = z.discriminatedUnion("type", [
     z.object({
         type: z.literal("yahtzee:roll"),
@@ -23,6 +31,27 @@ export const yahtzeeClientMessageSchema = z.discriminatedUnion("type", [
         data: z.object({
             category: z.enum(SCORING_CATEGORIES as [string, ...string[]]),
         }),
+    }),
+    z.object({
+        type: z.literal("yahtzee:claim"),
+        playerId: z.string(),
+        playerName: z.string(),
+        data: z.object({
+            category: z.enum(SCORING_CATEGORIES as [string, ...string[]]),
+            claimedDice: diceSchema,
+        }),
+    }),
+    z.object({
+        type: z.literal("yahtzee:accept_claim"),
+        playerId: z.string(),
+        playerName: z.string(),
+        data: z.object({}),
+    }),
+    z.object({
+        type: z.literal("yahtzee:challenge_claim"),
+        playerId: z.string(),
+        playerName: z.string(),
+        data: z.object({}),
     }),
 ]);
 
