@@ -6,6 +6,11 @@ import {
     pokerServer,
     type PokerState,
 } from "~/game/poker";
+import {
+    blackjackClientMessageSchema,
+    blackjackServer,
+    type BlackjackState,
+} from "~/game/blackjack";
 
 function getPokerVisibilityMode(gameType: GameState["activeGameType"]) {
     return gameType === "backwards_poker" ? "backwards" : "standard";
@@ -16,6 +21,7 @@ export class GameRoom extends DurableObject {
     state: GameState;
     goFishState: { current: GoFishState | null };
     pokerState: { current: PokerState | null };
+    blackjackState: { current: BlackjackState | null };
     nextHandTimer: ReturnType<typeof setTimeout> | null;
 
     constructor(ctx: DurableObjectState, env: Env) {
@@ -31,6 +37,7 @@ export class GameRoom extends DurableObject {
         };
         this.goFishState = { current: null };
         this.pokerState = { current: null };
+        this.blackjackState = { current: null };
         this.nextHandTimer = null;
     }
 
@@ -78,6 +85,16 @@ export class GameRoom extends DurableObject {
             }, 4500);
         };
 
+        const scheduleBlackjackNextRound = () => {
+            this.clearNextHandTimer();
+            this.nextHandTimer = setTimeout(() => {
+                this.nextHandTimer = null;
+                blackjackServer(this.blackjackState, {
+                    scheduleNextRound: scheduleBlackjackNextRound,
+                }).startNextRound(broadcast, sendTo);
+            }, 5000);
+        };
+
         serverWs.addEventListener("message", async (event) => {
             const raw = event.data as string;
             let json: any;
@@ -115,6 +132,18 @@ export class GameRoom extends DurableObject {
                 pokerServer(this.pokerState, {
                     scheduleNextHand: schedulePokerNextHand,
                     visibilityMode: getPokerVisibilityMode(this.state.activeGameType),
+                }).processMessage(parsed.data, broadcast, sendTo);
+                return;
+            }
+
+            if (
+                typeof json.type === "string" &&
+                json.type.startsWith("blackjack:")
+            ) {
+                const parsed = blackjackClientMessageSchema.safeParse(json);
+                if (!parsed.success) return;
+                blackjackServer(this.blackjackState, {
+                    scheduleNextRound: scheduleBlackjackNextRound,
                 }).processMessage(parsed.data, broadcast, sendTo);
                 return;
             }
@@ -181,9 +210,20 @@ export class GameRoom extends DurableObject {
                         scheduleNextHand: schedulePokerNextHand,
                         visibilityMode: getPokerVisibilityMode(processResult.gameType),
                     }).initGame(players, broadcast, sendTo);
+                } else if (processResult.gameType === "blackjack") {
+                    const players = this.state.players.map((player) => ({
+                        id: player.id,
+                        name: player.name,
+                    }));
+                    this.goFishState.current = null;
+                    this.pokerState.current = null;
+                    blackjackServer(this.blackjackState, {
+                        scheduleNextRound: scheduleBlackjackNextRound,
+                    }).initGame(players, broadcast, sendTo);
                 } else {
                     this.goFishState.current = null;
                     this.pokerState.current = null;
+                    this.blackjackState.current = null;
                 }
                 return;
             }
@@ -196,6 +236,9 @@ export class GameRoom extends DurableObject {
                         visibilityMode: getPokerVisibilityMode(processResult.gameType),
                     }).endGame(broadcast, sendTo);
                 }
+                if (processResult.gameType === "blackjack") {
+                    this.clearNextHandTimer();
+                }
                 return;
             }
 
@@ -203,6 +246,7 @@ export class GameRoom extends DurableObject {
                 this.clearNextHandTimer();
                 this.goFishState.current = null;
                 this.pokerState.current = null;
+                this.blackjackState.current = null;
             }
         });
 

@@ -6,6 +6,7 @@ import { RoomLobby } from "~/components/room-lobby";
 import { SampleQuizRoom } from "~/components/sample-quiz-room";
 import { GoFishRoom } from "~/components/go-fish/go-fish-room";
 import { PokerRoom } from "~/components/poker/poker-room";
+import { BlackjackRoom } from "~/components/blackjack/blackjack-room";
 import {
     type GameType,
     type MessageType,
@@ -93,7 +94,8 @@ function RouteComponent() {
             if (
                 typeof json.type === "string" &&
                 (json.type.startsWith("go_fish:") ||
-                    json.type.startsWith("poker:"))
+                    json.type.startsWith("poker:") ||
+                    json.type.startsWith("blackjack:"))
             ) {
                 return;
             }
@@ -189,6 +191,16 @@ function RouteComponent() {
                             ? "Backwards Poker"
                             : "Texas Hold'em"
                     }
+                    onEndGame={endGame}
+                    onReturnToLobby={returnToLobby}
+                />
+            </Match>
+            <Match when={roomPhase() === "playing" && activeGameType() === "blackjack"}>
+                <BlackjackRoom
+                    roomId={roomId()}
+                    playerId={playerId()}
+                    isHost={isHost()}
+                    ws={getWs()}
                     onEndGame={endGame}
                     onReturnToLobby={returnToLobby}
                 />
