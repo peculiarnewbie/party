@@ -41,6 +41,11 @@ import {
     herdServer,
     type HerdState,
 } from "~/game/herd";
+import {
+    funFactsClientMessageSchema,
+    funFactsServer,
+    type FunFactsState,
+} from "~/game/fun-facts";
 
 const ROOM_STATE_KEY = "room_state";
 const GAME_SNAPSHOT_KEY = "game_snapshot";
@@ -82,6 +87,10 @@ type PersistedGameSnapshot =
     | {
           gameType: "herd";
           state: HerdState;
+      }
+    | {
+          gameType: "fun_facts";
+          state: FunFactsState;
       };
 
 function createDefaultState(): GameState {
@@ -115,6 +124,7 @@ export class GameRoom extends DurableObject {
     perudoState: { current: PerudoState | null };
     rpsState: { current: RpsState | null };
     herdState: { current: HerdState | null };
+    funFactsState: { current: FunFactsState | null };
     nextHandTimer: ReturnType<typeof setTimeout> | null;
     ready: Promise<void>;
 
@@ -129,6 +139,7 @@ export class GameRoom extends DurableObject {
         this.perudoState = { current: null };
         this.rpsState = { current: null };
         this.herdState = { current: null };
+        this.funFactsState = { current: null };
         this.nextHandTimer = null;
         this.ready = this.ctx.blockConcurrencyWhile(async () => {
             this.ensureSchema();
@@ -249,6 +260,7 @@ export class GameRoom extends DurableObject {
         this.perudoState.current = null;
         this.rpsState.current = null;
         this.herdState.current = null;
+        this.funFactsState.current = null;
 
         if (!snapshot || snapshot.gameType !== this.state.activeGameType) {
             return;
@@ -292,6 +304,11 @@ export class GameRoom extends DurableObject {
 
         if (snapshot.gameType === "herd") {
             this.herdState.current = snapshot.state;
+            return;
+        }
+
+        if (snapshot.gameType === "fun_facts") {
+            this.funFactsState.current = snapshot.state;
         }
     }
 
@@ -380,6 +397,16 @@ export class GameRoom extends DurableObject {
             };
         }
 
+        if (
+            this.state.activeGameType === "fun_facts" &&
+            this.funFactsState.current
+        ) {
+            return {
+                gameType: "fun_facts",
+                state: this.funFactsState.current,
+            };
+        }
+
         return null;
     }
 
@@ -406,6 +433,7 @@ export class GameRoom extends DurableObject {
         this.perudoState.current = null;
         this.rpsState.current = null;
         this.herdState.current = null;
+        this.funFactsState.current = null;
     }
 
     clearNextHandTimer() {
@@ -584,6 +612,14 @@ export class GameRoom extends DurableObject {
                     playerId,
                     sendTo,
                 );
+                return;
+            }
+
+            if (this.state.activeGameType === "fun_facts") {
+                funFactsServer(this.funFactsState).sendStateToPlayer(
+                    playerId,
+                    sendTo,
+                );
             }
         };
 
@@ -644,6 +680,15 @@ export class GameRoom extends DurableObject {
 
             if (this.state.activeGameType === "herd") {
                 herdServer(this.herdState).removePlayer(
+                    playerId,
+                    broadcast,
+                    sendTo,
+                );
+                return;
+            }
+
+            if (this.state.activeGameType === "fun_facts") {
+                funFactsServer(this.funFactsState).removePlayer(
                     playerId,
                     broadcast,
                     sendTo,
@@ -784,6 +829,21 @@ export class GameRoom extends DurableObject {
                 const parsed = herdClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
                 herdServer(this.herdState).processMessage(
+                    parsed.data,
+                    broadcast,
+                    sendTo,
+                );
+                this.persistGameSnapshot();
+                return;
+            }
+
+            if (
+                typeof json.type === "string" &&
+                json.type.startsWith("fun_facts:")
+            ) {
+                const parsed = funFactsClientMessageSchema.safeParse(json);
+                if (!parsed.success) return;
+                funFactsServer(this.funFactsState).processMessage(
                     parsed.data,
                     broadcast,
                     sendTo,
@@ -966,6 +1026,25 @@ export class GameRoom extends DurableObject {
                         broadcast,
                         sendTo,
                     );
+                } else if (processResult.gameType === "fun_facts") {
+                    const hostId = this.state.hostId;
+                    const players = this.state.players.map((player) => ({
+                        id: player.id,
+                        name: player.name,
+                    }));
+                    this.goFishState.current = null;
+                    this.pokerState.current = null;
+                    this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
+                    this.perudoState.current = null;
+                    this.rpsState.current = null;
+                    this.herdState.current = null;
+                    funFactsServer(this.funFactsState).initGame(
+                        players,
+                        hostId!,
+                        broadcast,
+                        sendTo,
+                    );
                 } else {
                     this.clearInMemoryGameStates();
                 }
@@ -1003,6 +1082,12 @@ export class GameRoom extends DurableObject {
                 }
                 if (processResult.gameType === "herd") {
                     herdServer(this.herdState).endGame(broadcast, sendTo);
+                }
+                if (processResult.gameType === "fun_facts") {
+                    funFactsServer(this.funFactsState).endGame(
+                        broadcast,
+                        sendTo,
+                    );
                 }
 
                 this.persistAllState();

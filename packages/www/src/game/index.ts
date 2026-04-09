@@ -11,6 +11,7 @@ export const gameTypes = [
     "perudo",
     "rps",
     "herd",
+    "fun_facts",
 ] as const;
 export type GameType = (typeof gameTypes)[number];
 export type GameParticipantStatus = "active" | "disconnected" | "left_game";
@@ -71,6 +72,11 @@ export const GAME_RULES: Record<
     },
     herd: {
         label: "Herd Mentality",
+        minPlayers: 3,
+        maxPlayers: null,
+    },
+    fun_facts: {
+        label: "Fun Facts",
         minPlayers: 3,
         maxPlayers: null,
     },
