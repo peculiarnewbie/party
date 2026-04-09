@@ -8,6 +8,7 @@ export const gameTypes = [
     "blackjack",
     "yahtzee",
     "lying_yahtzee",
+    "perudo",
 ] as const;
 export type GameType = (typeof gameTypes)[number];
 export type GameParticipantStatus = "active" | "disconnected" | "left_game";
@@ -55,6 +56,11 @@ export const GAME_RULES: Record<
         label: "Lying Yahtzee",
         minPlayers: 2,
         maxPlayers: 2,
+    },
+    perudo: {
+        label: "Perudo",
+        minPlayers: 2,
+        maxPlayers: 8,
     },
 };
 
@@ -198,7 +204,9 @@ export const server = (state: GameState) => {
         },
 
         addPlayer: (playerId: string, name: string) => {
-            const existingIndex = state.players.findIndex((p) => p.id === playerId);
+            const existingIndex = state.players.findIndex(
+                (p) => p.id === playerId,
+            );
             if (existingIndex >= 0) {
                 state.players[existingIndex].name = name;
                 return state.players;
@@ -264,9 +272,10 @@ export const server = (state: GameState) => {
             message: string,
             broadcast: (msg: string) => void,
             opts?: {
-                createGameSession?: (
-                    gameType: GameType,
-                ) => { gameSessionId: string; participants: GameParticipant[] };
+                createGameSession?: (gameType: GameType) => {
+                    gameSessionId: string;
+                    participants: GameParticipant[];
+                };
             },
         ): Promise<RoomProcessResult> => {
             const json = JSON.parse(message);
@@ -430,7 +439,10 @@ export const server = (state: GameState) => {
                 broadcast(
                     JSON.stringify({
                         type: "player_answered",
-                        data: { players: s.getPlayers(), answers: s.getAnswers() },
+                        data: {
+                            players: s.getPlayers(),
+                            answers: s.getAnswers(),
+                        },
                     } as ServerMessage),
                 );
             }

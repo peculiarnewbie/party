@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createMemo, createSignal, onMount, Switch, Match, Show } from "solid-js";
+import {
+    createMemo,
+    createSignal,
+    onMount,
+    Switch,
+    Match,
+    Show,
+} from "solid-js";
 import { nanoid } from "nanoid";
 import z from "zod";
 import { RoomLobby } from "~/components/room-lobby";
@@ -8,6 +15,7 @@ import { GoFishRoom } from "~/components/go-fish/go-fish-room";
 import { PokerRoom } from "~/components/poker/poker-room";
 import { BlackjackRoom } from "~/components/blackjack/blackjack-room";
 import { YahtzeeRoom } from "~/components/yahtzee/yahtzee-room";
+import { PerudoRoom } from "~/components/perudo/perudo-room";
 import {
     type GameType,
     type GameParticipant,
@@ -38,8 +46,9 @@ function RouteComponent() {
     );
     const [selectedGameType, setSelectedGameType] =
         createSignal<GameType>("quiz");
-    const [activeGameType, setActiveGameType] =
-        createSignal<GameType | null>(null);
+    const [activeGameType, setActiveGameType] = createSignal<GameType | null>(
+        null,
+    );
     const [gameParticipants, setGameParticipants] = createSignal<
         GameParticipant[]
     >([]);
@@ -137,7 +146,8 @@ function RouteComponent() {
                 (json.type.startsWith("go_fish:") ||
                     json.type.startsWith("poker:") ||
                     json.type.startsWith("blackjack:") ||
-                    json.type.startsWith("yahtzee:"))
+                    json.type.startsWith("yahtzee:") ||
+                    json.type.startsWith("perudo:"))
             ) {
                 return;
             }
@@ -228,7 +238,12 @@ function RouteComponent() {
                         onStart={startGame}
                     />
                 </Match>
-                <Match when={roomPhase() === "playing" && activeGameType() === "go_fish"}>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        activeGameType() === "go_fish"
+                    }
+                >
                     <Show
                         when={canAccessCurrentGame()}
                         fallback={
@@ -271,7 +286,12 @@ function RouteComponent() {
                         />
                     </Show>
                 </Match>
-                <Match when={roomPhase() === "playing" && activeGameType() === "blackjack"}>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        activeGameType() === "blackjack"
+                    }
+                >
                     <Show
                         when={canAccessCurrentGame()}
                         fallback={
@@ -291,7 +311,12 @@ function RouteComponent() {
                         />
                     </Show>
                 </Match>
-                <Match when={roomPhase() === "playing" && activeGameType() === "yahtzee"}>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        activeGameType() === "yahtzee"
+                    }
+                >
                     <Show
                         when={canAccessCurrentGame()}
                         fallback={
@@ -312,7 +337,12 @@ function RouteComponent() {
                         />
                     </Show>
                 </Match>
-                <Match when={roomPhase() === "playing" && activeGameType() === "lying_yahtzee"}>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        activeGameType() === "lying_yahtzee"
+                    }
+                >
                     <Show
                         when={canAccessCurrentGame()}
                         fallback={
@@ -333,7 +363,36 @@ function RouteComponent() {
                         />
                     </Show>
                 </Match>
-                <Match when={roomPhase() === "playing" && activeGameType() === "quiz"}>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        activeGameType() === "perudo"
+                    }
+                >
+                    <Show
+                        when={canAccessCurrentGame()}
+                        fallback={
+                            <GameSessionState
+                                roomId={roomId()}
+                                status={myGameStatus()}
+                            />
+                        }
+                    >
+                        <PerudoRoom
+                            roomId={roomId()}
+                            playerId={playerId()}
+                            isHost={isHost()}
+                            ws={getWs()}
+                            onEndGame={endGame}
+                            onReturnToLobby={returnToLobby}
+                        />
+                    </Show>
+                </Match>
+                <Match
+                    when={
+                        roomPhase() === "playing" && activeGameType() === "quiz"
+                    }
+                >
                     <Show
                         when={canAccessCurrentGame()}
                         fallback={
@@ -380,9 +439,7 @@ function GameSessionState(props: {
             ? "YOU LEFT THIS GAME"
             : "THIS GAME STARTED WITHOUT YOU";
     const label = () =>
-        props.status === "left_game"
-            ? "SESSION CLOSED"
-            : "SESSION IN PROGRESS";
+        props.status === "left_game" ? "SESSION CLOSED" : "SESSION IN PROGRESS";
     const message = () =>
         props.status === "left_game"
             ? "You cannot rejoin the current session. Stay in the room for the next game or leave the room entirely."
