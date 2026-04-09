@@ -17,6 +17,7 @@ export {
     canDoubleDown,
     initGame,
     processAction,
+    removePlayer,
     STARTING_CHIPS,
     MIN_BET,
     MAX_BET,

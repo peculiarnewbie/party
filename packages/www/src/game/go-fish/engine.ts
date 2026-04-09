@@ -302,3 +302,41 @@ export function processAction(
 
     return { type: "error", message: "Unknown action type" };
 }
+
+export function removePlayer(
+    state: GoFishState,
+    playerId: string,
+): GoFishResult | null {
+    const playerIndex = state.players.findIndex((player) => player.id === playerId);
+    if (playerIndex < 0) return null;
+
+    const [player] = state.players.splice(playerIndex, 1);
+    state.drawPile.push(...player.hand);
+
+    if (state.players.length === 0) {
+        state.gameOver = true;
+        state.winner = [];
+        return { type: "game_over", winners: [] };
+    }
+
+    if (state.players.length === 1) {
+        state.gameOver = true;
+        state.winner = [state.players[0].id];
+        return { type: "game_over", winners: state.winner };
+    }
+
+    if (playerIndex < state.currentPlayerIndex) {
+        state.currentPlayerIndex -= 1;
+    } else if (playerIndex === state.currentPlayerIndex) {
+        state.currentPlayerIndex %= state.players.length;
+        state.turnPhase = "awaiting_ask";
+    }
+
+    if (checkGameOver(state)) {
+        state.gameOver = true;
+        state.winner = getWinners(state);
+        return { type: "game_over", winners: state.winner };
+    }
+
+    return null;
+}

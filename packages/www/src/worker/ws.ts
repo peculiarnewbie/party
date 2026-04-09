@@ -1,21 +1,70 @@
 import { DurableObject } from "cloudflare:workers";
-import { GameState, isPokerGameType, server } from "~/game";
-import { goFishClientMessageSchema, goFishServer, type GoFishState } from "~/game/go-fish";
 import {
-    pokerClientMessageSchema,
-    pokerServer,
-    type PokerState,
-} from "~/game/poker";
+    type GameParticipant,
+    type GameParticipantStatus,
+    type GameState,
+    isPokerGameType,
+    server,
+} from "~/game";
+import { goFishClientMessageSchema, goFishServer, type GoFishState } from "~/game/go-fish";
 import {
     blackjackClientMessageSchema,
     blackjackServer,
     type BlackjackState,
 } from "~/game/blackjack";
 import {
+    pokerClientMessageSchema,
+    pokerServer,
+    type PokerState,
+} from "~/game/poker";
+import {
     yahtzeeClientMessageSchema,
     yahtzeeServer,
     type YahtzeeState,
 } from "~/game/yahtzee";
+
+const ROOM_STATE_KEY = "room_state";
+const GAME_SNAPSHOT_KEY = "game_snapshot";
+
+type PersistedValueRow = {
+    value: string;
+};
+
+type PersistedParticipantRow = {
+    player_id: string;
+    status: GameParticipantStatus;
+};
+
+type PersistedGameSnapshot =
+    | {
+          gameType: "go_fish";
+          state: GoFishState;
+      }
+    | {
+          gameType: "poker" | "backwards_poker";
+          state: PokerState;
+      }
+    | {
+          gameType: "blackjack";
+          state: BlackjackState;
+      }
+    | {
+          gameType: "yahtzee" | "lying_yahtzee";
+          state: YahtzeeState;
+      };
+
+function createDefaultState(): GameState {
+    return {
+        players: [],
+        hostId: null,
+        answers: {},
+        phase: "lobby",
+        selectedGameType: "quiz",
+        activeGameType: null,
+        gameSessionId: null,
+        gameParticipants: [],
+    };
+}
 
 function getPokerVisibilityMode(gameType: GameState["activeGameType"]) {
     return gameType === "backwards_poker" ? "backwards" : "standard";
@@ -33,23 +82,237 @@ export class GameRoom extends DurableObject {
     blackjackState: { current: BlackjackState | null };
     yahtzeeState: { current: YahtzeeState | null };
     nextHandTimer: ReturnType<typeof setTimeout> | null;
+    ready: Promise<void>;
 
     constructor(ctx: DurableObjectState, env: Env) {
         super(ctx, env);
         this.sessions = new Map();
-        this.state = {
-            players: [],
-            hostId: null,
-            answers: {},
-            phase: "lobby",
-            selectedGameType: "quiz",
-            activeGameType: null,
-        };
+        this.state = createDefaultState();
         this.goFishState = { current: null };
         this.pokerState = { current: null };
         this.blackjackState = { current: null };
         this.yahtzeeState = { current: null };
         this.nextHandTimer = null;
+        this.ready = this.ctx.blockConcurrencyWhile(async () => {
+            this.ensureSchema();
+            this.loadPersistedState();
+        });
+    }
+
+    ensureSchema() {
+        this.ctx.storage.sql.exec(`
+            CREATE TABLE IF NOT EXISTS kv (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        `);
+        this.ctx.storage.sql.exec(`
+            CREATE TABLE IF NOT EXISTS game_participants (
+                session_id TEXT NOT NULL,
+                player_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                joined_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (session_id, player_id)
+            )
+        `);
+    }
+
+    readMeta<T>(key: string): T | null {
+        const row = this.ctx.storage.sql
+            .exec<PersistedValueRow>(
+                "SELECT value FROM kv WHERE key = ?",
+                key,
+            )
+            .toArray()[0];
+
+        if (!row) return null;
+        return JSON.parse(row.value) as T;
+    }
+
+    writeMeta(key: string, value: unknown) {
+        this.ctx.storage.sql.exec(
+            "INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)",
+            key,
+            JSON.stringify(value),
+        );
+    }
+
+    deleteMeta(key: string) {
+        this.ctx.storage.sql.exec("DELETE FROM kv WHERE key = ?", key);
+    }
+
+    readParticipants(sessionId: string): GameParticipant[] {
+        return this.ctx.storage.sql
+            .exec<PersistedParticipantRow>(
+                `
+                    SELECT player_id, status
+                    FROM game_participants
+                    WHERE session_id = ?
+                    ORDER BY joined_at ASC
+                `,
+                sessionId,
+            )
+            .toArray()
+            .map((row) => ({
+                playerId: row.player_id,
+                status: row.status,
+            }));
+    }
+
+    writeParticipants(sessionId: string, participants: GameParticipant[]) {
+        const now = Date.now();
+        this.ctx.storage.sql.exec(
+            "DELETE FROM game_participants WHERE session_id = ?",
+            sessionId,
+        );
+
+        for (const [index, participant] of participants.entries()) {
+            this.ctx.storage.sql.exec(
+                `
+                    INSERT INTO game_participants (
+                        session_id,
+                        player_id,
+                        status,
+                        joined_at,
+                        updated_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                `,
+                sessionId,
+                participant.playerId,
+                participant.status,
+                now + index,
+                now,
+            );
+        }
+    }
+
+    deleteAllParticipants() {
+        this.ctx.storage.sql.exec("DELETE FROM game_participants");
+    }
+
+    loadPersistedState() {
+        const persistedState = this.readMeta<Partial<GameState>>(ROOM_STATE_KEY);
+        this.state = {
+            ...createDefaultState(),
+            ...persistedState,
+            gameParticipants: [],
+        };
+
+        if (this.state.gameSessionId) {
+            this.state.gameParticipants = this.readParticipants(
+                this.state.gameSessionId,
+            );
+        }
+
+        const snapshot = this.readMeta<PersistedGameSnapshot>(GAME_SNAPSHOT_KEY);
+        this.goFishState.current = null;
+        this.pokerState.current = null;
+        this.blackjackState.current = null;
+        this.yahtzeeState.current = null;
+
+        if (!snapshot || snapshot.gameType !== this.state.activeGameType) {
+            return;
+        }
+
+        if (snapshot.gameType === "go_fish") {
+            this.goFishState.current = snapshot.state;
+            return;
+        }
+
+        if (snapshot.gameType === "blackjack") {
+            this.blackjackState.current = snapshot.state;
+            return;
+        }
+
+        if (snapshot.gameType === "yahtzee" || snapshot.gameType === "lying_yahtzee") {
+            this.yahtzeeState.current = snapshot.state;
+            return;
+        }
+
+        if (
+            snapshot.gameType === "poker" ||
+            snapshot.gameType === "backwards_poker"
+        ) {
+            this.pokerState.current = snapshot.state;
+        }
+    }
+
+    persistRoomState() {
+        this.writeMeta(ROOM_STATE_KEY, this.state);
+        if (this.state.gameSessionId) {
+            this.writeParticipants(
+                this.state.gameSessionId,
+                this.state.gameParticipants,
+            );
+            return;
+        }
+
+        this.deleteAllParticipants();
+    }
+
+    getCurrentGameSnapshot(): PersistedGameSnapshot | null {
+        if (this.state.activeGameType === "go_fish" && this.goFishState.current) {
+            return {
+                gameType: "go_fish",
+                state: this.goFishState.current,
+            };
+        }
+
+        if (
+            isPokerGameType(this.state.activeGameType) &&
+            this.pokerState.current
+        ) {
+            return {
+                gameType: this.state.activeGameType,
+                state: this.pokerState.current,
+            };
+        }
+
+        if (
+            this.state.activeGameType === "blackjack" &&
+            this.blackjackState.current
+        ) {
+            return {
+                gameType: "blackjack",
+                state: this.blackjackState.current,
+            };
+        }
+
+        if (
+            (this.state.activeGameType === "yahtzee" ||
+                this.state.activeGameType === "lying_yahtzee") &&
+            this.yahtzeeState.current
+        ) {
+            return {
+                gameType: this.state.activeGameType,
+                state: this.yahtzeeState.current,
+            };
+        }
+
+        return null;
+    }
+
+    persistGameSnapshot() {
+        const snapshot = this.getCurrentGameSnapshot();
+        if (!snapshot) {
+            this.deleteMeta(GAME_SNAPSHOT_KEY);
+            return;
+        }
+
+        this.writeMeta(GAME_SNAPSHOT_KEY, snapshot);
+    }
+
+    persistAllState() {
+        this.persistRoomState();
+        this.persistGameSnapshot();
+    }
+
+    clearInMemoryGameStates() {
+        this.goFishState.current = null;
+        this.pokerState.current = null;
+        this.blackjackState.current = null;
+        this.yahtzeeState.current = null;
     }
 
     clearNextHandTimer() {
@@ -59,7 +322,37 @@ export class GameRoom extends DurableObject {
         }
     }
 
+    getGameParticipant(playerId: string) {
+        return (
+            this.state.gameParticipants.find(
+                (participant) => participant.playerId === playerId,
+            ) ?? null
+        );
+    }
+
+    setGameParticipantStatus(
+        playerId: string,
+        status: GameParticipantStatus,
+    ): boolean {
+        const participant = this.getGameParticipant(playerId);
+        if (!participant || participant.status === status) {
+            return false;
+        }
+
+        participant.status = status;
+        return true;
+    }
+
+    roomStateMessage() {
+        return JSON.stringify({
+            type: "room_state",
+            data: server(this.state).getRoomState(),
+        });
+    }
+
     async fetch(request: Request): Promise<Response> {
+        await this.ready;
+
         const webSocketPair = new WebSocketPair();
         const [client, serverWs] = Object.values(webSocketPair);
 
@@ -68,15 +361,16 @@ export class GameRoom extends DurableObject {
         const id = crypto.randomUUID();
         this.sessions.set(serverWs, { id, playerId: null });
 
-        serverWs.send(
-            JSON.stringify({
-                type: "room_state",
-                data: server(this.state).getRoomState(),
-            }),
-        );
+        const sendRoomStateToSocket = (ws: WebSocket) => {
+            ws.send(this.roomStateMessage());
+        };
 
         const broadcast = (msg: string) => {
             this.sessions.forEach((_, ws) => ws.send(msg));
+        };
+
+        const broadcastRoomState = () => {
+            broadcast(this.roomStateMessage());
         };
 
         const sendTo = (playerId: string, msg: string) => {
@@ -93,6 +387,7 @@ export class GameRoom extends DurableObject {
                     scheduleNextHand: schedulePokerNextHand,
                     visibilityMode: getPokerVisibilityMode(this.state.activeGameType),
                 }).startNextHand(broadcast, sendTo);
+                this.persistGameSnapshot();
             }, 4500);
         };
 
@@ -103,8 +398,102 @@ export class GameRoom extends DurableObject {
                 blackjackServer(this.blackjackState, {
                     scheduleNextRound: scheduleBlackjackNextRound,
                 }).startNextRound(broadcast, sendTo);
+                this.persistGameSnapshot();
             }, 5000);
         };
+
+        const rehydratePlayerGameState = (playerId: string, playerName: string) => {
+            const participant = this.getGameParticipant(playerId);
+            const isRoomPlayer = this.state.players.some((player) => player.id === playerId);
+
+            if (participant?.status === "left_game") {
+                return;
+            }
+
+            if (this.state.activeGameType === "go_fish" && participant) {
+                goFishServer(this.goFishState).sendStateToPlayer(playerId, sendTo);
+                return;
+            }
+
+            if (isPokerGameType(this.state.activeGameType)) {
+                const poker = pokerServer(this.pokerState, {
+                    scheduleNextHand: schedulePokerNextHand,
+                    visibilityMode: getPokerVisibilityMode(this.state.activeGameType),
+                });
+
+                if (participant) {
+                    poker.reconnectPlayer(
+                        { id: playerId, name: playerName },
+                        broadcast,
+                        sendTo,
+                    );
+                    return;
+                }
+
+                if (isRoomPlayer) {
+                    poker.addSpectator(
+                        { id: playerId, name: playerName },
+                        broadcast,
+                        sendTo,
+                    );
+                }
+                return;
+            }
+
+            if (this.state.activeGameType === "blackjack" && participant) {
+                blackjackServer(this.blackjackState, {
+                    scheduleNextRound: scheduleBlackjackNextRound,
+                }).sendStateToPlayer(playerId, sendTo);
+                return;
+            }
+
+            if (
+                (this.state.activeGameType === "yahtzee" ||
+                    this.state.activeGameType === "lying_yahtzee") &&
+                participant
+            ) {
+                yahtzeeServer(this.yahtzeeState, {
+                    mode: getYahtzeeMode(this.state.activeGameType),
+                }).sendStateToPlayer(playerId, sendTo);
+            }
+        };
+
+        const removePlayerFromActiveGame = (playerId: string) => {
+            if (this.state.activeGameType === "go_fish") {
+                goFishServer(this.goFishState).removePlayer(
+                    playerId,
+                    broadcast,
+                    sendTo,
+                );
+                return;
+            }
+
+            if (isPokerGameType(this.state.activeGameType)) {
+                pokerServer(this.pokerState, {
+                    scheduleNextHand: schedulePokerNextHand,
+                    visibilityMode: getPokerVisibilityMode(this.state.activeGameType),
+                }).disconnectPlayer(playerId, broadcast, sendTo);
+                return;
+            }
+
+            if (this.state.activeGameType === "blackjack") {
+                blackjackServer(this.blackjackState, {
+                    scheduleNextRound: scheduleBlackjackNextRound,
+                }).removePlayer(playerId, broadcast, sendTo);
+                return;
+            }
+
+            if (
+                this.state.activeGameType === "yahtzee" ||
+                this.state.activeGameType === "lying_yahtzee"
+            ) {
+                yahtzeeServer(this.yahtzeeState, {
+                    mode: getYahtzeeMode(this.state.activeGameType),
+                }).removePlayer(playerId, broadcast, sendTo);
+            }
+        };
+
+        sendRoomStateToSocket(serverWs);
 
         serverWs.addEventListener("message", async (event) => {
             const raw = event.data as string;
@@ -115,15 +504,32 @@ export class GameRoom extends DurableObject {
                 return;
             }
 
-            if (json.type === "join" && json.playerId) {
+            if ((json.type === "identify" || json.type === "join") && json.playerId) {
                 const session = this.sessions.get(serverWs);
                 if (session) session.playerId = json.playerId;
             }
 
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("go_fish:")
-            ) {
+            if (json.type === "identify" && json.playerId) {
+                const participant = this.getGameParticipant(json.playerId);
+                const didChange =
+                    participant?.status === "disconnected" &&
+                    this.setGameParticipantStatus(json.playerId, "active");
+
+                if (didChange) {
+                    this.persistRoomState();
+                    broadcastRoomState();
+                }
+
+                sendRoomStateToSocket(serverWs);
+                rehydratePlayerGameState(
+                    json.playerId,
+                    typeof json.playerName === "string" ? json.playerName : "",
+                );
+                this.persistGameSnapshot();
+                return;
+            }
+
+            if (typeof json.type === "string" && json.type.startsWith("go_fish:")) {
                 const parsed = goFishClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
                 goFishServer(this.goFishState).processMessage(
@@ -131,19 +537,18 @@ export class GameRoom extends DurableObject {
                     broadcast,
                     sendTo,
                 );
+                this.persistGameSnapshot();
                 return;
             }
 
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("poker:")
-            ) {
+            if (typeof json.type === "string" && json.type.startsWith("poker:")) {
                 const parsed = pokerClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
                 pokerServer(this.pokerState, {
                     scheduleNextHand: schedulePokerNextHand,
                     visibilityMode: getPokerVisibilityMode(this.state.activeGameType),
                 }).processMessage(parsed.data, broadcast, sendTo);
+                this.persistGameSnapshot();
                 return;
             }
 
@@ -156,20 +561,17 @@ export class GameRoom extends DurableObject {
                 blackjackServer(this.blackjackState, {
                     scheduleNextRound: scheduleBlackjackNextRound,
                 }).processMessage(parsed.data, broadcast, sendTo);
+                this.persistGameSnapshot();
                 return;
             }
 
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("yahtzee:")
-            ) {
+            if (typeof json.type === "string" && json.type.startsWith("yahtzee:")) {
                 const parsed = yahtzeeClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
-                yahtzeeServer(this.yahtzeeState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
+                yahtzeeServer(this.yahtzeeState, {
+                    mode: getYahtzeeMode(this.state.activeGameType),
+                }).processMessage(parsed.data, broadcast, sendTo);
+                this.persistGameSnapshot();
                 return;
             }
 
@@ -184,30 +586,52 @@ export class GameRoom extends DurableObject {
             const processResult = await server(this.state).processMessage(
                 raw,
                 broadcast,
+                {
+                    createGameSession: () => ({
+                        gameSessionId: crypto.randomUUID(),
+                        participants: this.state.players.map((player) => ({
+                            playerId: player.id,
+                            status: "active",
+                        })),
+                    }),
+                },
             );
 
-            if (json.type === "join" && isPokerGameType(this.state.activeGameType)) {
-                const poker = pokerServer(this.pokerState, {
-                    scheduleNextHand: schedulePokerNextHand,
-                    visibilityMode: getPokerVisibilityMode(this.state.activeGameType),
-                });
-                if (wasSeatedPokerPlayer) {
-                    poker.reconnectPlayer(
-                        {
-                            id: json.playerId,
-                            name: json.playerName,
-                        },
-                        broadcast,
-                        sendTo,
-                    );
-                } else {
-                    poker.addSpectator(
-                        {
-                            id: json.playerId,
-                            name: json.playerName,
-                        },
-                        broadcast,
-                        sendTo,
+            if (json.type === "join" && this.state.phase === "playing" && json.playerId) {
+                const participant = this.getGameParticipant(json.playerId);
+                if (participant?.status === "disconnected") {
+                    this.setGameParticipantStatus(json.playerId, "active");
+                    broadcastRoomState();
+                }
+
+                if (isPokerGameType(this.state.activeGameType)) {
+                    const poker = pokerServer(this.pokerState, {
+                        scheduleNextHand: schedulePokerNextHand,
+                        visibilityMode: getPokerVisibilityMode(this.state.activeGameType),
+                    });
+                    if (participant || wasSeatedPokerPlayer) {
+                        poker.reconnectPlayer(
+                            {
+                                id: json.playerId,
+                                name: json.playerName,
+                            },
+                            broadcast,
+                            sendTo,
+                        );
+                    } else {
+                        poker.addSpectator(
+                            {
+                                id: json.playerId,
+                                name: json.playerName,
+                            },
+                            broadcast,
+                            sendTo,
+                        );
+                    }
+                } else if (participant) {
+                    rehydratePlayerGameState(
+                        json.playerId,
+                        typeof json.playerName === "string" ? json.playerName : "",
                     );
                 }
             }
@@ -220,6 +644,8 @@ export class GameRoom extends DurableObject {
                         name: player.name,
                     }));
                     this.pokerState.current = null;
+                    this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
                     goFishServer(this.goFishState).initGame(
                         players,
                         broadcast,
@@ -231,6 +657,8 @@ export class GameRoom extends DurableObject {
                         name: player.name,
                     }));
                     this.goFishState.current = null;
+                    this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
                     pokerServer(this.pokerState, {
                         scheduleNextHand: schedulePokerNextHand,
                         visibilityMode: getPokerVisibilityMode(processResult.gameType),
@@ -242,6 +670,7 @@ export class GameRoom extends DurableObject {
                     }));
                     this.goFishState.current = null;
                     this.pokerState.current = null;
+                    this.yahtzeeState.current = null;
                     blackjackServer(this.blackjackState, {
                         scheduleNextRound: scheduleBlackjackNextRound,
                     }).initGame(players, broadcast, sendTo);
@@ -258,17 +687,12 @@ export class GameRoom extends DurableObject {
                     this.blackjackState.current = null;
                     yahtzeeServer(this.yahtzeeState, {
                         mode: getYahtzeeMode(processResult.gameType),
-                    }).initGame(
-                        players,
-                        broadcast,
-                        sendTo,
-                    );
+                    }).initGame(players, broadcast, sendTo);
                 } else {
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
+                    this.clearInMemoryGameStates();
                 }
+
+                this.persistAllState();
                 return;
             }
 
@@ -291,15 +715,27 @@ export class GameRoom extends DurableObject {
                         mode: getYahtzeeMode(processResult.gameType),
                     }).endGame(broadcast, sendTo);
                 }
+
+                this.persistAllState();
+                return;
+            }
+
+            if (processResult.kind === "leave_game") {
+                removePlayerFromActiveGame(processResult.playerId);
+                this.persistAllState();
                 return;
             }
 
             if (processResult.kind === "return_to_lobby") {
                 this.clearNextHandTimer();
-                this.goFishState.current = null;
-                this.pokerState.current = null;
-                this.blackjackState.current = null;
-                this.yahtzeeState.current = null;
+                this.clearInMemoryGameStates();
+                this.persistAllState();
+                return;
+            }
+
+            this.persistRoomState();
+            if (json.type === "join" && json.playerId) {
+                this.persistGameSnapshot();
             }
         });
 
@@ -308,12 +744,23 @@ export class GameRoom extends DurableObject {
             this.sessions.delete(serverWs);
 
             if (!session?.playerId) return;
-            if (!isPokerGameType(this.state.activeGameType)) return;
 
-            pokerServer(this.pokerState, {
-                scheduleNextHand: schedulePokerNextHand,
-                visibilityMode: getPokerVisibilityMode(this.state.activeGameType),
-            }).disconnectPlayer(session.playerId, broadcast, sendTo);
+            const didChange = this.setGameParticipantStatus(
+                session.playerId,
+                "disconnected",
+            );
+
+            if (!didChange) return;
+
+            if (isPokerGameType(this.state.activeGameType)) {
+                pokerServer(this.pokerState, {
+                    scheduleNextHand: schedulePokerNextHand,
+                    visibilityMode: getPokerVisibilityMode(this.state.activeGameType),
+                }).disconnectPlayer(session.playerId, broadcast, sendTo);
+            }
+
+            this.persistAllState();
+            broadcastRoomState();
         });
 
         return new Response(null, {

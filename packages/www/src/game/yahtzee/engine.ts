@@ -508,3 +508,43 @@ export function processAction(
 
     return { type: "error", message: "Unknown action" };
 }
+
+export function removePlayer(
+    state: YahtzeeState,
+    playerId: string,
+): YahtzeeResult | null {
+    const playerIndex = state.players.findIndex((player) => player.id === playerId);
+    if (playerIndex < 0) return null;
+
+    state.players.splice(playerIndex, 1);
+
+    if (state.players.length === 0) {
+        state.phase = "game_over";
+        state.winners = [];
+        return {
+            type: "game_over",
+            winners: [],
+            finalScores: [],
+        };
+    }
+
+    if (state.players.length === 1) {
+        state.phase = "game_over";
+        state.winners = [state.players[0].id];
+        return {
+            type: "game_over",
+            winners: state.winners,
+            finalScores: buildFinalScores(state),
+        };
+    }
+
+    if (playerIndex < state.currentPlayerIndex) {
+        state.currentPlayerIndex -= 1;
+    } else if (playerIndex === state.currentPlayerIndex) {
+        state.currentPlayerIndex %= state.players.length;
+        state.lastTurnReveal = null;
+        resetTurnState(state);
+    }
+
+    return null;
+}

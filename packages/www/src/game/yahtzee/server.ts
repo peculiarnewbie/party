@@ -1,13 +1,34 @@
 import type { YahtzeeState } from "./types";
 import type { YahtzeeClientMessage } from "./messages";
 import type { ScoringCategory, YahtzeeMode } from "./types";
-import { endGameByHost, initGame, processAction } from "./engine";
+import {
+    endGameByHost,
+    initGame,
+    processAction,
+    removePlayer as removeYahtzeePlayer,
+} from "./engine";
 import { getPlayerView } from "./views";
 
 export const yahtzeeServer = (
     stateRef: { current: YahtzeeState | null },
     opts?: { mode?: YahtzeeMode },
 ) => ({
+    sendStateToPlayer(
+        playerId: string,
+        sendTo: (playerId: string, msg: string) => void,
+    ) {
+        const state = stateRef.current;
+        if (!state) return;
+
+        sendTo(
+            playerId,
+            JSON.stringify({
+                type: "yahtzee:state",
+                data: getPlayerView(state, playerId),
+            }),
+        );
+    },
+
     initGame(
         players: { id: string; name: string }[],
         broadcast: (msg: string) => void,
@@ -125,6 +146,7 @@ export const yahtzeeServer = (
         if (!state) return;
 
         const result = endGameByHost(state);
+        if (result.type !== "game_over") return;
 
         for (const player of state.players) {
             sendTo(
@@ -145,5 +167,38 @@ export const yahtzeeServer = (
                 },
             }),
         );
+    },
+
+    removePlayer(
+        playerId: string,
+        broadcast: (msg: string) => void,
+        sendTo: (playerId: string, msg: string) => void,
+    ) {
+        const state = stateRef.current;
+        if (!state) return;
+
+        const result = removeYahtzeePlayer(state, playerId);
+
+        for (const player of state.players) {
+            sendTo(
+                player.id,
+                JSON.stringify({
+                    type: "yahtzee:state",
+                    data: getPlayerView(state, player.id),
+                }),
+            );
+        }
+
+        if (result?.type === "game_over") {
+            broadcast(
+                JSON.stringify({
+                    type: "yahtzee:game_over",
+                    data: {
+                        winners: result.winners,
+                        finalScores: result.finalScores,
+                    },
+                }),
+            );
+        }
     },
 });

@@ -10,6 +10,12 @@ export const gameTypes = [
     "lying_yahtzee",
 ] as const;
 export type GameType = (typeof gameTypes)[number];
+export type GameParticipantStatus = "active" | "disconnected" | "left_game";
+
+export interface GameParticipant {
+    playerId: string;
+    status: GameParticipantStatus;
+}
 
 export const GAME_RULES: Record<
     GameType,
@@ -61,8 +67,10 @@ export function isPokerGameType(
 export type RoomPhase = "lobby" | "playing";
 
 export const messageTypes = [
+    "identify",
     "join",
     "leave",
+    "leave_game",
     "select_game",
     "start",
     "end",
@@ -85,6 +93,8 @@ export interface GameState {
     phase: RoomPhase;
     selectedGameType: GameType;
     activeGameType: GameType | null;
+    gameSessionId: string | null;
+    gameParticipants: GameParticipant[];
 }
 
 export interface RoomStatePayload {
@@ -93,13 +103,16 @@ export interface RoomStatePayload {
     phase: RoomPhase;
     selectedGameType: GameType;
     activeGameType: GameType | null;
+    gameSessionId: string | null;
+    gameParticipants: GameParticipant[];
 }
 
 export type RoomProcessResult =
     | { kind: "none" }
     | { kind: "start"; gameType: GameType }
     | { kind: "end"; gameType: GameType | null }
-    | { kind: "return_to_lobby" };
+    | { kind: "return_to_lobby" }
+    | { kind: "leave_game"; gameType: GameType; playerId: string };
 
 export const clientMessageSchema = z.object({
     playerId: z.string(),
@@ -132,6 +145,8 @@ function buildRoomStatePayload(state: GameState): RoomStatePayload {
         phase: state.phase,
         selectedGameType: state.selectedGameType,
         activeGameType: state.activeGameType,
+        gameSessionId: state.gameSessionId,
+        gameParticipants: state.gameParticipants,
     };
 }
 
@@ -208,6 +223,36 @@ export const server = (state: GameState) => {
 
         getRoomState: () => buildRoomStatePayload(state),
 
+        setGameSession: (
+            gameSessionId: string,
+            participants: GameParticipant[],
+        ) => {
+            state.gameSessionId = gameSessionId;
+            state.gameParticipants = participants;
+        },
+
+        clearGameSession: () => {
+            state.gameSessionId = null;
+            state.gameParticipants = [];
+        },
+
+        getGameParticipant: (playerId: string) =>
+            state.gameParticipants.find(
+                (participant) => participant.playerId === playerId,
+            ) ?? null,
+
+        setGameParticipantStatus: (
+            playerId: string,
+            status: GameParticipantStatus,
+        ) => {
+            const participant = state.gameParticipants.find(
+                (item) => item.playerId === playerId,
+            );
+            if (!participant) return null;
+            participant.status = status;
+            return participant;
+        },
+
         saveAnswer: (playerId: string, answer: string) => {
             state.answers[playerId] = answer;
             return state.answers;
@@ -218,6 +263,11 @@ export const server = (state: GameState) => {
         processMessage: async (
             message: string,
             broadcast: (msg: string) => void,
+            opts?: {
+                createGameSession?: (
+                    gameType: GameType,
+                ) => { gameSessionId: string; participants: GameParticipant[] };
+            },
         ): Promise<RoomProcessResult> => {
             const json = JSON.parse(message);
 
@@ -230,6 +280,10 @@ export const server = (state: GameState) => {
             const parsed = safeParsed.data;
             const { playerId, playerName, type } = parsed;
             const s = server(state);
+
+            if (type === "identify") {
+                return { kind: "none" };
+            }
 
             if (type === "join") {
                 const players = s.addPlayer(playerId, playerName);
@@ -307,6 +361,13 @@ export const server = (state: GameState) => {
 
                 state.phase = "playing";
                 state.activeGameType = state.selectedGameType;
+                const session = opts?.createGameSession?.(state.activeGameType);
+                if (session) {
+                    s.setGameSession(
+                        session.gameSessionId,
+                        session.participants,
+                    );
+                }
                 broadcast(
                     JSON.stringify({
                         type: "game_started",
@@ -339,8 +400,28 @@ export const server = (state: GameState) => {
                 state.phase = "lobby";
                 state.activeGameType = null;
                 state.answers = {};
+                s.clearGameSession();
                 broadcastRoomState(broadcast);
                 return { kind: "return_to_lobby" };
+            }
+
+            if (type === "leave_game") {
+                if (state.phase !== "playing" || !state.activeGameType) {
+                    return { kind: "none" };
+                }
+
+                const participant = s.getGameParticipant(playerId);
+                if (!participant || participant.status === "left_game") {
+                    return { kind: "none" };
+                }
+
+                participant.status = "left_game";
+                broadcastRoomState(broadcast);
+                return {
+                    kind: "leave_game",
+                    gameType: state.activeGameType,
+                    playerId,
+                };
             }
 
             if (type === "answer") {

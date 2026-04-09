@@ -1,6 +1,10 @@
 import type { BlackjackState } from "./types";
 import type { BlackjackClientMessage } from "./messages";
-import { initGame, processAction } from "./engine";
+import {
+    initGame,
+    processAction,
+    removePlayer as removeBlackjackPlayer,
+} from "./engine";
 import { getPlayerView } from "./views";
 
 export const blackjackServer = (
@@ -9,6 +13,22 @@ export const blackjackServer = (
         scheduleNextRound: () => void;
     },
 ) => ({
+    sendStateToPlayer(
+        playerId: string,
+        sendTo: (playerId: string, msg: string) => void,
+    ) {
+        const state = stateRef.current;
+        if (!state) return;
+
+        sendTo(
+            playerId,
+            JSON.stringify({
+                type: "blackjack:state",
+                data: getPlayerView(state, playerId),
+            }),
+        );
+    },
+
     initGame(
         players: { id: string; name: string }[],
         broadcast: (msg: string) => void,
@@ -139,6 +159,46 @@ export const blackjackServer = (
                     data: getPlayerView(state, player.id),
                 }),
             );
+        }
+    },
+
+    removePlayer(
+        playerId: string,
+        broadcast: (msg: string) => void,
+        sendTo: (playerId: string, msg: string) => void,
+    ) {
+        const state = stateRef.current;
+        if (!state) return;
+
+        const result = removeBlackjackPlayer(state, playerId);
+
+        if (result) {
+            broadcast(
+                JSON.stringify({
+                    type: "blackjack:action",
+                    data: result,
+                }),
+            );
+        }
+
+        for (const player of state.players) {
+            sendTo(
+                player.id,
+                JSON.stringify({
+                    type: "blackjack:state",
+                    data: getPlayerView(state, player.id),
+                }),
+            );
+        }
+
+        if (state.phase === "settled" && state.results) {
+            broadcast(
+                JSON.stringify({
+                    type: "blackjack:settled",
+                    data: { results: state.results },
+                }),
+            );
+            opts.scheduleNextRound();
         }
     },
 });

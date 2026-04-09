@@ -22,6 +22,7 @@ export {
     endGameByHost,
     initGame,
     processAction,
+    removePlayer,
     calculateScore,
     getTotalScore,
     getUpperSectionTotal,

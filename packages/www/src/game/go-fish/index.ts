@@ -11,6 +11,7 @@ export {
     processAction,
     checkForBooks,
     checkGameOver,
+    removePlayer,
 } from "./engine";
 export type { GoFishPlayerView } from "./views";
 export { getPlayerView } from "./views";

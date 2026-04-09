@@ -1,10 +1,30 @@
 import type { Rank } from "~/assets/card-deck/types";
 import type { GoFishState } from "./types";
 import type { GoFishClientMessage } from "./messages";
-import { initGame, processAction } from "./engine";
+import {
+    initGame,
+    processAction,
+    removePlayer as removeGoFishPlayer,
+} from "./engine";
 import { getPlayerView } from "./views";
 
 export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
+    sendStateToPlayer(
+        playerId: string,
+        sendTo: (playerId: string, msg: string) => void,
+    ) {
+        const state = stateRef.current;
+        if (!state) return;
+
+        sendTo(
+            playerId,
+            JSON.stringify({
+                type: "go_fish:state",
+                data: getPlayerView(state, playerId),
+            }),
+        );
+    },
+
     initGame(
         players: { id: string; name: string }[],
         broadcast: (msg: string) => void,
@@ -166,6 +186,36 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
                     }),
                 );
             }
+        }
+    },
+
+    removePlayer(
+        playerId: string,
+        broadcast: (msg: string) => void,
+        sendTo: (playerId: string, msg: string) => void,
+    ) {
+        const state = stateRef.current;
+        if (!state) return;
+
+        const result = removeGoFishPlayer(state, playerId);
+
+        if (result?.type === "game_over") {
+            broadcast(
+                JSON.stringify({
+                    type: "go_fish:game_over",
+                    data: { winners: result.winners },
+                }),
+            );
+        }
+
+        for (const player of state.players) {
+            sendTo(
+                player.id,
+                JSON.stringify({
+                    type: "go_fish:state",
+                    data: getPlayerView(state, player.id),
+                }),
+            );
         }
     },
 });

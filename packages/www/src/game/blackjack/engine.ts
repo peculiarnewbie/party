@@ -620,3 +620,113 @@ export function processAction(
 
     return { type: "error", message: "Unknown action" };
 }
+
+export function removePlayer(
+    state: BlackjackState,
+    playerId: string,
+): BlackjackResult | null {
+    const playerIndex = state.players.findIndex((player) => player.id === playerId);
+    if (playerIndex < 0) return null;
+
+    state.players.splice(playerIndex, 1);
+    if (state.results) {
+        state.results = state.results.filter((result) => result.playerId !== playerId);
+    }
+
+    if (state.players.length === 0) {
+        state.phase = "settled";
+        state.results = [];
+        state.currentPlayerIndex = 0;
+        return { type: "settled", results: [] };
+    }
+
+    if (playerIndex < state.currentPlayerIndex) {
+        state.currentPlayerIndex -= 1;
+    }
+    if (state.currentPlayerIndex >= state.players.length) {
+        state.currentPlayerIndex = state.players.length - 1;
+    }
+
+    if (state.phase === "betting") {
+        const activePlayers = state.players.filter((player) => !player.done);
+        if (activePlayers.length === 0) {
+            state.phase = "settled";
+            state.results = [];
+            return { type: "settled", results: [] };
+        }
+
+        if (!activePlayers.every((player) => player.bet > 0)) {
+            return null;
+        }
+
+        const insuranceOffered = dealCards(state);
+
+        if (insuranceOffered) {
+            state.phase = "insurance";
+            return { type: "dealt", insuranceOffered: true };
+        }
+
+        const upCard = state.dealerHand[0];
+        const upValue =
+            upCard.rank === 1 ? 11 : upCard.rank >= 11 ? 10 : upCard.rank;
+        if (upValue === 10 && isNaturalBlackjack(state.dealerHand)) {
+            state.dealerRevealed = true;
+            settleRound(state);
+            return { type: "settled", results: state.results! };
+        }
+
+        startPlayingPhase(state);
+
+        if (state.results) {
+            return { type: "settled", results: state.results };
+        }
+
+        return { type: "dealt", insuranceOffered: false };
+    }
+
+    if (state.phase === "insurance") {
+        const activePlayers = state.players.filter((player) => !player.done);
+        if (activePlayers.length === 0) {
+            state.phase = "settled";
+            state.results = [];
+            return { type: "settled", results: [] };
+        }
+
+        if (!activePlayers.every((player) => player.insuranceDecided)) {
+            return null;
+        }
+
+        const dealerBJ = isNaturalBlackjack(state.dealerHand);
+
+        if (dealerBJ) {
+            state.dealerRevealed = true;
+            settleRound(state);
+            return { type: "insurance_resolved", dealerBlackjack: true };
+        }
+
+        startPlayingPhase(state);
+
+        if (state.results) {
+            return { type: "settled", results: state.results };
+        }
+
+        return { type: "insurance_resolved", dealerBlackjack: false };
+    }
+
+    if (state.phase === "playing") {
+        while (
+            state.currentPlayerIndex < state.players.length &&
+            state.players[state.currentPlayerIndex].done
+        ) {
+            state.currentPlayerIndex += 1;
+        }
+
+        if (state.currentPlayerIndex >= state.players.length) {
+            playDealer(state);
+            settleRound(state);
+            return { type: "settled", results: state.results! };
+        }
+    }
+
+    return null;
+}

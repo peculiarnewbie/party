@@ -10,6 +10,8 @@ function makeRoomState(overrides?: Partial<GameState>): GameState {
         phase: "lobby",
         selectedGameType: "quiz",
         activeGameType: null,
+        gameSessionId: null,
+        gameParticipants: [],
         ...overrides,
     };
 }
@@ -101,8 +103,10 @@ describe("Game Logic", () => {
 
     describe("Message Types", () => {
         it("contains all expected message types", () => {
+            expect(messageTypes).toContain("identify");
             expect(messageTypes).toContain("join");
             expect(messageTypes).toContain("leave");
+            expect(messageTypes).toContain("leave_game");
             expect(messageTypes).toContain("select_game");
             expect(messageTypes).toContain("start");
             expect(messageTypes).toContain("end");
@@ -215,6 +219,39 @@ describe("Game Logic", () => {
             expect(result).toEqual({ kind: "start", gameType: "poker" });
             expect(state.activeGameType).toBe("poker");
             expect(state.phase).toBe("playing");
+        });
+
+        it("marks a player as having left the active game", async () => {
+            const state = makeRoomState({
+                hostId: "host",
+                phase: "playing",
+                activeGameType: "yahtzee",
+                gameSessionId: "session-1",
+                gameParticipants: [
+                    { playerId: "host", status: "active" },
+                    { playerId: "guest", status: "active" },
+                ],
+            });
+
+            const result = await server(state).processMessage(
+                JSON.stringify({
+                    playerId: "guest",
+                    playerName: "Guest",
+                    type: "leave_game",
+                    data: {},
+                }),
+                () => undefined,
+            );
+
+            expect(result).toEqual({
+                kind: "leave_game",
+                gameType: "yahtzee",
+                playerId: "guest",
+            });
+            expect(state.gameParticipants).toEqual([
+                { playerId: "host", status: "active" },
+                { playerId: "guest", status: "left_game" },
+            ]);
         });
 
         it("does not start poker above the max player count", async () => {
