@@ -10,6 +10,7 @@ export const gameTypes = [
     "lying_yahtzee",
     "perudo",
     "rps",
+    "herd",
 ] as const;
 export type GameType = (typeof gameTypes)[number];
 export type GameParticipantStatus = "active" | "disconnected" | "left_game";
@@ -66,6 +67,11 @@ export const GAME_RULES: Record<
     rps: {
         label: "RPS Tournament",
         minPlayers: 2,
+        maxPlayers: null,
+    },
+    herd: {
+        label: "Herd Mentality",
+        minPlayers: 3,
         maxPlayers: null,
     },
 };

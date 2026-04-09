@@ -17,6 +17,7 @@ import { BlackjackRoom } from "~/components/blackjack/blackjack-room";
 import { YahtzeeRoom } from "~/components/yahtzee/yahtzee-room";
 import { PerudoRoom } from "~/components/perudo/perudo-room";
 import { RpsRoom } from "~/components/rps/rps-room";
+import { HerdRoom } from "~/components/herd/herd-room";
 import {
     type GameType,
     type GameParticipant,
@@ -149,7 +150,8 @@ function RouteComponent() {
                     json.type.startsWith("blackjack:") ||
                     json.type.startsWith("yahtzee:") ||
                     json.type.startsWith("perudo:") ||
-                    json.type.startsWith("rps:"))
+                    json.type.startsWith("rps:") ||
+                    json.type.startsWith("herd:"))
             ) {
                 return;
             }
@@ -406,6 +408,31 @@ function RouteComponent() {
                         }
                     >
                         <RpsRoom
+                            roomId={roomId()}
+                            playerId={playerId()}
+                            isHost={isHost()}
+                            ws={getWs()}
+                            onEndGame={endGame}
+                            onReturnToLobby={returnToLobby}
+                        />
+                    </Show>
+                </Match>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        activeGameType() === "herd"
+                    }
+                >
+                    <Show
+                        when={canAccessCurrentGame()}
+                        fallback={
+                            <GameSessionState
+                                roomId={roomId()}
+                                status={myGameStatus()}
+                            />
+                        }
+                    >
+                        <HerdRoom
                             roomId={roomId()}
                             playerId={playerId()}
                             isHost={isHost()}
