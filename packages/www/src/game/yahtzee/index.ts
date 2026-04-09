@@ -19,6 +19,7 @@ export {
     CATEGORY_LABELS,
 } from "./types";
 export {
+    endGameByHost,
     initGame,
     processAction,
     calculateScore,

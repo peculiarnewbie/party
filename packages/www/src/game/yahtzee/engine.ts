@@ -270,6 +270,24 @@ function finishTurn(state: YahtzeeState): YahtzeeResult | null {
     return null;
 }
 
+export function endGameByHost(state: YahtzeeState): YahtzeeResult {
+    state.phase = "game_over";
+    state.pendingClaim = null;
+    state.lastTurnReveal = null;
+
+    const finalScores = buildFinalScores(state);
+    const maxScore = Math.max(...finalScores.map((score) => score.total));
+    state.winners = finalScores
+        .filter((score) => score.total === maxScore)
+        .map((score) => score.playerId);
+
+    return {
+        type: "game_over",
+        winners: state.winners,
+        finalScores,
+    };
+}
+
 function resolveLyingClaim(
     state: YahtzeeState,
     responderId: string,

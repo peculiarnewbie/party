@@ -1,7 +1,7 @@
 import type { YahtzeeState } from "./types";
 import type { YahtzeeClientMessage } from "./messages";
 import type { ScoringCategory, YahtzeeMode } from "./types";
-import { initGame, processAction } from "./engine";
+import { endGameByHost, initGame, processAction } from "./engine";
 import { getPlayerView } from "./views";
 
 export const yahtzeeServer = (
@@ -115,5 +115,35 @@ export const yahtzeeServer = (
                 }),
             );
         }
+    },
+
+    endGame(
+        broadcast: (msg: string) => void,
+        sendTo: (playerId: string, msg: string) => void,
+    ) {
+        const state = stateRef.current;
+        if (!state) return;
+
+        const result = endGameByHost(state);
+
+        for (const player of state.players) {
+            sendTo(
+                player.id,
+                JSON.stringify({
+                    type: "yahtzee:state",
+                    data: getPlayerView(state, player.id),
+                }),
+            );
+        }
+
+        broadcast(
+            JSON.stringify({
+                type: "yahtzee:game_over",
+                data: {
+                    winners: result.winners,
+                    finalScores: result.finalScores,
+                },
+            }),
+        );
     },
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import {
+    endGameByHost,
     initGame,
     processAction,
     calculateScore,
@@ -473,6 +474,25 @@ describe("processAction", () => {
         expect(lastResult!.type).toBe("game_over");
         expect(state.phase).toBe("game_over");
         expect(state.winners).not.toBeNull();
+    });
+
+    it("ends game immediately when the host stops the game", () => {
+        const state = initGame(PLAYERS);
+        state.players[0].scorecard.chance = 20;
+        state.players[1].scorecard.chance = 25;
+
+        const result = endGameByHost(state);
+
+        expect(result.type).toBe("game_over");
+        expect(state.phase).toBe("game_over");
+        expect(state.winners).toEqual(["p2"]);
+        if (result.type === "game_over") {
+            expect(result.winners).toEqual(["p2"]);
+            expect(result.finalScores).toEqual([
+                { playerId: "p1", playerName: "Alice", total: 20 },
+                { playerId: "p2", playerName: "Bob", total: 25 },
+            ]);
+        }
     });
 
     it("rejects actions after game over", () => {
