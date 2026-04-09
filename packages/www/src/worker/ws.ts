@@ -31,6 +31,11 @@ import {
     perudoServer,
     type PerudoState,
 } from "~/game/perudo";
+import {
+    rpsClientMessageSchema,
+    rpsServer,
+    type RpsState,
+} from "~/game/rps";
 
 const ROOM_STATE_KEY = "room_state";
 const GAME_SNAPSHOT_KEY = "game_snapshot";
@@ -64,6 +69,10 @@ type PersistedGameSnapshot =
     | {
           gameType: "perudo";
           state: PerudoState;
+      }
+    | {
+          gameType: "rps";
+          state: RpsState;
       };
 
 function createDefaultState(): GameState {
@@ -95,6 +104,7 @@ export class GameRoom extends DurableObject {
     blackjackState: { current: BlackjackState | null };
     yahtzeeState: { current: YahtzeeState | null };
     perudoState: { current: PerudoState | null };
+    rpsState: { current: RpsState | null };
     nextHandTimer: ReturnType<typeof setTimeout> | null;
     ready: Promise<void>;
 
@@ -107,6 +117,7 @@ export class GameRoom extends DurableObject {
         this.blackjackState = { current: null };
         this.yahtzeeState = { current: null };
         this.perudoState = { current: null };
+        this.rpsState = { current: null };
         this.nextHandTimer = null;
         this.ready = this.ctx.blockConcurrencyWhile(async () => {
             this.ensureSchema();
@@ -225,6 +236,7 @@ export class GameRoom extends DurableObject {
         this.blackjackState.current = null;
         this.yahtzeeState.current = null;
         this.perudoState.current = null;
+        this.rpsState.current = null;
 
         if (!snapshot || snapshot.gameType !== this.state.activeGameType) {
             return;
@@ -258,6 +270,11 @@ export class GameRoom extends DurableObject {
             snapshot.gameType === "backwards_poker"
         ) {
             this.pokerState.current = snapshot.state;
+            return;
+        }
+
+        if (snapshot.gameType === "rps") {
+            this.rpsState.current = snapshot.state;
         }
     }
 
@@ -326,6 +343,16 @@ export class GameRoom extends DurableObject {
             };
         }
 
+        if (
+            this.state.activeGameType === "rps" &&
+            this.rpsState.current
+        ) {
+            return {
+                gameType: "rps",
+                state: this.rpsState.current,
+            };
+        }
+
         return null;
     }
 
@@ -350,6 +377,7 @@ export class GameRoom extends DurableObject {
         this.blackjackState.current = null;
         this.yahtzeeState.current = null;
         this.perudoState.current = null;
+        this.rpsState.current = null;
     }
 
     clearNextHandTimer() {
@@ -512,6 +540,14 @@ export class GameRoom extends DurableObject {
                     playerId,
                     sendTo,
                 );
+                return;
+            }
+
+            if (this.state.activeGameType === "rps" && participant) {
+                rpsServer(this.rpsState).sendStateToPlayer(
+                    playerId,
+                    sendTo,
+                );
             }
         };
 
@@ -554,6 +590,15 @@ export class GameRoom extends DurableObject {
 
             if (this.state.activeGameType === "perudo") {
                 perudoServer(this.perudoState).removePlayer(
+                    playerId,
+                    broadcast,
+                    sendTo,
+                );
+                return;
+            }
+
+            if (this.state.activeGameType === "rps") {
+                rpsServer(this.rpsState).removePlayer(
                     playerId,
                     broadcast,
                     sendTo,
@@ -664,6 +709,21 @@ export class GameRoom extends DurableObject {
                 const parsed = perudoClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
                 perudoServer(this.perudoState).processMessage(
+                    parsed.data,
+                    broadcast,
+                    sendTo,
+                );
+                this.persistGameSnapshot();
+                return;
+            }
+
+            if (
+                typeof json.type === "string" &&
+                json.type.startsWith("rps:")
+            ) {
+                const parsed = rpsClientMessageSchema.safeParse(json);
+                if (!parsed.success) return;
+                rpsServer(this.rpsState).processMessage(
                     parsed.data,
                     broadcast,
                     sendTo,
@@ -805,7 +865,23 @@ export class GameRoom extends DurableObject {
                     this.pokerState.current = null;
                     this.blackjackState.current = null;
                     this.yahtzeeState.current = null;
+                    this.rpsState.current = null;
                     perudoServer(this.perudoState).initGame(
+                        players,
+                        broadcast,
+                        sendTo,
+                    );
+                } else if (processResult.gameType === "rps") {
+                    const players = this.state.players.map((player) => ({
+                        id: player.id,
+                        name: player.name,
+                    }));
+                    this.goFishState.current = null;
+                    this.pokerState.current = null;
+                    this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
+                    this.perudoState.current = null;
+                    rpsServer(this.rpsState).initGame(
                         players,
                         broadcast,
                         sendTo,
@@ -841,6 +917,9 @@ export class GameRoom extends DurableObject {
                 }
                 if (processResult.gameType === "perudo") {
                     perudoServer(this.perudoState).endGame(broadcast, sendTo);
+                }
+                if (processResult.gameType === "rps") {
+                    rpsServer(this.rpsState).endGame(broadcast, sendTo);
                 }
 
                 this.persistAllState();
