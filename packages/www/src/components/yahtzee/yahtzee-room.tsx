@@ -642,6 +642,10 @@ function Scorecard(props: {
     onSelectClaim: (category: ScoringCategory) => void;
 }) {
     const allPlayers = () => props.view.players;
+    const isSuggestedCategory = (category: ScoringCategory): boolean =>
+        props.view.mode === "standard" &&
+        props.canScore &&
+        props.view.suggestedCategories.includes(category);
 
     const cellClass = (
         playerId: string,
@@ -662,9 +666,12 @@ function Scorecard(props: {
             ) {
                 const potential = props.view.potentialScores[category];
                 if (potential !== undefined && potential > 0) {
+                    const suggested = isSuggestedCategory(category);
                     return (
                         base +
-                        "text-[#e8a87c]/70 cursor-pointer hover:text-[#ffd700] hover:bg-[#5c1a00]/40 transition-colors"
+                        (suggested
+                            ? "text-[#ffd700] bg-[#7a2b00]/45 shadow-[inset_0_0_0_1px_rgba(255,215,0,0.45)] cursor-pointer hover:bg-[#7a2b00]/65 transition-colors"
+                            : "text-[#e8a87c]/70 cursor-pointer hover:text-[#ffd700] hover:bg-[#5c1a00]/40 transition-colors")
                     );
                 }
                 return (

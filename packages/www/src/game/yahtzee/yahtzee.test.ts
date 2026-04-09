@@ -668,6 +668,7 @@ describe("getPlayerView", () => {
         expect(view.potentialScores!.full_house).toBe(0);
         expect(view.potentialScores!.threes).toBe(6);
         expect(view.potentialScores!.chance).toBe(19);
+        expect(view.suggestedCategories).toEqual(["chance"]);
     });
 
     it("returns correct view for non-current player", () => {
@@ -684,6 +685,7 @@ describe("getPlayerView", () => {
         expect(view.canRoll).toBe(false);
         expect(view.canScore).toBe(false);
         expect(view.potentialScores).toBeNull();
+        expect(view.suggestedCategories).toEqual([]);
     });
 
     it("hides active dice from the opponent in lying mode", () => {
@@ -697,6 +699,7 @@ describe("getPlayerView", () => {
         const view = getPlayerView(state, "p2");
         expect(view.dice).toEqual([0, 0, 0, 0, 0]);
         expect(view.canAcceptClaim).toBe(false);
+        expect(view.suggestedCategories).toEqual([]);
     });
 
     it("shows pending claim and response actions in lying mode", () => {
@@ -718,6 +721,27 @@ describe("getPlayerView", () => {
         expect(view.pendingClaim?.claimedPoints).toBe(30);
         expect(view.canAcceptClaim).toBe(true);
         expect(view.canChallengeClaim).toBe(true);
+        expect(view.suggestedCategories).toEqual([]);
+    });
+
+    it("suggests all tied top-scoring categories for the current roll", () => {
+        const state = initGame(PLAYERS);
+        processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            fixedRollFn([5, 5, 5, 5, 6]),
+        );
+
+        const view = getPlayerView(state, "p1");
+        expect(view.potentialScores!.fives).toBe(20);
+        expect(view.potentialScores!.three_of_a_kind).toBe(26);
+        expect(view.potentialScores!.four_of_a_kind).toBe(26);
+        expect(view.potentialScores!.chance).toBe(26);
+        expect(view.suggestedCategories).toEqual([
+            "three_of_a_kind",
+            "four_of_a_kind",
+            "chance",
+        ]);
     });
 
     it("includes computed score totals", () => {
