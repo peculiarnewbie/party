@@ -31,6 +31,7 @@ interface YahtzeeRoomProps {
     title: string;
     onEndGame: () => void;
     onReturnToLobby: () => void;
+    announcementDelayMs?: number;
 }
 
 export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
@@ -47,9 +48,14 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
     const showAnnouncement = (text: string) => {
         setAnnouncement(null);
         setAnnouncementKey((k) => k + 1);
+        const delayMs = props.announcementDelayMs ?? 30;
+        if (delayMs <= 0) {
+            setAnnouncement(text);
+            return;
+        }
         setTimeout(() => {
             setAnnouncement(text);
-        }, 30);
+        }, delayMs);
     };
 
     const playerName = (id: string) => {
@@ -261,21 +267,33 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
     });
 
     return (
-        <div class="min-h-screen bg-[#8b2500] font-karla flex flex-col">
+        <div
+            class="min-h-screen bg-[#8b2500] font-karla flex flex-col"
+            data-testid="yahtzee-room"
+        >
             <div class="flex items-center justify-between px-4 py-2 bg-[#5c1a00] border-b-[3px] border-[#3d1100]">
                 <div class="flex items-center gap-3">
-                    <span class="font-bebas text-[1.1rem] tracking-[.12em] text-[#ddd5c4]">
+                    <span
+                        class="font-bebas text-[1.1rem] tracking-[.12em] text-[#ddd5c4]"
+                        data-testid="yahtzee-title"
+                    >
                         {props.title.toUpperCase()}
                     </span>
                     <Show when={gameView()}>
-                        <span class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8a87c]">
+                        <span
+                            class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8a87c]"
+                            data-testid="yahtzee-round"
+                        >
                             ROUND {gameView()!.round} / 13
                         </span>
                     </Show>
                 </div>
                 <div class="flex items-center gap-3">
                     <Show when={me()}>
-                        <span class="font-bebas text-[.8rem] tracking-[.1em] text-[#ddd5c4]">
+                        <span
+                            class="font-bebas text-[.8rem] tracking-[.1em] text-[#ddd5c4]"
+                            data-testid="yahtzee-my-score"
+                        >
                             {me()!.totalScore} PTS
                         </span>
                     </Show>
@@ -283,6 +301,7 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                         <button
                             class="font-bebas text-[.7rem] tracking-[.15em] text-[#c0261a] border border-[#c0261a]/40 px-2 py-0.5 hover:bg-[#c0261a]/10 transition-colors"
                             onClick={props.onEndGame}
+                            data-testid="yahtzee-end-button"
                         >
                             END
                         </button>
@@ -309,6 +328,13 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                                         if (canToggle()) toggleHold(i);
                                     }}
                                     disabled={!canToggle()}
+                                    data-testid={`yahtzee-die-${i}`}
+                                    data-held={gameView()?.held[i] ? "true" : "false"}
+                                    data-has-value={
+                                        gameView()?.dice[i] && gameView()!.dice[i] > 0
+                                            ? "true"
+                                            : "false"
+                                    }
                                 >
                                     <Show
                                         when={
@@ -349,6 +375,7 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                     <button
                         class="font-bebas text-[1.2rem] tracking-[.12em] bg-[#ddd5c4] text-[#1a1a1a] border-2 border-[#1a1a1a] px-8 py-2 shadow-[3px_3px_0_#3d1100] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#3d1100] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
                         onClick={roll}
+                        data-testid="yahtzee-roll-button"
                     >
                         ROLL
                         <Show when={gameView()!.rollsLeft < 3}>
@@ -367,7 +394,9 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                     }
                 >
                     <span class="font-bebas text-[.7rem] tracking-[.18em] text-[#e8a87c] mt-1">
-                        OPPONENT ROLL IS HIDDEN
+                        <span data-testid="yahtzee-hidden-roll-label">
+                            OPPONENT ROLL IS HIDDEN
+                        </span>
                     </span>
                 </Show>
 
@@ -380,13 +409,18 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                     }
                 >
                     <span class="font-bebas text-[.8rem] tracking-[.2em] text-[#e8a87c] mt-1">
-                        {currentPlayerName().toUpperCase()}'S TURN
+                        <span data-testid="yahtzee-turn-label">
+                            {currentPlayerName().toUpperCase()}'S TURN
+                        </span>
                     </span>
                 </Show>
             </div>
 
             <Show when={gameView()?.mode === "lying" && gameView()?.canClaim}>
-                <div class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#5c1a00]/60 px-4 py-3">
+                <div
+                    class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#5c1a00]/60 px-4 py-3"
+                    data-testid="yahtzee-claim-panel"
+                >
                     <Show
                         when={selectedClaimCategory()}
                         fallback={
@@ -429,25 +463,30 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                             </For>
                         </div>
                         <div class="flex gap-2 flex-wrap">
-                            <button
-                                class="font-bebas text-[.72rem] tracking-[.16em] text-[#ddd5c4] border border-[#e8a87c]/30 px-3 py-1 hover:bg-[#e8a87c]/10 transition-colors"
-                                onClick={useRealRollForClaim}
-                            >
-                                USE REAL ROLL
-                            </button>
-                            <button
-                                class="font-bebas text-[.82rem] tracking-[.16em] bg-[#ddd5c4] text-[#1a1a1a] border border-[#1a1a1a] px-4 py-1 hover:bg-white transition-colors"
-                                onClick={submitClaim}
-                            >
-                                SEND CLAIM
-                            </button>
+                                <button
+                                    class="font-bebas text-[.72rem] tracking-[.16em] text-[#ddd5c4] border border-[#e8a87c]/30 px-3 py-1 hover:bg-[#e8a87c]/10 transition-colors"
+                                    onClick={useRealRollForClaim}
+                                    data-testid="yahtzee-use-real-roll-button"
+                                >
+                                    USE REAL ROLL
+                                </button>
+                                <button
+                                    class="font-bebas text-[.82rem] tracking-[.16em] bg-[#ddd5c4] text-[#1a1a1a] border border-[#1a1a1a] px-4 py-1 hover:bg-white transition-colors"
+                                    onClick={submitClaim}
+                                    data-testid="yahtzee-send-claim-button"
+                                >
+                                    SEND CLAIM
+                                </button>
                         </div>
                     </Show>
                 </div>
             </Show>
 
             <Show when={gameView()?.pendingClaim}>
-                <div class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#5c1a00]/60 px-4 py-3">
+                <div
+                    class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#5c1a00]/60 px-4 py-3"
+                    data-testid="yahtzee-pending-claim"
+                >
                     <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
                         <span class="font-bebas text-[.9rem] tracking-[.16em] text-[#ddd5c4]">
                             {playerName(gameView()!.pendingClaim!.playerId)} CLAIMS{" "}
@@ -481,12 +520,14 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                             <button
                                 class="font-bebas text-[.78rem] tracking-[.16em] bg-[#ddd5c4] text-[#1a1a1a] border border-[#1a1a1a] px-4 py-1 hover:bg-white transition-colors"
                                 onClick={acceptClaim}
+                                data-testid="yahtzee-believe-button"
                             >
                                 BELIEVE
                             </button>
                             <button
                                 class="font-bebas text-[.78rem] tracking-[.16em] text-[#c0261a] border border-[#c0261a]/40 px-4 py-1 hover:bg-[#c0261a]/10 transition-colors"
                                 onClick={challengeClaim}
+                                data-testid="yahtzee-liar-button"
                             >
                                 LIAR
                             </button>
@@ -499,6 +540,7 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                 <div
                     class="text-center py-1 px-4 animate-fade-in"
                     style={{ "--fade-key": announcementKey() } as any}
+                    data-testid="yahtzee-announcement"
                 >
                     <span class="font-bebas text-[1.2rem] tracking-[.12em] text-[#ddd5c4] drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
                         {announcement()}
@@ -507,7 +549,10 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
             </Show>
 
             <Show when={gameView()?.lastTurnReveal}>
-                <div class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#3d1100]/60 px-4 py-3">
+                <div
+                    class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#3d1100]/60 px-4 py-3"
+                    data-testid="yahtzee-last-turn-reveal"
+                >
                     <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
                         <span class="font-bebas text-[.82rem] tracking-[.16em] text-[#ddd5c4]">
                             LAST TURN: {playerName(gameView()!.lastTurnReveal!.playerId)} ON{" "}
@@ -572,7 +617,10 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
             </div>
 
             <Show when={gameView()?.phase === "game_over"}>
-                <div class="px-4 py-4 bg-[#5c1a00]/80 border-t border-[#e8a87c]/20">
+                <div
+                    class="px-4 py-4 bg-[#5c1a00]/80 border-t border-[#e8a87c]/20"
+                    data-testid="yahtzee-game-over"
+                >
                     <div class="flex flex-col items-center gap-3">
                         <span class="font-bebas text-[1.4rem] tracking-[.12em] text-[#ddd5c4]">
                             GAME OVER
@@ -612,6 +660,7 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                             <button
                                 class="font-bebas text-[.85rem] tracking-[.12em] text-[#ddd5c4] border border-[#e8a87c]/40 px-4 py-1 hover:bg-[#e8a87c]/10 transition-colors"
                                 onClick={props.onReturnToLobby}
+                                data-testid="yahtzee-return-button"
                             >
                                 RETURN TO LOBBY
                             </button>
@@ -753,7 +802,10 @@ function Scorecard(props: {
 
     return (
         <div class="overflow-x-auto">
-            <table class="w-full border-collapse min-w-[320px]">
+            <table
+                class="w-full border-collapse min-w-[320px]"
+                data-testid="yahtzee-scorecard"
+            >
                 <thead>
                     <tr class="border-b border-[#e8a87c]/20">
                         <th class="font-bebas text-[.6rem] tracking-[.2em] text-[#e8a87c] text-left px-2 py-1 w-[100px]" />
@@ -785,6 +837,21 @@ function Scorecard(props: {
                                             class={cellClass(player.id, cat)}
                                             onClick={() =>
                                                 handleCellClick(player.id, cat)
+                                            }
+                                            data-testid={`scorecard-cell-${player.id}-${cat}`}
+                                            data-player-id={player.id}
+                                            data-category={cat}
+                                            data-suggested={
+                                                player.id === props.myId &&
+                                                isSuggestedCategory(cat)
+                                                    ? "true"
+                                                    : "false"
+                                            }
+                                            data-selected-claim={
+                                                player.id === props.myId &&
+                                                props.selectedClaimCategory === cat
+                                                    ? "true"
+                                                    : "false"
                                             }
                                         >
                                             {cellValue(player.id, cat)}
@@ -831,6 +898,21 @@ function Scorecard(props: {
                                             class={cellClass(player.id, cat)}
                                             onClick={() =>
                                                 handleCellClick(player.id, cat)
+                                            }
+                                            data-testid={`scorecard-cell-${player.id}-${cat}`}
+                                            data-player-id={player.id}
+                                            data-category={cat}
+                                            data-suggested={
+                                                player.id === props.myId &&
+                                                isSuggestedCategory(cat)
+                                                    ? "true"
+                                                    : "false"
+                                            }
+                                            data-selected-claim={
+                                                player.id === props.myId &&
+                                                props.selectedClaimCategory === cat
+                                                    ? "true"
+                                                    : "false"
                                             }
                                         >
                                             {cellValue(player.id, cat)}

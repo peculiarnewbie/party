@@ -10,6 +10,7 @@ import {
     getFilledCount,
     rollDice,
     isYahtzee,
+    removePlayer,
     sumOfValue,
     nOfAKind,
     fullHouse,
@@ -307,6 +308,28 @@ describe("processAction", () => {
         expect(state.currentPlayerIndex).toBe(1);
         expect(state.phase).toBe("pre_roll");
         expect(state.rollsLeft).toBe(3);
+    });
+
+    it("allows scoring zero into an open category", () => {
+        const state = initGame(PLAYERS);
+        processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            fixedRollFn([2, 3, 4, 5, 6]),
+        );
+
+        const result = processAction(state, {
+            type: "score",
+            playerId: "p1",
+            category: "ones",
+        });
+
+        expect(result.type).toBe("scored");
+        if (result.type === "scored") {
+            expect(result.points).toBe(0);
+        }
+        expect(state.players[0].scorecard.ones).toBe(0);
+        expect(state.currentPlayerIndex).toBe(1);
     });
 
     it("rejects scoring a filled category", () => {
@@ -646,6 +669,34 @@ describe("processAction", () => {
         expect(state.players[1].penaltyPoints).toBe(25);
         expect(state.players[1].scorecard.full_house).toBeUndefined();
         expect(getTotalScore(state.players[1])).toBe(-25);
+    });
+
+    it("finishes the game when player removal leaves one player", () => {
+        const state = initGame(PLAYERS);
+
+        const result = removePlayer(state, "p2");
+
+        expect(result).toEqual({
+            type: "game_over",
+            winners: ["p1"],
+            finalScores: [{ playerId: "p1", playerName: "Alice", total: 0 }],
+        });
+        expect(state.phase).toBe("game_over");
+        expect(state.winners).toEqual(["p1"]);
+    });
+
+    it("finishes the game with no winners when all players are removed", () => {
+        const state = initGame([{ id: "p1", name: "Alice" }]);
+
+        const result = removePlayer(state, "p1");
+
+        expect(result).toEqual({
+            type: "game_over",
+            winners: [],
+            finalScores: [],
+        });
+        expect(state.phase).toBe("game_over");
+        expect(state.winners).toEqual([]);
     });
 });
 
