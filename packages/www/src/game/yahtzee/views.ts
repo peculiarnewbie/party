@@ -39,6 +39,7 @@ export interface YahtzeePlayerView {
     isMyTurn: boolean;
     players: YahtzeePlayerInfo[];
     potentialScores: Partial<Record<ScoringCategory, number>> | null;
+    suggestedCategories: ScoringCategory[];
     canRoll: boolean;
     canScore: boolean;
     canClaim: boolean;
@@ -68,6 +69,7 @@ export function getPlayerView(
     }));
 
     let potentialScores: Partial<Record<ScoringCategory, number>> | null = null;
+    let suggestedCategories: ScoringCategory[] = [];
     if (isMyTurn && state.phase === "mid_turn") {
         potentialScores = {};
         const me = state.players.find((p) => p.id === playerId);
@@ -77,6 +79,22 @@ export function getPlayerView(
                     potentialScores[cat] = calculateScore(state.dice, cat);
                 }
             }
+
+            const availableScores = Object.entries(potentialScores).filter(
+                (
+                    entry,
+                ): entry is [ScoringCategory, number] => entry[1] !== undefined,
+            );
+            const bestScore = Math.max(
+                0,
+                ...availableScores.map(([, score]) => score),
+            );
+            suggestedCategories =
+                bestScore > 0
+                    ? availableScores
+                          .filter(([, score]) => score === bestScore)
+                          .map(([category]) => category)
+                    : [];
         }
     }
 
@@ -126,6 +144,7 @@ export function getPlayerView(
         isMyTurn,
         players,
         potentialScores,
+        suggestedCategories,
         canRoll,
         canScore,
         canClaim,
