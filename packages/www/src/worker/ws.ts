@@ -283,6 +283,14 @@ export class GameRoom extends DurableObject {
                 if (processResult.gameType === "blackjack") {
                     this.clearNextHandTimer();
                 }
+                if (
+                    processResult.gameType === "yahtzee" ||
+                    processResult.gameType === "lying_yahtzee"
+                ) {
+                    yahtzeeServer(this.yahtzeeState, {
+                        mode: getYahtzeeMode(processResult.gameType),
+                    }).endGame(broadcast, sendTo);
+                }
                 return;
             }
 
