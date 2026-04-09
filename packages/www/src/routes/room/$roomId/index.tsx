@@ -15,6 +15,7 @@ import {
     isPokerGameType,
     serverMessageSchema,
 } from "~/game";
+import { getCookie, setCookie } from "~/utils/cookies";
 import { normalizeRoomId } from "~/utils/room-id";
 
 export const Route = createFileRoute("/room/$roomId/")({
@@ -39,11 +40,16 @@ function RouteComponent() {
         createSignal<GameType | null>(null);
 
     const refreshPlayerId = () => {
-        const match = document.cookie.match(/playerId=([^;]+)/);
-        if (match) return match[1];
+        const existingId = getCookie("playerId");
+        if (existingId) return existingId;
+
         const id = nanoid(10);
-        document.cookie = `playerId=${id}; path=/; max-age=31536000; SameSite=Strict`;
+        setCookie("playerId", id);
         return id;
+    };
+
+    const persistName = (nextName: string) => {
+        setCookie("playerName", nextName);
     };
 
     const send = (
@@ -63,7 +69,10 @@ function RouteComponent() {
         );
     };
 
-    const join = (nextName: string) => send("join", nextName);
+    const join = (nextName: string) => {
+        persistName(nextName);
+        send("join", nextName);
+    };
     const leave = () => send("leave");
     const selectGame = (gameType: GameType) =>
         send("select_game", undefined, { gameType });
@@ -83,6 +92,7 @@ function RouteComponent() {
 
         const pid = refreshPlayerId();
         setPlayerId(pid);
+        setName(getCookie("playerName") ?? "");
 
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const host = window.location.host;
@@ -129,11 +139,21 @@ function RouteComponent() {
                 );
                 if (currentPlayer) {
                     setName(currentPlayer.name);
+                    persistName(currentPlayer.name);
                 }
             }
 
             if (parsed.type === "player_list") {
-                setPlayers(parsed.data.players as Player[]);
+                const nextPlayers = parsed.data.players as Player[];
+                setPlayers(nextPlayers);
+
+                const currentPlayer = nextPlayers.find(
+                    (player) => player.id === playerId(),
+                );
+                if (currentPlayer) {
+                    setName(currentPlayer.name);
+                    persistName(currentPlayer.name);
+                }
             }
 
             if (parsed.type === "host_assigned") {
