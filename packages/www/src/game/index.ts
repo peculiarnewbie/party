@@ -12,6 +12,9 @@ export const gameTypes = [
     "rps",
     "herd",
     "fun_facts",
+    "cheese_thief",
+    "cockroach_poker",
+    "flip_7",
 ] as const;
 export type GameType = (typeof gameTypes)[number];
 export type GameParticipantStatus = "active" | "disconnected" | "left_game";
@@ -77,6 +80,21 @@ export const GAME_RULES: Record<
     },
     fun_facts: {
         label: "Fun Facts",
+        minPlayers: 3,
+        maxPlayers: null,
+    },
+    cheese_thief: {
+        label: "Cheese Thief",
+        minPlayers: 4,
+        maxPlayers: 8,
+    },
+    cockroach_poker: {
+        label: "Cockroach Poker",
+        minPlayers: 3,
+        maxPlayers: 6,
+    },
+    flip_7: {
+        label: "Flip 7",
         minPlayers: 3,
         maxPlayers: null,
     },

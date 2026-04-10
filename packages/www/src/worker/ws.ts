@@ -46,6 +46,21 @@ import {
     funFactsServer,
     type FunFactsState,
 } from "~/game/fun-facts";
+import {
+    cheeseThiefClientMessageSchema,
+    cheeseThiefServer,
+    type CheeseThiefState,
+} from "~/game/cheese-thief";
+import {
+    cockroachPokerClientMessageSchema,
+    cockroachPokerServer,
+    type CockroachPokerState,
+} from "~/game/cockroach-poker";
+import {
+    flip7ClientMessageSchema,
+    flip7Server,
+    type Flip7State,
+} from "~/game/flip-7";
 
 const ROOM_STATE_KEY = "room_state";
 const GAME_SNAPSHOT_KEY = "game_snapshot";
@@ -91,6 +106,18 @@ type PersistedGameSnapshot =
     | {
           gameType: "fun_facts";
           state: FunFactsState;
+      }
+    | {
+          gameType: "cheese_thief";
+          state: CheeseThiefState;
+      }
+    | {
+          gameType: "cockroach_poker";
+          state: CockroachPokerState;
+      }
+    | {
+          gameType: "flip_7";
+          state: Flip7State;
       };
 
 function createDefaultState(): GameState {
@@ -125,6 +152,9 @@ export class GameRoom extends DurableObject {
     rpsState: { current: RpsState | null };
     herdState: { current: HerdState | null };
     funFactsState: { current: FunFactsState | null };
+    cheeseThiefState: { current: CheeseThiefState | null };
+    cockroachPokerState: { current: CockroachPokerState | null };
+    flip7State: { current: Flip7State | null };
     nextHandTimer: ReturnType<typeof setTimeout> | null;
     ready: Promise<void>;
 
@@ -140,6 +170,9 @@ export class GameRoom extends DurableObject {
         this.rpsState = { current: null };
         this.herdState = { current: null };
         this.funFactsState = { current: null };
+        this.cheeseThiefState = { current: null };
+        this.cockroachPokerState = { current: null };
+        this.flip7State = { current: null };
         this.nextHandTimer = null;
         this.ready = this.ctx.blockConcurrencyWhile(async () => {
             this.ensureSchema();
@@ -261,6 +294,9 @@ export class GameRoom extends DurableObject {
         this.rpsState.current = null;
         this.herdState.current = null;
         this.funFactsState.current = null;
+        this.cheeseThiefState.current = null;
+        this.cockroachPokerState.current = null;
+        this.flip7State.current = null;
 
         if (!snapshot || snapshot.gameType !== this.state.activeGameType) {
             return;
@@ -309,6 +345,21 @@ export class GameRoom extends DurableObject {
 
         if (snapshot.gameType === "fun_facts") {
             this.funFactsState.current = snapshot.state;
+            return;
+        }
+
+        if (snapshot.gameType === "cheese_thief") {
+            this.cheeseThiefState.current = snapshot.state;
+            return;
+        }
+
+        if (snapshot.gameType === "cockroach_poker") {
+            this.cockroachPokerState.current = snapshot.state;
+            return;
+        }
+
+        if (snapshot.gameType === "flip_7") {
+            this.flip7State.current = snapshot.state;
         }
     }
 
@@ -407,6 +458,33 @@ export class GameRoom extends DurableObject {
             };
         }
 
+        if (
+            this.state.activeGameType === "cheese_thief" &&
+            this.cheeseThiefState.current
+        ) {
+            return {
+                gameType: "cheese_thief",
+                state: this.cheeseThiefState.current,
+            };
+        }
+
+        if (
+            this.state.activeGameType === "cockroach_poker" &&
+            this.cockroachPokerState.current
+        ) {
+            return {
+                gameType: "cockroach_poker",
+                state: this.cockroachPokerState.current,
+            };
+        }
+
+        if (this.state.activeGameType === "flip_7" && this.flip7State.current) {
+            return {
+                gameType: "flip_7",
+                state: this.flip7State.current,
+            };
+        }
+
         return null;
     }
 
@@ -434,6 +512,9 @@ export class GameRoom extends DurableObject {
         this.rpsState.current = null;
         this.herdState.current = null;
         this.funFactsState.current = null;
+        this.cheeseThiefState.current = null;
+        this.cockroachPokerState.current = null;
+        this.flip7State.current = null;
     }
 
     clearNextHandTimer() {
@@ -620,6 +701,29 @@ export class GameRoom extends DurableObject {
                     playerId,
                     sendTo,
                 );
+                return;
+            }
+
+            if (this.state.activeGameType === "cheese_thief") {
+                cheeseThiefServer(this.cheeseThiefState).sendStateToPlayer(
+                    playerId,
+                    sendTo,
+                );
+                return;
+            }
+
+            if (this.state.activeGameType === "cockroach_poker") {
+                cockroachPokerServer(
+                    this.cockroachPokerState,
+                ).sendStateToPlayer(playerId, sendTo);
+                return;
+            }
+
+            if (this.state.activeGameType === "flip_7") {
+                flip7Server(this.flip7State).sendStateToPlayer(
+                    playerId,
+                    sendTo,
+                );
             }
         };
 
@@ -689,6 +793,31 @@ export class GameRoom extends DurableObject {
 
             if (this.state.activeGameType === "fun_facts") {
                 funFactsServer(this.funFactsState).removePlayer(
+                    playerId,
+                    broadcast,
+                    sendTo,
+                );
+                return;
+            }
+
+            if (this.state.activeGameType === "cheese_thief") {
+                cheeseThiefServer(this.cheeseThiefState).removePlayer(
+                    playerId,
+                    broadcast,
+                    sendTo,
+                );
+                return;
+            }
+
+            if (this.state.activeGameType === "cockroach_poker") {
+                cockroachPokerServer(
+                    this.cockroachPokerState,
+                ).removePlayer(playerId, broadcast, sendTo);
+                return;
+            }
+
+            if (this.state.activeGameType === "flip_7") {
+                flip7Server(this.flip7State).removePlayer(
                     playerId,
                     broadcast,
                     sendTo,
@@ -844,6 +973,51 @@ export class GameRoom extends DurableObject {
                 const parsed = funFactsClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
                 funFactsServer(this.funFactsState).processMessage(
+                    parsed.data,
+                    broadcast,
+                    sendTo,
+                );
+                this.persistGameSnapshot();
+                return;
+            }
+
+            if (
+                typeof json.type === "string" &&
+                json.type.startsWith("cheese_thief:")
+            ) {
+                const parsed =
+                    cheeseThiefClientMessageSchema.safeParse(json);
+                if (!parsed.success) return;
+                cheeseThiefServer(this.cheeseThiefState).processMessage(
+                    parsed.data,
+                    broadcast,
+                    sendTo,
+                );
+                this.persistGameSnapshot();
+                return;
+            }
+
+            if (
+                typeof json.type === "string" &&
+                json.type.startsWith("cockroach_poker:")
+            ) {
+                const parsed =
+                    cockroachPokerClientMessageSchema.safeParse(json);
+                if (!parsed.success) return;
+                cockroachPokerServer(
+                    this.cockroachPokerState,
+                ).processMessage(parsed.data, broadcast, sendTo);
+                this.persistGameSnapshot();
+                return;
+            }
+
+            if (
+                typeof json.type === "string" &&
+                json.type.startsWith("flip_7:")
+            ) {
+                const parsed = flip7ClientMessageSchema.safeParse(json);
+                if (!parsed.success) return;
+                flip7Server(this.flip7State).processMessage(
                     parsed.data,
                     broadcast,
                     sendTo,
@@ -1045,6 +1219,65 @@ export class GameRoom extends DurableObject {
                         broadcast,
                         sendTo,
                     );
+                } else if (processResult.gameType === "cheese_thief") {
+                    const hostId = this.state.hostId;
+                    const players = this.state.players.map((player) => ({
+                        id: player.id,
+                        name: player.name,
+                    }));
+                    this.goFishState.current = null;
+                    this.pokerState.current = null;
+                    this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
+                    this.perudoState.current = null;
+                    this.rpsState.current = null;
+                    this.herdState.current = null;
+                    this.funFactsState.current = null;
+                    cheeseThiefServer(this.cheeseThiefState).initGame(
+                        players,
+                        hostId!,
+                        broadcast,
+                        sendTo,
+                    );
+                } else if (processResult.gameType === "cockroach_poker") {
+                    const players = this.state.players.map((player) => ({
+                        id: player.id,
+                        name: player.name,
+                    }));
+                    this.goFishState.current = null;
+                    this.pokerState.current = null;
+                    this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
+                    this.perudoState.current = null;
+                    this.rpsState.current = null;
+                    this.herdState.current = null;
+                    this.funFactsState.current = null;
+                    this.cheeseThiefState.current = null;
+                    cockroachPokerServer(
+                        this.cockroachPokerState,
+                    ).initGame(players, broadcast, sendTo);
+                } else if (processResult.gameType === "flip_7") {
+                    const hostId = this.state.hostId;
+                    const players = this.state.players.map((player) => ({
+                        id: player.id,
+                        name: player.name,
+                    }));
+                    this.goFishState.current = null;
+                    this.pokerState.current = null;
+                    this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
+                    this.perudoState.current = null;
+                    this.rpsState.current = null;
+                    this.herdState.current = null;
+                    this.funFactsState.current = null;
+                    this.cheeseThiefState.current = null;
+                    this.cockroachPokerState.current = null;
+                    flip7Server(this.flip7State).initGame(
+                        players,
+                        hostId!,
+                        broadcast,
+                        sendTo,
+                    );
                 } else {
                     this.clearInMemoryGameStates();
                 }
@@ -1088,6 +1321,20 @@ export class GameRoom extends DurableObject {
                         broadcast,
                         sendTo,
                     );
+                }
+                if (processResult.gameType === "cheese_thief") {
+                    cheeseThiefServer(this.cheeseThiefState).endGame(
+                        broadcast,
+                        sendTo,
+                    );
+                }
+                if (processResult.gameType === "cockroach_poker") {
+                    cockroachPokerServer(
+                        this.cockroachPokerState,
+                    ).endGame(broadcast, sendTo);
+                }
+                if (processResult.gameType === "flip_7") {
+                    flip7Server(this.flip7State).endGame(broadcast, sendTo);
                 }
 
                 this.persistAllState();

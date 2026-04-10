@@ -19,6 +19,9 @@ import { PerudoRoom } from "~/components/perudo/perudo-room";
 import { RpsRoom } from "~/components/rps/rps-room";
 import { HerdRoom } from "~/components/herd/herd-room";
 import { FunFactsRoom } from "~/components/fun-facts/fun-facts-room";
+import { CheeseThiefRoom } from "~/components/cheese-thief/cheese-thief-room";
+import { CockroachPokerRoom } from "~/components/cockroach-poker/cockroach-poker-room";
+import { Flip7Room } from "~/components/flip-7/flip-7-room";
 import {
     type GameType,
     type GameParticipant,
@@ -153,7 +156,10 @@ function RouteComponent() {
                     json.type.startsWith("perudo:") ||
                     json.type.startsWith("rps:") ||
                     json.type.startsWith("herd:") ||
-                    json.type.startsWith("fun_facts:"))
+                    json.type.startsWith("fun_facts:") ||
+                    json.type.startsWith("cheese_thief:") ||
+                    json.type.startsWith("cockroach_poker:") ||
+                    json.type.startsWith("flip_7:"))
             ) {
                 return;
             }
@@ -460,6 +466,80 @@ function RouteComponent() {
                         }
                     >
                         <FunFactsRoom
+                            roomId={roomId()}
+                            playerId={playerId()}
+                            isHost={isHost()}
+                            ws={getWs()}
+                            onEndGame={endGame}
+                            onReturnToLobby={returnToLobby}
+                        />
+                    </Show>
+                </Match>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        activeGameType() === "cheese_thief"
+                    }
+                >
+                    <Show
+                        when={canAccessCurrentGame()}
+                        fallback={
+                            <GameSessionState
+                                roomId={roomId()}
+                                status={myGameStatus()}
+                            />
+                        }
+                    >
+                        <CheeseThiefRoom
+                            roomId={roomId()}
+                            playerId={playerId()}
+                            isHost={isHost()}
+                            ws={getWs()}
+                            onEndGame={endGame}
+                            onReturnToLobby={returnToLobby}
+                        />
+                    </Show>
+                </Match>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        activeGameType() === "cockroach_poker"
+                    }
+                >
+                    <Show
+                        when={canAccessCurrentGame()}
+                        fallback={
+                            <GameSessionState
+                                roomId={roomId()}
+                                status={myGameStatus()}
+                            />
+                        }
+                    >
+                        <CockroachPokerRoom
+                            roomId={roomId()}
+                            playerId={playerId()}
+                            isHost={isHost()}
+                            ws={getWs()}
+                            onEndGame={endGame}
+                            onReturnToLobby={returnToLobby}
+                        />
+                    </Show>
+                </Match>
+                <Match
+                    when={
+                        roomPhase() === "playing" && activeGameType() === "flip_7"
+                    }
+                >
+                    <Show
+                        when={canAccessCurrentGame()}
+                        fallback={
+                            <GameSessionState
+                                roomId={roomId()}
+                                status={myGameStatus()}
+                            />
+                        }
+                    >
+                        <Flip7Room
                             roomId={roomId()}
                             playerId={playerId()}
                             isHost={isHost()}
