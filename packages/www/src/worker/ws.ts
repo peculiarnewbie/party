@@ -61,6 +61,11 @@ import {
     flip7Server,
     type Flip7State,
 } from "~/game/flip-7";
+import {
+    skullClientMessageSchema,
+    skullServer,
+    type SkullState,
+} from "~/game/skull";
 
 const ROOM_STATE_KEY = "room_state";
 const GAME_SNAPSHOT_KEY = "game_snapshot";
@@ -118,6 +123,10 @@ type PersistedGameSnapshot =
     | {
           gameType: "flip_7";
           state: Flip7State;
+      }
+    | {
+          gameType: "skull";
+          state: SkullState;
       };
 
 function createDefaultState(): GameState {
@@ -155,6 +164,7 @@ export class GameRoom extends DurableObject {
     cheeseThiefState: { current: CheeseThiefState | null };
     cockroachPokerState: { current: CockroachPokerState | null };
     flip7State: { current: Flip7State | null };
+    skullState: { current: SkullState | null };
     nextHandTimer: ReturnType<typeof setTimeout> | null;
     ready: Promise<void>;
 
@@ -173,6 +183,7 @@ export class GameRoom extends DurableObject {
         this.cheeseThiefState = { current: null };
         this.cockroachPokerState = { current: null };
         this.flip7State = { current: null };
+        this.skullState = { current: null };
         this.nextHandTimer = null;
         this.ready = this.ctx.blockConcurrencyWhile(async () => {
             this.ensureSchema();
@@ -297,6 +308,7 @@ export class GameRoom extends DurableObject {
         this.cheeseThiefState.current = null;
         this.cockroachPokerState.current = null;
         this.flip7State.current = null;
+        this.skullState.current = null;
 
         if (!snapshot || snapshot.gameType !== this.state.activeGameType) {
             return;
@@ -360,6 +372,11 @@ export class GameRoom extends DurableObject {
 
         if (snapshot.gameType === "flip_7") {
             this.flip7State.current = snapshot.state;
+            return;
+        }
+
+        if (snapshot.gameType === "skull") {
+            this.skullState.current = snapshot.state;
         }
     }
 
@@ -485,6 +502,13 @@ export class GameRoom extends DurableObject {
             };
         }
 
+        if (this.state.activeGameType === "skull" && this.skullState.current) {
+            return {
+                gameType: "skull",
+                state: this.skullState.current,
+            };
+        }
+
         return null;
     }
 
@@ -515,6 +539,7 @@ export class GameRoom extends DurableObject {
         this.cheeseThiefState.current = null;
         this.cockroachPokerState.current = null;
         this.flip7State.current = null;
+        this.skullState.current = null;
     }
 
     clearNextHandTimer() {
@@ -724,6 +749,14 @@ export class GameRoom extends DurableObject {
                     playerId,
                     sendTo,
                 );
+                return;
+            }
+
+            if (this.state.activeGameType === "skull") {
+                skullServer(this.skullState).sendStateToPlayer(
+                    playerId,
+                    sendTo,
+                );
             }
         };
 
@@ -818,6 +851,15 @@ export class GameRoom extends DurableObject {
 
             if (this.state.activeGameType === "flip_7") {
                 flip7Server(this.flip7State).removePlayer(
+                    playerId,
+                    broadcast,
+                    sendTo,
+                );
+                return;
+            }
+
+            if (this.state.activeGameType === "skull") {
+                skullServer(this.skullState).removePlayer(
                     playerId,
                     broadcast,
                     sendTo,
@@ -1018,6 +1060,21 @@ export class GameRoom extends DurableObject {
                 const parsed = flip7ClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
                 flip7Server(this.flip7State).processMessage(
+                    parsed.data,
+                    broadcast,
+                    sendTo,
+                );
+                this.persistGameSnapshot();
+                return;
+            }
+
+            if (
+                typeof json.type === "string" &&
+                json.type.startsWith("skull:")
+            ) {
+                const parsed = skullClientMessageSchema.safeParse(json);
+                if (!parsed.success) return;
+                skullServer(this.skullState).processMessage(
                     parsed.data,
                     broadcast,
                     sendTo,
@@ -1272,9 +1329,31 @@ export class GameRoom extends DurableObject {
                     this.funFactsState.current = null;
                     this.cheeseThiefState.current = null;
                     this.cockroachPokerState.current = null;
+                    this.skullState.current = null;
                     flip7Server(this.flip7State).initGame(
                         players,
                         hostId!,
+                        broadcast,
+                        sendTo,
+                    );
+                } else if (processResult.gameType === "skull") {
+                    const players = this.state.players.map((player) => ({
+                        id: player.id,
+                        name: player.name,
+                    }));
+                    this.goFishState.current = null;
+                    this.pokerState.current = null;
+                    this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
+                    this.perudoState.current = null;
+                    this.rpsState.current = null;
+                    this.herdState.current = null;
+                    this.funFactsState.current = null;
+                    this.cheeseThiefState.current = null;
+                    this.cockroachPokerState.current = null;
+                    this.flip7State.current = null;
+                    skullServer(this.skullState).initGame(
+                        players,
                         broadcast,
                         sendTo,
                     );
@@ -1335,6 +1414,9 @@ export class GameRoom extends DurableObject {
                 }
                 if (processResult.gameType === "flip_7") {
                     flip7Server(this.flip7State).endGame(broadcast, sendTo);
+                }
+                if (processResult.gameType === "skull") {
+                    skullServer(this.skullState).endGame(broadcast, sendTo);
                 }
 
                 this.persistAllState();

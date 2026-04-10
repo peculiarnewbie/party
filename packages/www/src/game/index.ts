@@ -15,6 +15,7 @@ export const gameTypes = [
     "cheese_thief",
     "cockroach_poker",
     "flip_7",
+    "skull",
 ] as const;
 export type GameType = (typeof gameTypes)[number];
 export type GameParticipantStatus = "active" | "disconnected" | "left_game";
@@ -97,6 +98,11 @@ export const GAME_RULES: Record<
         label: "Flip 7",
         minPlayers: 3,
         maxPlayers: null,
+    },
+    skull: {
+        label: "Skull",
+        minPlayers: 3,
+        maxPlayers: 6,
     },
 };
 

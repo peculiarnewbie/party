@@ -22,6 +22,7 @@ import { FunFactsRoom } from "~/components/fun-facts/fun-facts-room";
 import { CheeseThiefRoom } from "~/components/cheese-thief/cheese-thief-room";
 import { CockroachPokerRoom } from "~/components/cockroach-poker/cockroach-poker-room";
 import { Flip7Room } from "~/components/flip-7/flip-7-room";
+import { SkullRoom } from "~/components/skull/skull-room";
 import {
     type GameType,
     type GameParticipant,
@@ -159,7 +160,8 @@ function RouteComponent() {
                     json.type.startsWith("fun_facts:") ||
                     json.type.startsWith("cheese_thief:") ||
                     json.type.startsWith("cockroach_poker:") ||
-                    json.type.startsWith("flip_7:"))
+                    json.type.startsWith("flip_7:") ||
+                    json.type.startsWith("skull:"))
             ) {
                 return;
             }
@@ -540,6 +542,30 @@ function RouteComponent() {
                         }
                     >
                         <Flip7Room
+                            roomId={roomId()}
+                            playerId={playerId()}
+                            isHost={isHost()}
+                            ws={getWs()}
+                            onEndGame={endGame}
+                            onReturnToLobby={returnToLobby}
+                        />
+                    </Show>
+                </Match>
+                <Match
+                    when={
+                        roomPhase() === "playing" && activeGameType() === "skull"
+                    }
+                >
+                    <Show
+                        when={canAccessCurrentGame()}
+                        fallback={
+                            <GameSessionState
+                                roomId={roomId()}
+                                status={myGameStatus()}
+                            />
+                        }
+                    >
+                        <SkullRoom
                             roomId={roomId()}
                             playerId={playerId()}
                             isHost={isHost()}
