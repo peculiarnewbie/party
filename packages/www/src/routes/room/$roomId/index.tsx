@@ -23,12 +23,14 @@ import { CheeseThiefRoom } from "~/components/cheese-thief/cheese-thief-room";
 import { CockroachPokerRoom } from "~/components/cockroach-poker/cockroach-poker-room";
 import { Flip7Room } from "~/components/flip-7/flip-7-room";
 import { SkullRoom } from "~/components/skull/skull-room";
+import { SpicyRoom } from "~/components/spicy/spicy-room";
 import {
     type GameType,
     type GameParticipant,
     type GameParticipantStatus,
     type MessageType,
     type Player,
+    type RoomPhase,
     isPokerGameType,
     serverMessageSchema,
 } from "~/game";
@@ -48,9 +50,7 @@ function RouteComponent() {
     const [name, setName] = createSignal("");
     const [players, setPlayers] = createSignal<Player[]>([]);
     const [isHost, setIsHost] = createSignal(false);
-    const [roomPhase, setRoomPhase] = createSignal<"lobby" | "playing">(
-        "lobby",
-    );
+    const [roomPhase, setRoomPhase] = createSignal<RoomPhase>("lobby");
     const [selectedGameType, setSelectedGameType] =
         createSignal<GameType>("quiz");
     const [activeGameType, setActiveGameType] = createSignal<GameType | null>(
@@ -101,6 +101,8 @@ function RouteComponent() {
     const endGame = () => send("end");
     const returnToLobby = () => send("return_to_lobby");
     const leaveGame = () => send("leave_game");
+    const resumeRoom = () => send("resume_room");
+    const restartRoom = () => send("restart_room");
 
     const isJoined = () => players().some((player) => player.id === playerId());
     const getWs = () => ws;
@@ -161,7 +163,8 @@ function RouteComponent() {
                     json.type.startsWith("cheese_thief:") ||
                     json.type.startsWith("cockroach_poker:") ||
                     json.type.startsWith("flip_7:") ||
-                    json.type.startsWith("skull:"))
+                    json.type.startsWith("skull:") ||
+                    json.type.startsWith("spicy:"))
             ) {
                 return;
             }
@@ -176,7 +179,7 @@ function RouteComponent() {
             if (parsed.type === "room_state") {
                 const nextPlayers = parsed.data.players as Player[];
                 const hostId = parsed.data.hostId as string | null;
-                const phase = parsed.data.phase as "lobby" | "playing";
+                const phase = parsed.data.phase as RoomPhase;
                 const nextSelectedGameType = parsed.data
                     .selectedGameType as GameType;
                 const nextActiveGameType = parsed.data
@@ -250,6 +253,17 @@ function RouteComponent() {
                         onLeave={leave}
                         onSelectGame={selectGame}
                         onStart={startGame}
+                    />
+                </Match>
+                <Match when={roomPhase() === "hibernated"}>
+                    <HibernatedRoomState
+                        roomId={roomId()}
+                        canManage={
+                            myGameParticipant() !== null &&
+                            myGameStatus() !== "left_game"
+                        }
+                        onResume={resumeRoom}
+                        onRestart={restartRoom}
                     />
                 </Match>
                 <Match
@@ -404,8 +418,7 @@ function RouteComponent() {
                 </Match>
                 <Match
                     when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "rps"
+                        roomPhase() === "playing" && activeGameType() === "rps"
                     }
                 >
                     <Show
@@ -429,8 +442,7 @@ function RouteComponent() {
                 </Match>
                 <Match
                     when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "herd"
+                        roomPhase() === "playing" && activeGameType() === "herd"
                     }
                 >
                     <Show
@@ -529,7 +541,8 @@ function RouteComponent() {
                 </Match>
                 <Match
                     when={
-                        roomPhase() === "playing" && activeGameType() === "flip_7"
+                        roomPhase() === "playing" &&
+                        activeGameType() === "flip_7"
                     }
                 >
                     <Show
@@ -553,7 +566,8 @@ function RouteComponent() {
                 </Match>
                 <Match
                     when={
-                        roomPhase() === "playing" && activeGameType() === "skull"
+                        roomPhase() === "playing" &&
+                        activeGameType() === "skull"
                     }
                 >
                     <Show
@@ -566,6 +580,31 @@ function RouteComponent() {
                         }
                     >
                         <SkullRoom
+                            roomId={roomId()}
+                            playerId={playerId()}
+                            isHost={isHost()}
+                            ws={getWs()}
+                            onEndGame={endGame}
+                            onReturnToLobby={returnToLobby}
+                        />
+                    </Show>
+                </Match>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        activeGameType() === "spicy"
+                    }
+                >
+                    <Show
+                        when={canAccessCurrentGame()}
+                        fallback={
+                            <GameSessionState
+                                roomId={roomId()}
+                                status={myGameStatus()}
+                            />
+                        }
+                    >
+                        <SpicyRoom
                             roomId={roomId()}
                             playerId={playerId()}
                             isHost={isHost()}
@@ -614,6 +653,72 @@ function RouteComponent() {
                 </button>
             </Show>
         </>
+    );
+}
+
+function HibernatedRoomState(props: {
+    roomId: string;
+    canManage: boolean;
+    onResume: () => void;
+    onRestart: () => void;
+}) {
+    const eyebrow = () =>
+        props.canManage ? "ROOM HIBERNATED" : "ROOM SUSPENDED";
+    const title = () =>
+        props.canManage
+            ? "PICK UP WHERE YOU LEFT OFF"
+            : "WAITING FOR A RETURNING PLAYER";
+    const message = () =>
+        props.canManage
+            ? "Everyone disconnected, so this game was put into hibernation. You can resume it where it stopped or restart the room from scratch."
+            : "This room is hibernated for now. One of the previous participants needs to come back before the game can continue or be restarted.";
+
+    return (
+        <div class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla flex items-center justify-center px-6">
+            <div class="max-w-xl w-full border-2 border-[#1a1a1a] bg-[#c9c0b0] px-6 py-8 shadow-[6px_6px_0_#1a1a1a] text-center">
+                <div class="font-bebas text-[.75rem] tracking-[.24em] text-[#c0261a] mb-3">
+                    {eyebrow()}
+                </div>
+                <h1 class="font-bebas text-[2.2rem] leading-[.92] tracking-[.06em] mb-3">
+                    {title()}
+                </h1>
+                <p class="text-[.95rem] leading-relaxed text-[#5a5040] mb-6">
+                    {message()}
+                </p>
+                <div class="font-bebas text-[.7rem] tracking-[.22em] text-[#9a9080] mb-6">
+                    ROOM {props.roomId.toUpperCase()} WILL CLEAR ITSELF AFTER 3
+                    HOURS
+                </div>
+                <Show
+                    when={props.canManage}
+                    fallback={
+                        <a
+                            href={`/room/${props.roomId}`}
+                            class="inline-block font-bebas text-[1rem] tracking-[.14em] bg-[#1a1a1a] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#9a9080]"
+                        >
+                            REFRESH
+                        </a>
+                    }
+                >
+                    <div class="flex flex-col gap-3 sm:flex-row sm:justify-center">
+                        <button
+                            type="button"
+                            onClick={props.onResume}
+                            class="font-bebas text-[1rem] tracking-[.14em] bg-[#1a1a1a] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#9a9080]"
+                        >
+                            RESUME GAME
+                        </button>
+                        <button
+                            type="button"
+                            onClick={props.onRestart}
+                            class="font-bebas text-[1rem] tracking-[.14em] bg-[#ddd5c4] text-[#1a1a1a] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#9a9080]"
+                        >
+                            RESTART ROOM
+                        </button>
+                    </div>
+                </Show>
+            </div>
+        </div>
     );
 }
 

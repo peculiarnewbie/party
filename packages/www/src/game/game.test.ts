@@ -107,6 +107,8 @@ describe("Game Logic", () => {
             expect(messageTypes).toContain("join");
             expect(messageTypes).toContain("leave");
             expect(messageTypes).toContain("leave_game");
+            expect(messageTypes).toContain("resume_room");
+            expect(messageTypes).toContain("restart_room");
             expect(messageTypes).toContain("select_game");
             expect(messageTypes).toContain("start");
             expect(messageTypes).toContain("end");
@@ -174,6 +176,25 @@ describe("Game Logic", () => {
             expect(state.selectedGameType).toBe("lying_yahtzee");
         });
 
+        it("allows selecting spicy as a distinct game", async () => {
+            const state = makeRoomState({
+                hostId: "host",
+                players: [{ id: "host", name: "Host", score: 0 }],
+            });
+
+            await server(state).processMessage(
+                JSON.stringify({
+                    playerId: "host",
+                    playerName: "Host",
+                    type: "select_game",
+                    data: { gameType: "spicy" },
+                }),
+                () => undefined,
+            );
+
+            expect(state.selectedGameType).toBe("spicy");
+        });
+
         it("ignores game selection from non-hosts", async () => {
             const state = makeRoomState({
                 hostId: "host",
@@ -187,6 +208,26 @@ describe("Game Logic", () => {
                 JSON.stringify({
                     playerId: "guest",
                     playerName: "Guest",
+                    type: "select_game",
+                    data: { gameType: "poker" },
+                }),
+                () => undefined,
+            );
+
+            expect(state.selectedGameType).toBe("quiz");
+        });
+
+        it("does not let the host change the selected game while hibernated", async () => {
+            const state = makeRoomState({
+                hostId: "host",
+                phase: "hibernated",
+                players: [{ id: "host", name: "Host", score: 0 }],
+            });
+
+            await server(state).processMessage(
+                JSON.stringify({
+                    playerId: "host",
+                    playerName: "Host",
                     type: "select_game",
                     data: { gameType: "poker" },
                 }),
@@ -219,6 +260,32 @@ describe("Game Logic", () => {
             expect(result).toEqual({ kind: "start", gameType: "poker" });
             expect(state.activeGameType).toBe("poker");
             expect(state.phase).toBe("playing");
+        });
+
+        it("does not let the host start a hibernated room", async () => {
+            const state = makeRoomState({
+                hostId: "host",
+                phase: "hibernated",
+                players: [
+                    { id: "host", name: "Host", score: 0 },
+                    { id: "guest", name: "Guest", score: 0 },
+                ],
+                selectedGameType: "poker",
+            });
+
+            const result = await server(state).processMessage(
+                JSON.stringify({
+                    playerId: "host",
+                    playerName: "Host",
+                    type: "start",
+                    data: {},
+                }),
+                () => undefined,
+            );
+
+            expect(result).toEqual({ kind: "none" });
+            expect(state.phase).toBe("hibernated");
+            expect(state.activeGameType).toBeNull();
         });
 
         it("marks a player as having left the active game", async () => {

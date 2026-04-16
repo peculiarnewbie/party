@@ -31,11 +31,7 @@ import {
     perudoServer,
     type PerudoState,
 } from "~/game/perudo";
-import {
-    rpsClientMessageSchema,
-    rpsServer,
-    type RpsState,
-} from "~/game/rps";
+import { rpsClientMessageSchema, rpsServer, type RpsState } from "~/game/rps";
 import {
     herdClientMessageSchema,
     herdServer,
@@ -66,9 +62,15 @@ import {
     skullServer,
     type SkullState,
 } from "~/game/skull";
+import {
+    spicyClientMessageSchema,
+    spicyServer,
+    type SpicyState,
+} from "~/game/spicy";
 
 const ROOM_STATE_KEY = "room_state";
 const GAME_SNAPSHOT_KEY = "game_snapshot";
+const HIBERNATION_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 
 type PersistedValueRow = {
     value: string;
@@ -127,6 +129,10 @@ type PersistedGameSnapshot =
     | {
           gameType: "skull";
           state: SkullState;
+      }
+    | {
+          gameType: "spicy";
+          state: SpicyState;
       };
 
 function createDefaultState(): GameState {
@@ -165,6 +171,7 @@ export class GameRoom extends DurableObject {
     cockroachPokerState: { current: CockroachPokerState | null };
     flip7State: { current: Flip7State | null };
     skullState: { current: SkullState | null };
+    spicyState: { current: SpicyState | null };
     nextHandTimer: ReturnType<typeof setTimeout> | null;
     ready: Promise<void>;
 
@@ -184,6 +191,7 @@ export class GameRoom extends DurableObject {
         this.cockroachPokerState = { current: null };
         this.flip7State = { current: null };
         this.skullState = { current: null };
+        this.spicyState = { current: null };
         this.nextHandTimer = null;
         this.ready = this.ctx.blockConcurrencyWhile(async () => {
             this.ensureSchema();
@@ -309,6 +317,7 @@ export class GameRoom extends DurableObject {
         this.cockroachPokerState.current = null;
         this.flip7State.current = null;
         this.skullState.current = null;
+        this.spicyState.current = null;
 
         if (!snapshot || snapshot.gameType !== this.state.activeGameType) {
             return;
@@ -377,6 +386,11 @@ export class GameRoom extends DurableObject {
 
         if (snapshot.gameType === "skull") {
             this.skullState.current = snapshot.state;
+            return;
+        }
+
+        if (snapshot.gameType === "spicy") {
+            this.spicyState.current = snapshot.state;
         }
     }
 
@@ -445,20 +459,14 @@ export class GameRoom extends DurableObject {
             };
         }
 
-        if (
-            this.state.activeGameType === "rps" &&
-            this.rpsState.current
-        ) {
+        if (this.state.activeGameType === "rps" && this.rpsState.current) {
             return {
                 gameType: "rps",
                 state: this.rpsState.current,
             };
         }
 
-        if (
-            this.state.activeGameType === "herd" &&
-            this.herdState.current
-        ) {
+        if (this.state.activeGameType === "herd" && this.herdState.current) {
             return {
                 gameType: "herd",
                 state: this.herdState.current,
@@ -509,6 +517,13 @@ export class GameRoom extends DurableObject {
             };
         }
 
+        if (this.state.activeGameType === "spicy" && this.spicyState.current) {
+            return {
+                gameType: "spicy",
+                state: this.spicyState.current,
+            };
+        }
+
         return null;
     }
 
@@ -527,6 +542,37 @@ export class GameRoom extends DurableObject {
         this.persistGameSnapshot();
     }
 
+    async scheduleHibernationCleanup() {
+        await this.ctx.storage.setAlarm(Date.now() + HIBERNATION_TIMEOUT_MS);
+    }
+
+    async clearHibernationCleanup() {
+        await this.ctx.storage.deleteAlarm();
+    }
+
+    resetRoom() {
+        this.clearNextHandTimer();
+        this.clearInMemoryGameStates();
+        this.state = createDefaultState();
+    }
+
+    async hibernateRoom() {
+        if (this.state.phase !== "playing") {
+            return;
+        }
+
+        this.clearNextHandTimer();
+        this.state.phase = "hibernated";
+        this.persistAllState();
+        await this.scheduleHibernationCleanup();
+    }
+
+    async restartRoom() {
+        this.resetRoom();
+        await this.clearHibernationCleanup();
+        this.persistAllState();
+    }
+
     clearInMemoryGameStates() {
         this.goFishState.current = null;
         this.pokerState.current = null;
@@ -540,6 +586,7 @@ export class GameRoom extends DurableObject {
         this.cockroachPokerState.current = null;
         this.flip7State.current = null;
         this.skullState.current = null;
+        this.spicyState.current = null;
     }
 
     clearNextHandTimer() {
@@ -568,6 +615,23 @@ export class GameRoom extends DurableObject {
 
         participant.status = status;
         return true;
+    }
+
+    async alarm() {
+        await this.ready;
+
+        if (this.state.phase !== "hibernated") {
+            return;
+        }
+
+        if (this.sessions.size > 0) {
+            await this.scheduleHibernationCleanup();
+            return;
+        }
+
+        this.resetRoom();
+        await this.ctx.storage.deleteAll();
+        this.ensureSchema();
     }
 
     roomStateMessage() {
@@ -603,6 +667,48 @@ export class GameRoom extends DurableObject {
         const sendTo = (playerId: string, msg: string) => {
             this.sessions.forEach((session, ws) => {
                 if (session.playerId === playerId) ws.send(msg);
+            });
+        };
+
+        const getStoredPlayerName = (playerId: string) =>
+            this.state.players.find((player) => player.id === playerId)?.name ??
+            "";
+
+        const canManageHibernatedRoom = (playerId: string) => {
+            const participant = this.getGameParticipant(playerId);
+            return participant !== null && participant.status !== "left_game";
+        };
+
+        const activateConnectedParticipants = () => {
+            this.sessions.forEach((session) => {
+                if (!session.playerId) {
+                    return;
+                }
+
+                const participant = this.getGameParticipant(session.playerId);
+                if (!participant || participant.status === "left_game") {
+                    return;
+                }
+
+                participant.status = "active";
+            });
+        };
+
+        const rehydrateConnectedParticipants = () => {
+            this.sessions.forEach((session) => {
+                if (!session.playerId) {
+                    return;
+                }
+
+                const participant = this.getGameParticipant(session.playerId);
+                if (!participant || participant.status !== "active") {
+                    return;
+                }
+
+                rehydratePlayerGameState(
+                    session.playerId,
+                    getStoredPlayerName(session.playerId),
+                );
             });
         };
 
@@ -706,18 +812,12 @@ export class GameRoom extends DurableObject {
             }
 
             if (this.state.activeGameType === "rps" && participant) {
-                rpsServer(this.rpsState).sendStateToPlayer(
-                    playerId,
-                    sendTo,
-                );
+                rpsServer(this.rpsState).sendStateToPlayer(playerId, sendTo);
                 return;
             }
 
             if (this.state.activeGameType === "herd") {
-                herdServer(this.herdState).sendStateToPlayer(
-                    playerId,
-                    sendTo,
-                );
+                herdServer(this.herdState).sendStateToPlayer(playerId, sendTo);
                 return;
             }
 
@@ -754,6 +854,13 @@ export class GameRoom extends DurableObject {
 
             if (this.state.activeGameType === "skull") {
                 skullServer(this.skullState).sendStateToPlayer(
+                    playerId,
+                    sendTo,
+                );
+                return;
+            }
+            if (this.state.activeGameType === "spicy") {
+                spicyServer(this.spicyState).sendStateToPlayer(
                     playerId,
                     sendTo,
                 );
@@ -843,9 +950,11 @@ export class GameRoom extends DurableObject {
             }
 
             if (this.state.activeGameType === "cockroach_poker") {
-                cockroachPokerServer(
-                    this.cockroachPokerState,
-                ).removePlayer(playerId, broadcast, sendTo);
+                cockroachPokerServer(this.cockroachPokerState).removePlayer(
+                    playerId,
+                    broadcast,
+                    sendTo,
+                );
                 return;
             }
 
@@ -860,6 +969,14 @@ export class GameRoom extends DurableObject {
 
             if (this.state.activeGameType === "skull") {
                 skullServer(this.skullState).removePlayer(
+                    playerId,
+                    broadcast,
+                    sendTo,
+                );
+                return;
+            }
+            if (this.state.activeGameType === "spicy") {
+                spicyServer(this.spicyState).removePlayer(
                     playerId,
                     broadcast,
                     sendTo,
@@ -889,6 +1006,7 @@ export class GameRoom extends DurableObject {
             if (json.type === "identify" && json.playerId) {
                 const participant = this.getGameParticipant(json.playerId);
                 const didChange =
+                    this.state.phase !== "hibernated" &&
                     participant?.status === "disconnected" &&
                     this.setGameParticipantStatus(json.playerId, "active");
 
@@ -898,11 +1016,56 @@ export class GameRoom extends DurableObject {
                 }
 
                 sendRoomStateToSocket(serverWs);
+
+                if (this.state.phase === "hibernated") {
+                    return;
+                }
+
                 rehydratePlayerGameState(
                     json.playerId,
-                    typeof json.playerName === "string" ? json.playerName : "",
+                    typeof json.playerName === "string"
+                        ? json.playerName
+                        : getStoredPlayerName(json.playerId),
                 );
                 this.persistGameSnapshot();
+                return;
+            }
+
+            if (this.state.phase === "hibernated") {
+                if (
+                    json.type === "resume_room" &&
+                    typeof json.playerId === "string"
+                ) {
+                    if (!canManageHibernatedRoom(json.playerId)) {
+                        sendRoomStateToSocket(serverWs);
+                        return;
+                    }
+
+                    await this.clearHibernationCleanup();
+                    this.state.phase = "playing";
+                    activateConnectedParticipants();
+                    this.persistRoomState();
+                    broadcastRoomState();
+                    rehydrateConnectedParticipants();
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    json.type === "restart_room" &&
+                    typeof json.playerId === "string"
+                ) {
+                    if (!canManageHibernatedRoom(json.playerId)) {
+                        sendRoomStateToSocket(serverWs);
+                        return;
+                    }
+
+                    await this.restartRoom();
+                    broadcastRoomState();
+                    return;
+                }
+
+                sendRoomStateToSocket(serverWs);
                 return;
             }
 
@@ -978,10 +1141,7 @@ export class GameRoom extends DurableObject {
                 return;
             }
 
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("rps:")
-            ) {
+            if (typeof json.type === "string" && json.type.startsWith("rps:")) {
                 const parsed = rpsClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
                 rpsServer(this.rpsState).processMessage(
@@ -1027,8 +1187,7 @@ export class GameRoom extends DurableObject {
                 typeof json.type === "string" &&
                 json.type.startsWith("cheese_thief:")
             ) {
-                const parsed =
-                    cheeseThiefClientMessageSchema.safeParse(json);
+                const parsed = cheeseThiefClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
                 cheeseThiefServer(this.cheeseThiefState).processMessage(
                     parsed.data,
@@ -1046,9 +1205,11 @@ export class GameRoom extends DurableObject {
                 const parsed =
                     cockroachPokerClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
-                cockroachPokerServer(
-                    this.cockroachPokerState,
-                ).processMessage(parsed.data, broadcast, sendTo);
+                cockroachPokerServer(this.cockroachPokerState).processMessage(
+                    parsed.data,
+                    broadcast,
+                    sendTo,
+                );
                 this.persistGameSnapshot();
                 return;
             }
@@ -1075,6 +1236,21 @@ export class GameRoom extends DurableObject {
                 const parsed = skullClientMessageSchema.safeParse(json);
                 if (!parsed.success) return;
                 skullServer(this.skullState).processMessage(
+                    parsed.data,
+                    broadcast,
+                    sendTo,
+                );
+                this.persistGameSnapshot();
+                return;
+            }
+
+            if (
+                typeof json.type === "string" &&
+                json.type.startsWith("spicy:")
+            ) {
+                const parsed = spicyClientMessageSchema.safeParse(json);
+                if (!parsed.success) return;
+                spicyServer(this.spicyState).processMessage(
                     parsed.data,
                     broadcast,
                     sendTo,
@@ -1153,7 +1329,9 @@ export class GameRoom extends DurableObject {
             }
 
             if (processResult.kind === "start") {
+                await this.clearHibernationCleanup();
                 this.clearNextHandTimer();
+                this.clearInMemoryGameStates();
                 if (processResult.gameType === "go_fish") {
                     const players = this.state.players.map((player) => ({
                         id: player.id,
@@ -1310,9 +1488,11 @@ export class GameRoom extends DurableObject {
                     this.herdState.current = null;
                     this.funFactsState.current = null;
                     this.cheeseThiefState.current = null;
-                    cockroachPokerServer(
-                        this.cockroachPokerState,
-                    ).initGame(players, broadcast, sendTo);
+                    cockroachPokerServer(this.cockroachPokerState).initGame(
+                        players,
+                        broadcast,
+                        sendTo,
+                    );
                 } else if (processResult.gameType === "flip_7") {
                     const hostId = this.state.hostId;
                     const players = this.state.players.map((player) => ({
@@ -1353,6 +1533,28 @@ export class GameRoom extends DurableObject {
                     this.cockroachPokerState.current = null;
                     this.flip7State.current = null;
                     skullServer(this.skullState).initGame(
+                        players,
+                        broadcast,
+                        sendTo,
+                    );
+                } else if (processResult.gameType === "spicy") {
+                    const players = this.state.players.map((player) => ({
+                        id: player.id,
+                        name: player.name,
+                    }));
+                    this.goFishState.current = null;
+                    this.pokerState.current = null;
+                    this.blackjackState.current = null;
+                    this.yahtzeeState.current = null;
+                    this.perudoState.current = null;
+                    this.rpsState.current = null;
+                    this.herdState.current = null;
+                    this.funFactsState.current = null;
+                    this.cheeseThiefState.current = null;
+                    this.cockroachPokerState.current = null;
+                    this.flip7State.current = null;
+                    this.skullState.current = null;
+                    spicyServer(this.spicyState).initGame(
                         players,
                         broadcast,
                         sendTo,
@@ -1408,15 +1610,19 @@ export class GameRoom extends DurableObject {
                     );
                 }
                 if (processResult.gameType === "cockroach_poker") {
-                    cockroachPokerServer(
-                        this.cockroachPokerState,
-                    ).endGame(broadcast, sendTo);
+                    cockroachPokerServer(this.cockroachPokerState).endGame(
+                        broadcast,
+                        sendTo,
+                    );
                 }
                 if (processResult.gameType === "flip_7") {
                     flip7Server(this.flip7State).endGame(broadcast, sendTo);
                 }
                 if (processResult.gameType === "skull") {
                     skullServer(this.skullState).endGame(broadcast, sendTo);
+                }
+                if (processResult.gameType === "spicy") {
+                    spicyServer(this.spicyState).endGame(broadcast, sendTo);
                 }
 
                 this.persistAllState();
@@ -1430,6 +1636,7 @@ export class GameRoom extends DurableObject {
             }
 
             if (processResult.kind === "return_to_lobby") {
+                await this.clearHibernationCleanup();
                 this.clearNextHandTimer();
                 this.clearInMemoryGameStates();
                 this.persistAllState();
@@ -1442,26 +1649,34 @@ export class GameRoom extends DurableObject {
             }
         });
 
-        serverWs.addEventListener("close", () => {
+        serverWs.addEventListener("close", async () => {
             const session = this.sessions.get(serverWs);
             this.sessions.delete(serverWs);
 
-            if (!session?.playerId) return;
+            let didChange = false;
+            if (session?.playerId) {
+                didChange = this.setGameParticipantStatus(
+                    session.playerId,
+                    "disconnected",
+                );
 
-            const didChange = this.setGameParticipantStatus(
-                session.playerId,
-                "disconnected",
-            );
+                if (didChange && isPokerGameType(this.state.activeGameType)) {
+                    pokerServer(this.pokerState, {
+                        scheduleNextHand: schedulePokerNextHand,
+                        visibilityMode: getPokerVisibilityMode(
+                            this.state.activeGameType,
+                        ),
+                    }).disconnectPlayer(session.playerId, broadcast, sendTo);
+                }
+            }
 
-            if (!didChange) return;
+            if (this.sessions.size === 0 && this.state.phase === "playing") {
+                await this.hibernateRoom();
+                return;
+            }
 
-            if (isPokerGameType(this.state.activeGameType)) {
-                pokerServer(this.pokerState, {
-                    scheduleNextHand: schedulePokerNextHand,
-                    visibilityMode: getPokerVisibilityMode(
-                        this.state.activeGameType,
-                    ),
-                }).disconnectPlayer(session.playerId, broadcast, sendTo);
+            if (!didChange) {
+                return;
             }
 
             this.persistAllState();

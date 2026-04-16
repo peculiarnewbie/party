@@ -64,10 +64,10 @@ export interface FileRoutesByFullPath {
   '/api/users': typeof ApiUsersRouteWithChildren
   '/dev/asset': typeof DevAssetRoute
   '/dev/yahtzee-fixture': typeof DevYahtzeeFixtureRoute
-  '/room': typeof RoomIndexRoute
+  '/room/': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
-  '/room/$roomId': typeof RoomRoomIdIndexRoute
+  '/room/$roomId/': typeof RoomRoomIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -97,10 +97,10 @@ export interface FileRouteTypes {
     | '/api/users'
     | '/dev/asset'
     | '/dev/yahtzee-fixture'
-    | '/room'
+    | '/room/'
     | '/api/room/$roomId'
     | '/api/users/$userId'
-    | '/room/$roomId'
+    | '/room/$roomId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -145,7 +145,7 @@ declare module '@tanstack/solid-router' {
     '/room/': {
       id: '/room/'
       path: '/room'
-      fullPath: '/room'
+      fullPath: '/room/'
       preLoaderRoute: typeof RoomIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -173,7 +173,7 @@ declare module '@tanstack/solid-router' {
     '/room/$roomId/': {
       id: '/room/$roomId/'
       path: '/room/$roomId'
-      fullPath: '/room/$roomId'
+      fullPath: '/room/$roomId/'
       preLoaderRoute: typeof RoomRoomIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }

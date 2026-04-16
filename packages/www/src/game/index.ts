@@ -16,6 +16,7 @@ export const gameTypes = [
     "cockroach_poker",
     "flip_7",
     "skull",
+    "spicy",
 ] as const;
 export type GameType = (typeof gameTypes)[number];
 export type GameParticipantStatus = "active" | "disconnected" | "left_game";
@@ -104,6 +105,11 @@ export const GAME_RULES: Record<
         minPlayers: 3,
         maxPlayers: 6,
     },
+    spicy: {
+        label: "Spicy",
+        minPlayers: 3,
+        maxPlayers: 6,
+    },
 };
 
 export function isPokerGameType(
@@ -112,13 +118,15 @@ export function isPokerGameType(
     return gameType === "poker" || gameType === "backwards_poker";
 }
 
-export type RoomPhase = "lobby" | "playing";
+export type RoomPhase = "lobby" | "playing" | "hibernated";
 
 export const messageTypes = [
     "identify",
     "join",
     "leave",
     "leave_game",
+    "resume_room",
+    "restart_room",
     "select_game",
     "start",
     "end",
