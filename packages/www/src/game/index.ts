@@ -230,6 +230,8 @@ export const serverMessageSchema = Schema.Struct({
     data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
 });
 
+const clientMessageJsonSchema = Schema.fromJsonString(clientMessageSchema);
+
 const roomStatePayloadSchema = Schema.Struct({
     players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
     hostId: Schema.mutableKey(Schema.NullOr(Schema.String)),
@@ -569,15 +571,12 @@ export const server = (state: GameState) => {
                 };
             },
         ): Promise<RoomProcessResult> => {
-            let json: unknown;
-            try {
-                json = JSON.parse(message);
-            } catch {
-                return { kind: "none" };
-            }
-
             const parsed: ClientMessage | null = await Effect.runPromise(
-                decodeClientMessage(json).pipe(
+                decodeWithSchema(clientMessageJsonSchema, message, (issue) => {
+                    return new RoomMessageDecodeError({
+                        issue,
+                    });
+                }).pipe(
                     Effect.catchTag("RoomMessageDecodeError", () =>
                         Effect.succeed(null),
                     ),

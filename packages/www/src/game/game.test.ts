@@ -187,6 +187,41 @@ describe("Game Logic", () => {
             });
         });
 
+        it("returns none for invalid JSON through the compatibility wrapper", async () => {
+            const state = makeRoomState({
+                hostId: "host",
+                players: [{ id: "host", name: "Host", score: 0 }],
+            });
+
+            const result = await server(state).processMessage(
+                "{not-valid-json",
+                () => undefined,
+            );
+
+            expect(result).toEqual({ kind: "none" });
+            expect(state.selectedGameType).toBe("quiz");
+        });
+
+        it("processes valid raw JSON through the compatibility wrapper", async () => {
+            const state = makeRoomState({
+                hostId: "host",
+                players: [{ id: "host", name: "Host", score: 0 }],
+            });
+
+            const result = await server(state).processMessage(
+                JSON.stringify({
+                    playerId: "host",
+                    playerName: "Host",
+                    type: "select_game",
+                    data: { gameType: "poker" },
+                }),
+                () => undefined,
+            );
+
+            expect(result).toEqual({ kind: "none" });
+            expect(state.selectedGameType).toBe("poker");
+        });
+
         it("lets the host change the selected game in lobby", async () => {
             const state = makeRoomState({
                 hostId: "host",

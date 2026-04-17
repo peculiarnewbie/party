@@ -24,6 +24,12 @@ type ParticipantRow = {
     updated_at: number;
 };
 
+type LoggedEntry = {
+    message?: string;
+    level?: string;
+    annotations?: Record<string, string>;
+};
+
 class FakeWebSocket {
     sent: string[] = [];
     listeners: Record<string, Array<(event?: any) => void | Promise<void>>> = {
@@ -213,11 +219,35 @@ async function createRoom() {
     };
 }
 
-function readLoggedJson(spy: ReturnType<typeof vi.spyOn>) {
+function readLoggedEntries(spy: ReturnType<typeof vi.spyOn>): LoggedEntry[] {
     return spy.mock.calls
         .flatMap((call: unknown[]) => call)
-        .map((value: unknown) => String(value))
-        .join("\n");
+        .flatMap((value: unknown) => {
+            if (typeof value !== "string") {
+                return [];
+            }
+
+            try {
+                const parsed = JSON.parse(value) as LoggedEntry;
+                return typeof parsed === "object" && parsed !== null
+                    ? [parsed]
+                    : [];
+            } catch {
+                return [];
+            }
+        });
+}
+
+function findLoggedEntry(
+    entries: LoggedEntry[],
+    message: string,
+): LoggedEntry & { annotations: Record<string, string> } {
+    const entry = entries.find((item) => item.message === message);
+
+    expect(entry).toBeDefined();
+    expect(entry?.annotations).toBeDefined();
+
+    return entry as LoggedEntry & { annotations: Record<string, string> };
 }
 
 beforeEach(() => {
@@ -244,10 +274,19 @@ describe("GameRoom worker boundary", () => {
         await flushEffects();
 
         expect(room.state.players).toEqual([]);
-        const logs = readLoggedJson(logSpy);
-        expect(logs).toContain("game-room.room-message.decode");
-        expect(logs).toContain('"component":"game-room"');
-        expect(logs).toContain('"result":"ignored"');
+        const logs = readLoggedEntries(logSpy);
+        const decodeLog = findLoggedEntry(logs, "game-room.room-message.decode");
+
+        expect(decodeLog.level).toBe("WARN");
+        expect(decodeLog.annotations).toMatchObject({
+            component: "game-room",
+            operation: "game-room.room-message.decode",
+            roomId: "room-test",
+            phase: "lobby",
+            sessionCount: "1",
+            result: "ignored",
+            errorTag: "RoomMessageDecodeError",
+        });
     });
 
     it("ignores malformed yahtzee messages and emits a structured decode log", async () => {
@@ -273,10 +312,23 @@ describe("GameRoom worker boundary", () => {
         await flushEffects();
 
         expect(room.yahtzeeState.current).toBeNull();
-        const logs = readLoggedJson(logSpy);
-        expect(logs).toContain("game-room.yahtzee-message.decode");
-        expect(logs).toContain('"component":"yahtzee-transport"');
-        expect(logs).toContain('"result":"ignored"');
+        const logs = readLoggedEntries(logSpy);
+        const decodeLog = findLoggedEntry(
+            logs,
+            "game-room.yahtzee-message.decode",
+        );
+
+        expect(decodeLog.level).toBe("WARN");
+        expect(decodeLog.annotations).toMatchObject({
+            component: "yahtzee-transport",
+            operation: "game-room.yahtzee-message.decode",
+            roomId: "room-test",
+            gameType: "yahtzee",
+            phase: "playing",
+            sessionCount: "1",
+            result: "ignored",
+            errorTag: "YahtzeeMessageDecodeError",
+        });
     });
 
     it("recovers from a corrupted persisted snapshot on startup", async () => {
@@ -316,9 +368,20 @@ describe("GameRoom worker boundary", () => {
 
         expect(room.state.activeGameType).toBe("yahtzee");
         expect(room.yahtzeeState.current).toBeNull();
-        const logs = readLoggedJson(logSpy);
-        expect(logs).toContain("persisted-state.decode-fallback");
-        expect(logs).toContain('"component":"room-storage"');
-        expect(logs).toContain('"key":"game_snapshot"');
+        const logs = readLoggedEntries(logSpy);
+        const decodeLog = findLoggedEntry(logs, "persisted-state.decode-fallback");
+
+        expect(decodeLog.level).toBe("WARN");
+        expect(decodeLog.annotations).toMatchObject({
+            component: "room-storage",
+            operation: "game-room.snapshot.load",
+            roomId: "room-test",
+            gameType: "yahtzee",
+            phase: "playing",
+            sessionCount: "0",
+            key: "game_snapshot",
+            result: "fallback",
+            errorTag: "PersistedStateDecodeError",
+        });
     });
 });
