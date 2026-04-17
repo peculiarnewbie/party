@@ -28,7 +28,13 @@ export {
     startNextHand,
 } from "./engine";
 export type { PokerClientMessage, PokerServerMessage } from "./messages";
-export { pokerClientMessageSchema, pokerServerMessageSchema } from "./messages";
+export {
+    decodePokerClientMessage,
+    decodePokerServerMessage,
+    encodePokerServerMessage,
+    pokerClientMessageSchema,
+    pokerServerMessageSchema,
+} from "./messages";
 export type { PokerPlayerPublicView, PokerPlayerView, PokerVisibilityMode } from "./views";
 export { getPlayerView } from "./views";
 export { pokerServer } from "./server";

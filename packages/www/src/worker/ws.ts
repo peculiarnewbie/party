@@ -20,7 +20,7 @@ import {
     type BlackjackState,
 } from "~/game/blackjack";
 import {
-    pokerClientMessageSchema,
+    decodePokerClientMessage,
     pokerServer,
     type PokerState,
 } from "~/game/poker";
@@ -1102,22 +1102,52 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("poker:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "poker",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodePokerClientMessage(json).pipe(
+                        Effect.tap(() =>
+                            Effect.logInfo("game-room.poker-message.decode").pipe(
+                                Effect.annotateLogs({
+                                    component: "poker-transport",
+                                    operation: "game-room.poker-message.decode",
+                                    result: "success",
+                                }),
+                            ),
+                        ),
+                        Effect.catchTag("PokerMessageDecodeError", (error) =>
+                            Effect.gen(function*() {
+                                yield* Effect.logWarning(
+                                    "game-room.poker-message.decode",
+                                ).pipe(
+                                    Effect.annotateLogs({
+                                        component: "poker-transport",
+                                        operation:
+                                            "game-room.poker-message.decode",
+                                        result: "ignored",
+                                        errorTag: error._tag,
+                                    }),
+                                );
+                                return null;
+                            }),
+                        ),
                     );
-                    const parsed = pokerClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+
+                    if (!parsed) {
+                        return;
+                    }
+
                     pokerServer(this.pokerState, {
                         scheduleNextHand: schedulePokerNextHand,
                         visibilityMode: getPokerVisibilityMode(
                             this.state.activeGameType,
                         ),
-                    }).processMessage(parsed.data, broadcast, sendTo);
+                    }).processMessage(parsed, broadcast, sendTo);
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "poker",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 

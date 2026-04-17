@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "bun:test";
 
+import { initGame } from "~/game/poker";
 import { makeState } from "~/game/yahtzee/test-helpers";
 import { runObservedSync } from "~/effect/runtime";
 import {
@@ -18,6 +19,8 @@ type ParticipantRow = {
     joined_at: number;
     updated_at: number;
 };
+
+const noShuffle = <T,>(arr: T[]): T[] => [...arr];
 
 function result<Row>(rows: Row[]) {
     return {
@@ -169,6 +172,34 @@ describe("room-storage", () => {
         expect(loaded).toEqual(createDefaultState());
     });
 
+    it("loads a valid poker snapshot", () => {
+        const { ctx } = createMockState();
+        const snapshot = {
+            gameType: "poker" as const,
+            state: initGame(
+                [
+                    { id: "p1", name: "Alice" },
+                    { id: "p2", name: "Bob" },
+                ],
+                noShuffle,
+            ),
+        };
+
+        runObservedSync(
+            persistGameSnapshot(ctx, snapshot),
+            "room-storage.persist",
+            { component: "room-storage" },
+        );
+
+        const loaded = runObservedSync(
+            loadGameSnapshot(ctx, "poker"),
+            "room-storage.load",
+            { component: "room-storage" },
+        );
+
+        expect(loaded).toEqual(snapshot);
+    });
+
     it("loads a valid yahtzee snapshot", () => {
         const { ctx } = createMockState();
         const snapshot = {
@@ -194,6 +225,49 @@ describe("room-storage", () => {
         );
 
         expect(loaded).toEqual(snapshot);
+    });
+
+    it("returns null and logs when the persisted poker snapshot is invalid", () => {
+        const { ctx, kv } = createMockState();
+        const logSpy = vi.spyOn(console, "log").mockImplementation(() => {
+            return undefined;
+        });
+
+        kv.set(
+            GAME_SNAPSHOT_KEY,
+            JSON.stringify({
+                gameType: "poker",
+                state: {
+                    players: [],
+                    spectators: [],
+                    deck: [],
+                    board: [],
+                    dealerIndex: 0,
+                    smallBlindIndex: 0,
+                    bigBlindIndex: 1,
+                    actingPlayerIndex: 0,
+                    street: "not-a-street",
+                    pots: [],
+                    currentBet: 20,
+                    minRaise: 20,
+                    handNumber: 1,
+                    lastAggressorIndex: null,
+                    endedByHost: false,
+                    winnerIds: null,
+                    eventLog: [],
+                    eventSeq: 0,
+                },
+            }),
+        );
+
+        const loaded = runObservedSync(
+            loadGameSnapshot(ctx, "poker"),
+            "room-storage.load",
+            { component: "room-storage" },
+        );
+
+        expect(loaded).toBeNull();
+        expect(logSpy).toHaveBeenCalled();
     });
 
     it("returns null and logs when the persisted snapshot is invalid", () => {

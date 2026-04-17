@@ -1,4 +1,8 @@
-import type { PokerClientMessage } from "./messages";
+import {
+    encodePokerServerMessage,
+    type PokerClientMessage,
+    type PokerServerMessage,
+} from "./messages";
 import {
     addSpectator,
     disconnectPlayer,
@@ -11,6 +15,13 @@ import {
 import { getPlayerView, type PokerVisibilityMode } from "./views";
 import type { PokerState } from "./types";
 
+function broadcastServerMessage(
+    send: (message: string) => void,
+    message: PokerServerMessage,
+) {
+    send(encodePokerServerMessage(message));
+}
+
 function broadcastState(
     state: PokerState,
     broadcast: (msg: string) => void,
@@ -18,45 +29,41 @@ function broadcastState(
     visibilityMode: PokerVisibilityMode,
 ) {
     for (const player of state.players) {
-        sendTo(
-            player.id,
-            JSON.stringify({
-                type: "poker:state",
-                data: getPlayerView(state, player.id, visibilityMode),
-            }),
-        );
+        broadcastServerMessage((message) => sendTo(player.id, message), {
+            type: "poker:state",
+            data: getPlayerView(state, player.id, visibilityMode) as unknown as Record<
+                string,
+                unknown
+            >,
+        });
     }
 
     for (const spectator of state.spectators) {
-        sendTo(
-            spectator.id,
-            JSON.stringify({
-                type: "poker:state",
-                data: getPlayerView(state, spectator.id, visibilityMode),
-            }),
-        );
+        broadcastServerMessage((message) => sendTo(spectator.id, message), {
+            type: "poker:state",
+            data: getPlayerView(state, spectator.id, visibilityMode) as unknown as Record<
+                string,
+                unknown
+            >,
+        });
     }
 
     const latestEvent = state.eventLog[state.eventLog.length - 1];
     if (latestEvent) {
-        broadcast(
-            JSON.stringify({
-                type: "poker:event",
-                data: latestEvent,
-            }),
-        );
+        broadcastServerMessage(broadcast, {
+            type: "poker:event",
+            data: latestEvent as unknown as Record<string, unknown>,
+        });
     }
 
     if (state.street === "tournament_over") {
-        broadcast(
-            JSON.stringify({
-                type: "poker:game_over",
-                data: {
-                    winnerIds: state.winnerIds,
-                    endedByHost: state.endedByHost,
-                },
-            }),
-        );
+        broadcastServerMessage(broadcast, {
+            type: "poker:game_over",
+            data: {
+                winnerIds: state.winnerIds,
+                endedByHost: state.endedByHost,
+            },
+        });
     }
 }
 
@@ -146,12 +153,12 @@ export const pokerServer = (
 
         const result = processAction(state, message.playerId, message.data);
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
+            broadcastServerMessage(
+                (encoded) => sendTo(message.playerId, encoded),
+                {
                     type: "poker:action_result",
                     data: { error: result.message },
-                }),
+                },
             );
             return;
         }

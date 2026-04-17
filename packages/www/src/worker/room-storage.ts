@@ -1,5 +1,6 @@
 import { Effect, Schema } from "effect";
 
+import { RANKS, SUITS } from "~/assets/card-deck/types";
 import type {
     GameParticipant,
     GameParticipantStatus,
@@ -273,9 +274,100 @@ const yahtzeeStateSchema = Schema.Struct({
         ] as const),
     ),
     round: Schema.mutableKey(Schema.Number),
-    winners: Schema.mutableKey(Schema.NullOr(Schema.mutable(Schema.Array(Schema.String)))),
+    winners: Schema.mutableKey(
+        Schema.NullOr(Schema.mutable(Schema.Array(Schema.String))),
+    ),
     pendingClaim: Schema.mutableKey(Schema.NullOr(lyingClaimSchema)),
     lastTurnReveal: Schema.mutableKey(Schema.NullOr(lyingTurnRevealSchema)),
+});
+
+const suitSchema = Schema.Literals(SUITS);
+const rankSchema = Schema.Literals(RANKS);
+const pokerStreetSchema = Schema.Literals([
+    "preflop",
+    "flop",
+    "turn",
+    "river",
+    "showdown",
+    "hand_over",
+    "tournament_over",
+] as const);
+const pokerPlayerStatusSchema = Schema.Literals([
+    "active",
+    "folded",
+    "all_in",
+    "busted",
+    "disconnected",
+] as const);
+const pokerEventTypeSchema = Schema.Literals([
+    "hand_started",
+    "blinds_posted",
+    "player_action",
+    "board_dealt",
+    "showdown",
+    "pot_awarded",
+    "player_disconnected",
+    "player_reconnected",
+    "game_ended",
+    "info",
+] as const);
+const cardSchema = Schema.Struct({
+    suit: Schema.mutableKey(suitSchema),
+    rank: Schema.mutableKey(rankSchema),
+});
+const pokerPlayerSchema = Schema.Struct({
+    id: Schema.mutableKey(Schema.String),
+    name: Schema.mutableKey(Schema.String),
+    stack: Schema.mutableKey(Schema.Number),
+    holeCards: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    status: Schema.mutableKey(pokerPlayerStatusSchema),
+    connected: Schema.mutableKey(Schema.Boolean),
+    committedThisStreet: Schema.mutableKey(Schema.Number),
+    committedThisHand: Schema.mutableKey(Schema.Number),
+    hasActedThisStreet: Schema.mutableKey(Schema.Boolean),
+    raiseLocked: Schema.mutableKey(Schema.Boolean),
+});
+const pokerSpectatorSchema = Schema.Struct({
+    id: Schema.mutableKey(Schema.String),
+    name: Schema.mutableKey(Schema.String),
+});
+const pokerPotSchema = Schema.Struct({
+    amount: Schema.mutableKey(Schema.Number),
+    eligiblePlayerIds: Schema.mutableKey(
+        Schema.mutable(Schema.Array(Schema.String)),
+    ),
+});
+const pokerEventSchema = Schema.Struct({
+    id: Schema.mutableKey(Schema.Number),
+    type: Schema.mutableKey(pokerEventTypeSchema),
+    message: Schema.mutableKey(Schema.String),
+    playerId: Schema.optionalKey(Schema.mutableKey(Schema.String)),
+    amount: Schema.optionalKey(Schema.mutableKey(Schema.Number)),
+    street: Schema.optionalKey(Schema.mutableKey(pokerStreetSchema)),
+});
+const pokerStateSchema = Schema.Struct({
+    players: Schema.mutableKey(Schema.mutable(Schema.Array(pokerPlayerSchema))),
+    spectators: Schema.mutableKey(
+        Schema.mutable(Schema.Array(pokerSpectatorSchema)),
+    ),
+    deck: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    board: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    dealerIndex: Schema.mutableKey(Schema.Number),
+    smallBlindIndex: Schema.mutableKey(Schema.Number),
+    bigBlindIndex: Schema.mutableKey(Schema.Number),
+    actingPlayerIndex: Schema.mutableKey(Schema.NullOr(Schema.Number)),
+    street: Schema.mutableKey(pokerStreetSchema),
+    pots: Schema.mutableKey(Schema.mutable(Schema.Array(pokerPotSchema))),
+    currentBet: Schema.mutableKey(Schema.Number),
+    minRaise: Schema.mutableKey(Schema.Number),
+    handNumber: Schema.mutableKey(Schema.Number),
+    lastAggressorIndex: Schema.mutableKey(Schema.NullOr(Schema.Number)),
+    endedByHost: Schema.mutableKey(Schema.Boolean),
+    winnerIds: Schema.mutableKey(
+        Schema.NullOr(Schema.mutable(Schema.Array(Schema.String))),
+    ),
+    eventLog: Schema.mutableKey(Schema.mutable(Schema.Array(pokerEventSchema))),
+    eventSeq: Schema.mutableKey(Schema.Number),
 });
 
 function createLooseSnapshotSchema<GameType extends PersistedGameSnapshot["gameType"]>(
@@ -287,19 +379,23 @@ function createLooseSnapshotSchema<GameType extends PersistedGameSnapshot["gameT
     });
 }
 
+function createTypedSnapshotSchema(
+    gameType: PersistedGameSnapshot["gameType"],
+    stateSchema: Schema.Top,
+) {
+    return Schema.Struct({
+        gameType: Schema.mutableKey(Schema.Literal(gameType)),
+        state: Schema.mutableKey(stateSchema),
+    });
+}
+
 const persistedGameSnapshotSchema = Schema.Union([
     createLooseSnapshotSchema("go_fish"),
-    createLooseSnapshotSchema("poker"),
-    createLooseSnapshotSchema("backwards_poker"),
+    createTypedSnapshotSchema("poker", pokerStateSchema),
+    createTypedSnapshotSchema("backwards_poker", pokerStateSchema),
     createLooseSnapshotSchema("blackjack"),
-    Schema.Struct({
-        gameType: Schema.mutableKey(Schema.Literal("yahtzee")),
-        state: Schema.mutableKey(yahtzeeStateSchema),
-    }),
-    Schema.Struct({
-        gameType: Schema.mutableKey(Schema.Literal("lying_yahtzee")),
-        state: Schema.mutableKey(yahtzeeStateSchema),
-    }),
+    createTypedSnapshotSchema("yahtzee", yahtzeeStateSchema),
+    createTypedSnapshotSchema("lying_yahtzee", yahtzeeStateSchema),
     createLooseSnapshotSchema("perudo"),
     createLooseSnapshotSchema("rps"),
     createLooseSnapshotSchema("herd"),
@@ -322,12 +418,15 @@ function getSnapshotSchemaFor(
         return null;
     }
 
+    if (activeGameType === "poker" || activeGameType === "backwards_poker") {
+        return Schema.Union([
+            createTypedSnapshotSchema(activeGameType, pokerStateSchema),
+        ]);
+    }
+
     if (activeGameType === "yahtzee" || activeGameType === "lying_yahtzee") {
         return Schema.Union([
-            Schema.Struct({
-                gameType: Schema.mutableKey(Schema.Literal(activeGameType)),
-                state: Schema.mutableKey(yahtzeeStateSchema),
-            }),
+            createTypedSnapshotSchema(activeGameType, yahtzeeStateSchema),
         ]);
     }
 

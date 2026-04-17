@@ -289,6 +289,45 @@ describe("GameRoom worker boundary", () => {
         });
     });
 
+    it("ignores malformed poker messages and emits a structured decode log", async () => {
+        const logSpy = vi.spyOn(console, "log").mockImplementation(() => {
+            return undefined;
+        });
+        const { room, serverSocket } = await createRoom();
+
+        room.state.phase = "playing";
+        room.state.activeGameType = "poker";
+
+        await serverSocket.dispatch("message", {
+            data: JSON.stringify({
+                type: "poker:act",
+                playerId: "p1",
+                playerName: "Alice",
+                data: {
+                    type: "bet",
+                    amount: 0,
+                },
+            }),
+        });
+        await flushEffects();
+
+        expect(room.pokerState.current).toBeNull();
+        const logs = readLoggedEntries(logSpy);
+        const decodeLog = findLoggedEntry(logs, "game-room.poker-message.decode");
+
+        expect(decodeLog.level).toBe("WARN");
+        expect(decodeLog.annotations).toMatchObject({
+            component: "poker-transport",
+            operation: "game-room.poker-message.decode",
+            roomId: "room-test",
+            gameType: "poker",
+            phase: "playing",
+            sessionCount: "1",
+            result: "ignored",
+            errorTag: "PokerMessageDecodeError",
+        });
+    });
+
     it("ignores malformed yahtzee messages and emits a structured decode log", async () => {
         const logSpy = vi.spyOn(console, "log").mockImplementation(() => {
             return undefined;

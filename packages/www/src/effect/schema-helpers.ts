@@ -14,6 +14,13 @@ export class YahtzeeMessageDecodeError extends Data.TaggedError(
     readonly messageType?: string;
 }> {}
 
+export class PokerMessageDecodeError extends Data.TaggedError(
+    "PokerMessageDecodeError",
+)<{
+    readonly issue: string;
+    readonly messageType?: string;
+}> {}
+
 export class PersistedStateDecodeError extends Data.TaggedError(
     "PersistedStateDecodeError",
 )<{

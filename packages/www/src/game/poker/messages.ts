@@ -1,52 +1,112 @@
-import z from "zod";
+import { Effect, Schema } from "effect";
 
-export const pokerClientMessageSchema = z.object({
-    type: z.literal("poker:act"),
-    playerId: z.string(),
-    playerName: z.string(),
-    data: z.discriminatedUnion("type", [
-        z.object({
-            type: z.literal("fold"),
-        }),
-        z.object({
-            type: z.literal("check"),
-        }),
-        z.object({
-            type: z.literal("call"),
-        }),
-        z.object({
-            type: z.literal("bet"),
-            amount: z.number().int().positive(),
-        }),
-        z.object({
-            type: z.literal("raise"),
-            amount: z.number().int().positive(),
-        }),
-        z.object({
-            type: z.literal("all_in"),
-        }),
-    ]),
-});
+import {
+    decodeWithSchema,
+    extractMessageType,
+    PokerMessageDecodeError,
+} from "~/effect/schema-helpers";
 
-export type PokerClientMessage = z.output<typeof pokerClientMessageSchema>;
+type BaseClientMessage = {
+    playerId: string;
+    playerName: string;
+};
 
-export const pokerServerMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("poker:state"),
-        data: z.record(z.string(), z.unknown()),
+export type PokerClientMessage =
+    | ({
+          type: "poker:act";
+          data:
+              | { type: "fold" }
+              | { type: "check" }
+              | { type: "call" }
+              | { type: "bet"; amount: number }
+              | { type: "raise"; amount: number }
+              | { type: "all_in" };
+      } & BaseClientMessage);
+
+export type PokerServerMessage =
+    | { type: "poker:state"; data: Record<string, unknown> }
+    | { type: "poker:event"; data: Record<string, unknown> }
+    | { type: "poker:action_result"; data: Record<string, unknown> }
+    | { type: "poker:game_over"; data: Record<string, unknown> };
+
+const positiveIntSchema = Schema.Number.check(
+    Schema.isInt(),
+    Schema.isGreaterThan(0),
+);
+
+const pokerActionSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("fold")),
     }),
-    z.object({
-        type: z.literal("poker:event"),
-        data: z.record(z.string(), z.unknown()),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("check")),
     }),
-    z.object({
-        type: z.literal("poker:action_result"),
-        data: z.record(z.string(), z.unknown()),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("call")),
     }),
-    z.object({
-        type: z.literal("poker:game_over"),
-        data: z.record(z.string(), z.unknown()),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("bet")),
+        amount: Schema.mutableKey(positiveIntSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("raise")),
+        amount: Schema.mutableKey(positiveIntSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("all_in")),
     }),
 ]);
 
-export type PokerServerMessage = z.output<typeof pokerServerMessageSchema>;
+export const pokerClientMessageSchema = Schema.Struct({
+    type: Schema.mutableKey(Schema.Literal("poker:act")),
+    playerId: Schema.mutableKey(Schema.String),
+    playerName: Schema.mutableKey(Schema.String),
+    data: Schema.mutableKey(pokerActionSchema),
+});
+
+export const pokerServerMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("poker:state")),
+        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("poker:event")),
+        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("poker:action_result")),
+        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("poker:game_over")),
+        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+    }),
+]);
+
+export function decodePokerClientMessage(
+    raw: unknown,
+): Effect.Effect<PokerClientMessage, PokerMessageDecodeError, never> {
+    return decodeWithSchema(pokerClientMessageSchema, raw, (issue, value) => {
+        return new PokerMessageDecodeError({
+            issue,
+            messageType: extractMessageType(value),
+        });
+    }) as Effect.Effect<PokerClientMessage, PokerMessageDecodeError, never>;
+}
+
+export function decodePokerServerMessage(
+    raw: unknown,
+): Effect.Effect<PokerServerMessage, PokerMessageDecodeError, never> {
+    return decodeWithSchema(pokerServerMessageSchema, raw, (issue, value) => {
+        return new PokerMessageDecodeError({
+            issue,
+            messageType: extractMessageType(value),
+        });
+    }) as Effect.Effect<PokerServerMessage, PokerMessageDecodeError, never>;
+}
+
+export function encodePokerServerMessage(message: PokerServerMessage): string {
+    return JSON.stringify(
+        Schema.encodeUnknownSync(pokerServerMessageSchema)(message),
+    );
+}
