@@ -1,0 +1,177 @@
+import { describe, it, expect, vi } from "vitest";
+import { fireEvent } from "@solidjs/testing-library";
+import { GoFishRoom } from "./go-fish-room";
+import { renderWithWs } from "~/test/render-with-ws";
+import { makeSeat, makeView, SAMPLE_HAND } from "~/game/go-fish/test-helpers";
+import type { GoFishPlayerView } from "~/game/go-fish";
+
+type GoFishEnvelope =
+    | { type: "go_fish:state"; data: GoFishPlayerView }
+    | { type: "go_fish:ask_result"; data: Record<string, unknown> }
+    | { type: "go_fish:draw_result"; data: Record<string, unknown> }
+    | { type: "go_fish:book_made"; data: Record<string, unknown> }
+    | { type: "go_fish:game_over"; data: Record<string, unknown> };
+
+function renderRoom(
+    options: {
+        view?: GoFishPlayerView;
+        playerId?: string | null;
+        isHost?: boolean;
+    } = {},
+) {
+    const {
+        view = makeView(),
+        playerId = "p1",
+        isHost = false,
+    } = options;
+
+    const initialMessages: GoFishEnvelope[] = [
+        { type: "go_fish:state", data: view },
+    ];
+
+    return renderWithWs<GoFishEnvelope>(
+        (ws) => (
+            <GoFishRoom
+                roomId="room1"
+                playerId={playerId}
+                isHost={isHost}
+                ws={ws}
+            />
+        ),
+        { initialMessages },
+    );
+}
+
+describe("GoFishRoom", () => {
+    it("renders initial state: YOUR TURN, opponents and draw pile count", () => {
+        const view = makeView({
+            drawPileCount: 25,
+            currentPlayerId: "p1",
+            players: [
+                makeSeat({ id: "p1", name: "Alice" }),
+                makeSeat({ id: "p2", name: "Bob", cardCount: 5 }),
+            ],
+            myHand: SAMPLE_HAND,
+        });
+        const { getByText } = renderRoom({ view });
+
+        expect(getByText("YOUR TURN")).toBeInTheDocument();
+        expect(getByText("Bob")).toBeInTheDocument();
+        expect(getByText(/25 LEFT/i)).toBeInTheDocument();
+    });
+
+    it("shows opponent's turn when it's not your turn", () => {
+        const view = makeView({
+            currentPlayerId: "p2",
+            players: [
+                makeSeat({ id: "p1", name: "Alice" }),
+                makeSeat({ id: "p2", name: "Bob" }),
+            ],
+        });
+        const { getByText } = renderRoom({ view, playerId: "p1" });
+        expect(getByText(/BOB'S TURN/i)).toBeInTheDocument();
+        expect(getByText(/WAITING FOR BOB/i)).toBeInTheDocument();
+    });
+
+    it("sends go_fish:ask when opponent and rank are both selected", () => {
+        const view = makeView({
+            currentPlayerId: "p1",
+            turnPhase: "awaiting_ask",
+            players: [
+                makeSeat({ id: "p1", name: "Alice" }),
+                makeSeat({ id: "p2", name: "Bob" }),
+            ],
+            myHand: SAMPLE_HAND,
+        });
+        const { getByRole, socket, container } = renderRoom({
+            view,
+            playerId: "p1",
+        });
+
+        fireEvent.click(getByRole("button", { name: /bob/i }));
+
+        const handButtons = container.querySelectorAll(
+            ".border-t-\\[3px\\] button",
+        );
+        fireEvent.click(handButtons[0]!);
+
+        expect(socket.sentMessages).toEqual([
+            {
+                type: "go_fish:ask",
+                playerId: "p1",
+                playerName: "",
+                data: { targetId: "p2", rank: 7 },
+            },
+        ]);
+    });
+
+    it("sends go_fish:draw when turnPhase is go_fish and Go Fish! is clicked", () => {
+        const view = makeView({
+            currentPlayerId: "p1",
+            turnPhase: "go_fish",
+            players: [
+                makeSeat({ id: "p1", name: "Alice" }),
+                makeSeat({ id: "p2", name: "Bob" }),
+            ],
+        });
+        const { getByRole, socket } = renderRoom({ view, playerId: "p1" });
+
+        fireEvent.click(getByRole("button", { name: /go fish!/i }));
+
+        expect(socket.sentMessages).toEqual([
+            {
+                type: "go_fish:draw",
+                playerId: "p1",
+                playerName: "",
+                data: {},
+            },
+        ]);
+    });
+
+    it("updates UI when a new go_fish:state message arrives", () => {
+        const initialView = makeView({
+            drawPileCount: 40,
+            myHand: [],
+        });
+        const { getByText, socket } = renderRoom({ view: initialView });
+        expect(getByText(/40 LEFT/i)).toBeInTheDocument();
+
+        socket.emit({
+            type: "go_fish:state",
+            data: makeView({ drawPileCount: 12, myHand: SAMPLE_HAND }),
+        });
+
+        expect(getByText(/12 LEFT/i)).toBeInTheDocument();
+    });
+
+    it("shows game over screen with winner name and Back to Lobby button", () => {
+        const view = makeView({
+            gameOver: true,
+            winner: ["p2"],
+            players: [
+                makeSeat({ id: "p1", name: "Alice", books: [] }),
+                makeSeat({ id: "p2", name: "Bob", books: [1, 2, 3] }),
+            ],
+        });
+        const { getByText, getByRole } = renderRoom({ view, playerId: "p1" });
+
+        expect(getByText(/GAME OVER/i)).toBeInTheDocument();
+        expect(getByText(/BOB WINS/i)).toBeInTheDocument();
+        expect(
+            getByRole("button", { name: /back to lobby/i }),
+        ).toBeInTheDocument();
+    });
+
+    it("shows YOU WIN! when the current player wins", () => {
+        const view = makeView({
+            gameOver: true,
+            winner: ["p1"],
+            players: [
+                makeSeat({ id: "p1", name: "Alice", books: [1, 2] }),
+                makeSeat({ id: "p2", name: "Bob", books: [] }),
+            ],
+        });
+        const { getByText } = renderRoom({ view, playerId: "p1" });
+        expect(getByText("YOU WIN!")).toBeInTheDocument();
+    });
+});

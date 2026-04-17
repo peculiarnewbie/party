@@ -1,4 +1,9 @@
-import { getTotalScore, initGame } from "./engine";
+import {
+    getTotalScore,
+    getUpperBonus,
+    getUpperSectionTotal,
+    initGame,
+} from "./engine";
 import type {
     Dice,
     HeldDice,
@@ -6,9 +11,11 @@ import type {
     LyingTurnReveal,
     ScoringCategory,
     YahtzeeMode,
+    YahtzeePhase,
     YahtzeePlayer,
     YahtzeeState,
 } from "./types";
+import type { YahtzeePlayerInfo, YahtzeePlayerView } from "./views";
 
 export const TEST_PLAYERS = [
     { id: "p1", name: "Alice" },
@@ -96,4 +103,61 @@ export function resolveWinners(state: YahtzeeState): string[] {
     return totals
         .filter((entry) => entry.total === maxTotal)
         .map((entry) => entry.id);
+}
+
+export function makePlayerInfo(
+    overrides: Partial<YahtzeePlayerInfo> & Pick<YahtzeePlayerInfo, "id" | "name">,
+): YahtzeePlayerInfo {
+    const scorecard = overrides.scorecard ?? {};
+    const playerForTotals: YahtzeePlayer = {
+        id: overrides.id,
+        name: overrides.name,
+        scorecard,
+        yahtzeeBonus: overrides.yahtzeeBonus ?? 0,
+        penaltyPoints: overrides.penaltyPoints ?? 0,
+    };
+    return {
+        id: overrides.id,
+        name: overrides.name,
+        scorecard,
+        yahtzeeBonus: overrides.yahtzeeBonus ?? 0,
+        penaltyPoints: overrides.penaltyPoints ?? 0,
+        upperTotal:
+            overrides.upperTotal ?? getUpperSectionTotal(scorecard),
+        upperBonus: overrides.upperBonus ?? getUpperBonus(scorecard),
+        totalScore:
+            overrides.totalScore ?? getTotalScore(playerForTotals),
+    };
+}
+
+export function makeView(
+    overrides: Partial<YahtzeePlayerView> = {},
+): YahtzeePlayerView {
+    const players = overrides.players ?? [
+        makePlayerInfo({ id: "p1", name: "Alice" }),
+        makePlayerInfo({ id: "p2", name: "Bob" }),
+    ];
+    return {
+        mode: "standard" as YahtzeeMode,
+        myId: "p1",
+        phase: "pre_roll" as YahtzeePhase,
+        round: 1,
+        dice: [0, 0, 0, 0, 0] as Dice,
+        held: [false, false, false, false, false] as HeldDice,
+        rollsLeft: 3,
+        currentPlayerId: "p1",
+        isMyTurn: true,
+        players,
+        potentialScores: null,
+        suggestedCategories: [] as ScoringCategory[],
+        canRoll: true,
+        canScore: false,
+        canClaim: false,
+        canAcceptClaim: false,
+        canChallengeClaim: false,
+        pendingClaim: null as LyingClaim | null,
+        lastTurnReveal: null as LyingTurnReveal | null,
+        winners: null,
+        ...overrides,
+    };
 }

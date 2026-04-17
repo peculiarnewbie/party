@@ -12,6 +12,7 @@
         "cf-typegen": "wrangler types",
         "postinstall": "npm run cf-typegen",
         "test:unit": "vitest run",
+        "test:coverage": "vitest run --coverage",
         "test:browser:deps": "playwright install chromium",
         "test:browser:yahtzee": "node --import tsx e2e/yahtzee-seeded.spec.ts",
         "test:browser:yahtzee:update": "YAHTZEE_UPDATE_SCREENSHOTS=1 node --import tsx e2e/yahtzee-seeded.spec.ts",

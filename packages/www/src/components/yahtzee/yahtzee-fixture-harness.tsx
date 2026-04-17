@@ -3,6 +3,10 @@ import { YahtzeeRoom } from "~/components/yahtzee/yahtzee-room";
 import { buildFixtureTranscript } from "~/game/yahtzee/fixture-transcripts";
 import type { YahtzeeFixtureEnvelope } from "~/game/yahtzee/fixture-transcripts";
 import type { YahtzeeFixtureId } from "~/game/yahtzee/fixtures";
+import {
+    FakeFixtureWebSocket,
+    type FakeFixtureWebSocketState,
+} from "~/test/fake-fixture-websocket";
 
 interface YahtzeeFixtureHarnessProps {
     fixtureId: YahtzeeFixtureId;
@@ -10,85 +14,15 @@ interface YahtzeeFixtureHarnessProps {
     step?: number;
 }
 
-interface FixtureWindowState {
+interface FixtureWindowState extends FakeFixtureWebSocketState<YahtzeeFixtureEnvelope> {
     fixtureId: YahtzeeFixtureId;
     playerId: string;
-    sentMessages: unknown[];
-    deliveredMessages: YahtzeeFixtureEnvelope[];
     hostActions: string[];
 }
 
 declare global {
     interface Window {
         __YAHTZEE_FIXTURE__?: FixtureWindowState;
-    }
-}
-
-type MessageHandler = (event: { data: string }) => void;
-
-class FakeFixtureWebSocket {
-    private readonly listeners = new Set<MessageHandler>();
-    private readonly state: FixtureWindowState;
-
-    constructor(
-        private readonly initialMessages: YahtzeeFixtureEnvelope[],
-        private readonly afterSend: Partial<Record<string, YahtzeeFixtureEnvelope[]>>,
-        state: FixtureWindowState,
-    ) {
-        this.state = state;
-    }
-
-    addEventListener(type: string, handler: MessageHandler) {
-        if (type !== "message") return;
-        this.listeners.add(handler);
-    }
-
-    removeEventListener(type: string, handler: MessageHandler) {
-        if (type !== "message") return;
-        this.listeners.delete(handler);
-    }
-
-    send(rawMessage: string) {
-        let parsedMessage: unknown = rawMessage;
-        try {
-            parsedMessage = JSON.parse(rawMessage);
-        } catch {
-            parsedMessage = rawMessage;
-        }
-
-        this.state.sentMessages.push(parsedMessage);
-        window.__YAHTZEE_FIXTURE__ = this.state;
-
-        const messageType =
-            typeof parsedMessage === "object" &&
-            parsedMessage !== null &&
-            "type" in parsedMessage &&
-            typeof parsedMessage.type === "string"
-                ? parsedMessage.type
-                : null;
-
-        if (!messageType) return;
-
-        const nextMessages = this.afterSend[messageType] ?? [];
-        for (const message of nextMessages) {
-            this.emit(message);
-        }
-    }
-
-    start() {
-        for (const message of this.initialMessages) {
-            this.emit(message);
-        }
-    }
-
-    private emit(message: YahtzeeFixtureEnvelope) {
-        this.state.deliveredMessages.push(message);
-        window.__YAHTZEE_FIXTURE__ = this.state;
-
-        const event = { data: JSON.stringify(message) };
-        for (const listener of this.listeners) {
-            listener(event);
-        }
     }
 }
 
@@ -105,11 +39,14 @@ export function YahtzeeFixtureHarness(props: YahtzeeFixtureHarnessProps) {
         deliveredMessages: [],
         hostActions: [],
     };
-    const socket = new FakeFixtureWebSocket(
+    const socket = new FakeFixtureWebSocket<YahtzeeFixtureEnvelope>({
         initialMessages,
-        transcript.afterSend,
-        fixtureState,
-    );
+        afterSend: transcript.afterSend,
+        state: fixtureState,
+        onStateChange: () => {
+            window.__YAHTZEE_FIXTURE__ = fixtureState;
+        },
+    });
     const isHost = transcript.hostPlayerId === props.playerId;
 
     onMount(() => {
