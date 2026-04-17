@@ -87,6 +87,7 @@ async function waitForServerReady(
 }
 
 export async function createStagehandSession() {
+    const headless = process.env.YAHTZEE_HEADLESS !== "0";
     const stagehand = new Stagehand({
         env: "LOCAL",
         disableAPI: true,
@@ -94,7 +95,7 @@ export async function createStagehandSession() {
         verbose: 0,
         localBrowserLaunchOptions: {
             executablePath: STAGEHAND_EXECUTABLE_PATH,
-            headless: true,
+            headless,
             viewport: STAGEHAND_VIEWPORT,
         },
     });

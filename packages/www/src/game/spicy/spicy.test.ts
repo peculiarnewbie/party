@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { endGameByHost, getAllowedDeclarations, initGame, processAction } from "./engine";
 import type { SpicyState } from "./types";
 

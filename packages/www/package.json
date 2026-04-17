@@ -11,7 +11,7 @@
         "deploy": "npm run build && wrangler deploy",
         "cf-typegen": "wrangler types",
         "postinstall": "npm run cf-typegen",
-        "test:unit": "bun test src/game/yahtzee/*.test.ts",
+        "test:unit": "vitest run",
         "test:browser:deps": "playwright install chromium",
         "test:browser:yahtzee": "node --import tsx e2e/yahtzee-seeded.spec.ts",
         "test:browser:yahtzee:update": "YAHTZEE_UPDATE_SCREENSHOTS=1 node --import tsx e2e/yahtzee-seeded.spec.ts",
@@ -42,6 +42,7 @@
         "vite": "^7.1.7",
         "vite-plugin-solid": "^2.11.10",
         "vite-tsconfig-paths": "^5.1.4",
+        "vitest": "^4.1.4",
         "wrangler": "^4.81.1"
     }
 }

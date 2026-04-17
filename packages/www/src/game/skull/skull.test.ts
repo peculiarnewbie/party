@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { getPlayerView } from "./views";
 import { initGame, processAction } from "./engine";
 import type { DiscType, SkullEngineResult, SkullState } from "./types";

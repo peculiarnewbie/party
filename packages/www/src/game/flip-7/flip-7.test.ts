@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { createDeck, getRoundScore, initGame, processAction } from "./engine";
 import type { Flip7ActionCardType, Flip7Card } from "./types";
 

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { afterEach, describe, expect, it, vi } from "bun:test";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     decodeYahtzeeClientMessage,
     encodeYahtzeeServerMessage,

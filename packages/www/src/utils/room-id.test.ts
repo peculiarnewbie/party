@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { createRoomId, normalizeRoomId } from "~/utils/room-id";
 
 describe("room id utils", () => {

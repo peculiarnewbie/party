@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, mock, vi } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-mock.module("cloudflare:workers", () => {
+vi.mock("cloudflare:workers", () => {
     return {
         DurableObject: class {
             ctx: DurableObjectState;
@@ -73,6 +73,20 @@ class FakeWebSocketPair {
             client: this[0],
             server: this[1],
         };
+    }
+}
+
+const OriginalResponse = globalThis.Response;
+
+class WorkerResponse {
+    status: number;
+    webSocket: unknown;
+    body: unknown;
+
+    constructor(body: unknown, init?: { status?: number; webSocket?: unknown }) {
+        this.body = body;
+        this.status = init?.status ?? 200;
+        this.webSocket = init?.webSocket;
     }
 }
 
@@ -254,11 +268,13 @@ beforeEach(() => {
     lastPair = null;
     Object.assign(globalThis, {
         WebSocketPair: FakeWebSocketPair as unknown as typeof WebSocketPair,
+        Response: WorkerResponse as unknown as typeof Response,
     });
 });
 
 afterEach(() => {
     vi.restoreAllMocks();
+    Object.assign(globalThis, { Response: OriginalResponse });
 });
 
 describe("GameRoom worker boundary", () => {
