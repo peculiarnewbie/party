@@ -310,6 +310,10 @@ const persistedGameSnapshotSchema = Schema.Union([
     createLooseSnapshotSchema("skull"),
     createLooseSnapshotSchema("spicy"),
 ]);
+const roomStateJsonSchema = Schema.fromJsonString(roomStateSchema);
+const persistedGameSnapshotJsonSchema = Schema.fromJsonString(
+    persistedGameSnapshotSchema,
+);
 
 function getSnapshotSchemaFor(
     activeGameType: GameState["activeGameType"],
@@ -395,24 +399,20 @@ function decodePersistedValue<A>(
         return Effect.succeed(fallback);
     }
 
-    return Effect.try({
-        try: () => JSON.parse(rawValue),
-        catch: (error) =>
-            new PersistedStateDecodeError({
+    return decodeWithSchema(
+        Schema.fromJsonString(schema),
+        rawValue,
+        (issue, raw) => {
+            return new PersistedStateDecodeError({
                 key,
-                issue: formatUnknownError(error),
-                fallback: "fallback",
-            }),
-    }).pipe(
-        Effect.flatMap((json) =>
-            decodeWithSchema(schema, json, (issue, raw) => {
-                return new PersistedStateDecodeError({
-                    key,
-                    issue,
-                    fallback: extractMessageType(raw) ?? "fallback",
-                });
-            }),
-        ),
+                issue,
+                fallback:
+                    typeof raw === "string"
+                        ? "fallback"
+                        : extractMessageType(raw) ?? "fallback",
+            });
+        },
+    ).pipe(
         Effect.catchTag("PersistedStateDecodeError", (error) =>
             Effect.gen(function*() {
                 yield* Effect.logWarning("persisted-state.decode-fallback").pipe(
@@ -625,11 +625,11 @@ export function persistRoomState(
 ): Effect.Effect<void, StorageWriteError, never> {
     return Effect.gen(function*() {
         const encodedState = encodeWithSchema(
-            roomStateSchema,
+            roomStateJsonSchema,
             state as typeof roomStateSchema.Type,
         );
 
-        yield* writeMetaRow(ctx, ROOM_STATE_KEY, JSON.stringify(encodedState));
+        yield* writeMetaRow(ctx, ROOM_STATE_KEY, encodedState);
 
         if (state.gameSessionId) {
             yield* writeParticipants(
@@ -680,14 +680,10 @@ export function persistGameSnapshot(
 
     return Effect.gen(function*() {
         const encodedSnapshot = encodeWithSchema(
-            persistedGameSnapshotSchema,
+            persistedGameSnapshotJsonSchema,
             snapshot as typeof persistedGameSnapshotSchema.Type,
         );
 
-        yield* writeMetaRow(
-            ctx,
-            GAME_SNAPSHOT_KEY,
-            JSON.stringify(encodedSnapshot),
-        );
+        yield* writeMetaRow(ctx, GAME_SNAPSHOT_KEY, encodedSnapshot);
     });
 }

@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import {
     type GameParticipant,
     type GameParticipantStatus,
@@ -896,7 +896,10 @@ export class GameRoom extends DurableObject {
             const program = Effect.gen(() =>
                 (function* (this: GameRoom) {
                 const json = yield* Effect.try({
-                    try: () => JSON.parse(raw) as Record<string, unknown>,
+                    try: () =>
+                        Schema.decodeUnknownSync(
+                            Schema.UnknownFromJsonString,
+                        )(raw) as Record<string, unknown>,
                     catch: (error) =>
                         new RoomMessageDecodeError({
                             issue: formatUnknownError(error),
