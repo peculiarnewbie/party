@@ -33,6 +33,7 @@
     "devDependencies": {
         "@browserbasehq/stagehand": "^3.2.1",
         "@cloudflare/vite-plugin": "^1.13.7",
+        "@cloudflare/vitest-pool-workers": "^0.14.7",
         "@solidjs/testing-library": "^0.8.10",
         "@tailwindcss/vite": "^4.1.18",
         "@testing-library/jest-dom": "^6.9.1",

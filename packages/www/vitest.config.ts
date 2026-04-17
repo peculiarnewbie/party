@@ -1,18 +1,8 @@
 import { defineConfig } from "vitest/config";
-import tsConfigPaths from "vite-tsconfig-paths";
-import viteSolid from "vite-plugin-solid";
 
 export default defineConfig({
-    plugins: [
-        tsConfigPaths({
-            projects: ["./tsconfig.json"],
-        }),
-        viteSolid(),
-    ],
     test: {
-        include: ["src/**/*.test.{ts,tsx}"],
-        environment: "happy-dom",
-        setupFiles: ["./src/test/setup.ts"],
+        projects: ["./vitest.ui.config.ts", "./vitest.worker.config.ts"],
         coverage: {
             provider: "v8",
             reporter: ["text", "html", "json-summary"],
