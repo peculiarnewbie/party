@@ -1,4 +1,10 @@
+import { Effect } from "effect";
 import { afterEach, describe, expect, it, vi } from "bun:test";
+import {
+    decodeYahtzeeClientMessage,
+    encodeYahtzeeServerMessage,
+} from "./messages";
+import type { YahtzeeClientMessage } from "./messages";
 import { yahtzeeServer } from "./server";
 import { makeState } from "./test-helpers";
 
@@ -37,6 +43,87 @@ afterEach(() => {
 });
 
 describe("yahtzeeServer", () => {
+    it("decodes valid client messages for each discriminant", async () => {
+        const messages: YahtzeeClientMessage[] = [
+            {
+                type: "yahtzee:roll",
+                playerId: "p1",
+                playerName: "Alice",
+                data: {},
+            },
+            {
+                type: "yahtzee:toggle_hold",
+                playerId: "p1",
+                playerName: "Alice",
+                data: { diceIndex: 2 },
+            },
+            {
+                type: "yahtzee:score",
+                playerId: "p1",
+                playerName: "Alice",
+                data: { category: "chance" },
+            },
+            {
+                type: "yahtzee:claim",
+                playerId: "p1",
+                playerName: "Alice",
+                data: {
+                    category: "chance",
+                    claimedDice: [1, 2, 3, 4, 5] as [1, 2, 3, 4, 5],
+                },
+            },
+            {
+                type: "yahtzee:accept_claim",
+                playerId: "p2",
+                playerName: "Bob",
+                data: {},
+            },
+            {
+                type: "yahtzee:challenge_claim",
+                playerId: "p2",
+                playerName: "Bob",
+                data: {},
+            },
+        ];
+
+        for (const message of messages) {
+            const decoded = await Effect.runPromise(
+                decodeYahtzeeClientMessage(message),
+            );
+            expect(decoded).toEqual(message);
+        }
+    });
+
+    it("returns a typed decode error for invalid yahtzee messages", async () => {
+        await expect(
+            Effect.runPromise(
+                decodeYahtzeeClientMessage({
+                    type: "yahtzee:claim",
+                    playerId: "p1",
+                    playerName: "Alice",
+                    data: {
+                        category: "chance",
+                        claimedDice: [1, 2, 3, 4],
+                    },
+                }),
+            ),
+        ).rejects.toMatchObject({
+            _tag: "YahtzeeMessageDecodeError",
+        });
+    });
+
+    it("encodes yahtzee server messages with the current wire shape", () => {
+        const encoded = encodeYahtzeeServerMessage({
+            type: "yahtzee:error",
+            data: { message: "Must roll first" },
+        });
+
+        expect(JSON.parse(encoded)).toEqual({
+            type: "yahtzee:error",
+            data: { message: "Must roll first" },
+        });
+    });
+
     it("sends personalized initial state to every player", () => {
         const harness = createHarness();
 

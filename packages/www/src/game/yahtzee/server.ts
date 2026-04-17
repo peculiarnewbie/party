@@ -1,6 +1,7 @@
 import type { YahtzeeState } from "./types";
 import type { YahtzeeClientMessage } from "./messages";
 import type { ScoringCategory, YahtzeeMode } from "./types";
+import { encodeYahtzeeServerMessage } from "./messages";
 import {
     endGameByHost,
     initGame,
@@ -22,9 +23,12 @@ export const yahtzeeServer = (
 
         sendTo(
             playerId,
-            JSON.stringify({
+            encodeYahtzeeServerMessage({
                 type: "yahtzee:state",
-                data: getPlayerView(state, playerId),
+                data: getPlayerView(state, playerId) as unknown as Record<
+                    string,
+                    unknown
+                >,
             }),
         );
     },
@@ -40,9 +44,12 @@ export const yahtzeeServer = (
         for (const player of state.players) {
             sendTo(
                 player.id,
-                JSON.stringify({
+                encodeYahtzeeServerMessage({
                     type: "yahtzee:state",
-                    data: getPlayerView(state, player.id),
+                    data: getPlayerView(state, player.id) as unknown as Record<
+                        string,
+                        unknown
+                    >,
                 }),
             );
         }
@@ -100,7 +107,7 @@ export const yahtzeeServer = (
         if (result.type === "error") {
             sendTo(
                 message.playerId,
-                JSON.stringify({
+                encodeYahtzeeServerMessage({
                     type: "yahtzee:error",
                     data: { message: result.message },
                 }),
@@ -109,25 +116,28 @@ export const yahtzeeServer = (
         }
 
         broadcast(
-            JSON.stringify({
+            encodeYahtzeeServerMessage({
                 type: "yahtzee:action",
-                data: result,
+                data: result as unknown as Record<string, unknown>,
             }),
         );
 
         for (const player of state.players) {
             sendTo(
                 player.id,
-                JSON.stringify({
+                encodeYahtzeeServerMessage({
                     type: "yahtzee:state",
-                    data: getPlayerView(state, player.id),
+                    data: getPlayerView(state, player.id) as unknown as Record<
+                        string,
+                        unknown
+                    >,
                 }),
             );
         }
 
         if (result.type === "game_over") {
             broadcast(
-                JSON.stringify({
+                encodeYahtzeeServerMessage({
                     type: "yahtzee:game_over",
                     data: {
                         winners: result.winners,
@@ -151,15 +161,18 @@ export const yahtzeeServer = (
         for (const player of state.players) {
             sendTo(
                 player.id,
-                JSON.stringify({
+                encodeYahtzeeServerMessage({
                     type: "yahtzee:state",
-                    data: getPlayerView(state, player.id),
+                    data: getPlayerView(state, player.id) as unknown as Record<
+                        string,
+                        unknown
+                    >,
                 }),
             );
         }
 
         broadcast(
-            JSON.stringify({
+            encodeYahtzeeServerMessage({
                 type: "yahtzee:game_over",
                 data: {
                     winners: result.winners,
@@ -182,16 +195,19 @@ export const yahtzeeServer = (
         for (const player of state.players) {
             sendTo(
                 player.id,
-                JSON.stringify({
+                encodeYahtzeeServerMessage({
                     type: "yahtzee:state",
-                    data: getPlayerView(state, player.id),
+                    data: getPlayerView(state, player.id) as unknown as Record<
+                        string,
+                        unknown
+                    >,
                 }),
             );
         }
 
         if (result?.type === "game_over") {
             broadcast(
-                JSON.stringify({
+                encodeYahtzeeServerMessage({
                     type: "yahtzee:game_over",
                     data: {
                         winners: result.winners,

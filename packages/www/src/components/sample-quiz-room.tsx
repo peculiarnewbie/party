@@ -1,12 +1,12 @@
 import {
-    Component,
     createSignal,
     createEffect,
     onCleanup,
     For,
     Show,
 } from "solid-js";
-import { Player } from "~/game";
+import type { Component } from "solid-js";
+import type { Player } from "~/game";
 
 type PlayerAnswer = {
     player: Player;

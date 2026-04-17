@@ -50,5 +50,8 @@ export type {
 export {
     yahtzeeClientMessageSchema,
     yahtzeeServerMessageSchema,
+    decodeYahtzeeClientMessage,
+    decodeYahtzeeServerMessage,
+    encodeYahtzeeServerMessage,
 } from "./messages";
 export { yahtzeeServer } from "./server";

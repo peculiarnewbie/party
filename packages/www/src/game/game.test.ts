@@ -1,5 +1,12 @@
 import { describe, it, expect } from "bun:test";
-import { server, messageTypes } from "~/game";
+import { Effect } from "effect";
+
+import {
+    decodeClientMessage,
+    encodeServerMessage,
+    messageTypes,
+    server,
+} from "~/game";
 import type { GameState } from "~/game";
 
 function makeRoomState(overrides?: Partial<GameState>): GameState {
@@ -119,6 +126,67 @@ describe("Game Logic", () => {
     });
 
     describe("Room Messages", () => {
+        it("decodes a valid shared client message", async () => {
+            const decoded = await Effect.runPromise(
+                decodeClientMessage({
+                    playerId: "host",
+                    playerName: "Host",
+                    type: "join",
+                    data: {},
+                }),
+            );
+
+            expect(decoded).toEqual({
+                playerId: "host",
+                playerName: "Host",
+                type: "join",
+                data: {},
+            });
+        });
+
+        it("returns a typed decode error for invalid shared client messages", async () => {
+            await expect(
+                Effect.runPromise(
+                    decodeClientMessage({
+                        playerId: "host",
+                        playerName: "Host",
+                        type: "not-a-real-message",
+                        data: {},
+                    }),
+                ),
+            ).rejects.toMatchObject({
+                _tag: "RoomMessageDecodeError",
+            });
+        });
+
+        it("encodes shared server messages with the current wire shape", () => {
+            const encoded = encodeServerMessage({
+                type: "room_state",
+                data: {
+                    players: [],
+                    hostId: null,
+                    phase: "lobby",
+                    selectedGameType: "quiz",
+                    activeGameType: null,
+                    gameSessionId: null,
+                    gameParticipants: [],
+                },
+            });
+
+            expect(JSON.parse(encoded)).toEqual({
+                type: "room_state",
+                data: {
+                    players: [],
+                    hostId: null,
+                    phase: "lobby",
+                    selectedGameType: "quiz",
+                    activeGameType: null,
+                    gameSessionId: null,
+                    gameParticipants: [],
+                },
+            });
+        });
+
         it("lets the host change the selected game in lobby", async () => {
             const state = makeRoomState({
                 hostId: "host",

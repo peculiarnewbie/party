@@ -1,8 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
+import { Effect } from "effect";
 import {
     type GameParticipant,
     type GameParticipantStatus,
     type GameState,
+    decodeClientMessage,
+    encodeServerMessage,
     isPokerGameType,
     server,
 } from "~/game";
@@ -22,7 +25,7 @@ import {
     type PokerState,
 } from "~/game/poker";
 import {
-    yahtzeeClientMessageSchema,
+    decodeYahtzeeClientMessage,
     yahtzeeServer,
     type YahtzeeState,
 } from "~/game/yahtzee";
@@ -67,86 +70,25 @@ import {
     spicyServer,
     type SpicyState,
 } from "~/game/spicy";
+import {
+    createDefaultState,
+    ensureSchema,
+    loadGameSnapshot,
+    loadRoomState,
+    persistGameSnapshot as persistSnapshotToStorage,
+    persistRoomState as persistRoomStateToStorage,
+    type PersistedGameSnapshot,
+} from "~/worker/room-storage";
+import {
+    RoomMessageDecodeError,
+    formatUnknownError,
+} from "~/effect/schema-helpers";
+import {
+    runObservedPromiseExit,
+    runObservedSync,
+} from "~/effect/runtime";
 
-const ROOM_STATE_KEY = "room_state";
-const GAME_SNAPSHOT_KEY = "game_snapshot";
 const HIBERNATION_TIMEOUT_MS = 3 * 60 * 60 * 1000;
-
-type PersistedValueRow = {
-    value: string;
-};
-
-type PersistedParticipantRow = {
-    player_id: string;
-    status: GameParticipantStatus;
-};
-
-type PersistedGameSnapshot =
-    | {
-          gameType: "go_fish";
-          state: GoFishState;
-      }
-    | {
-          gameType: "poker" | "backwards_poker";
-          state: PokerState;
-      }
-    | {
-          gameType: "blackjack";
-          state: BlackjackState;
-      }
-    | {
-          gameType: "yahtzee" | "lying_yahtzee";
-          state: YahtzeeState;
-      }
-    | {
-          gameType: "perudo";
-          state: PerudoState;
-      }
-    | {
-          gameType: "rps";
-          state: RpsState;
-      }
-    | {
-          gameType: "herd";
-          state: HerdState;
-      }
-    | {
-          gameType: "fun_facts";
-          state: FunFactsState;
-      }
-    | {
-          gameType: "cheese_thief";
-          state: CheeseThiefState;
-      }
-    | {
-          gameType: "cockroach_poker";
-          state: CockroachPokerState;
-      }
-    | {
-          gameType: "flip_7";
-          state: Flip7State;
-      }
-    | {
-          gameType: "skull";
-          state: SkullState;
-      }
-    | {
-          gameType: "spicy";
-          state: SpicyState;
-      };
-
-function createDefaultState(): GameState {
-    return {
-        players: [],
-        hostId: null,
-        answers: {},
-        phase: "lobby",
-        selectedGameType: "quiz",
-        activeGameType: null,
-        gameSessionId: null,
-        gameParticipants: [],
-    };
-}
 
 function getPokerVisibilityMode(gameType: GameState["activeGameType"]) {
     return gameType === "backwards_poker" ? "backwards" : "standard";
@@ -194,137 +136,72 @@ export class GameRoom extends DurableObject {
         this.spicyState = { current: null };
         this.nextHandTimer = null;
         this.ready = this.ctx.blockConcurrencyWhile(async () => {
-            this.ensureSchema();
-            this.loadPersistedState();
+            const exit = await runObservedPromiseExit(
+                ensureSchema(this.ctx).pipe(
+                    Effect.andThen(
+                        Effect.sync(() => {
+                            this.loadPersistedState();
+                        }),
+                    ),
+                ),
+                "game-room.snapshot.load",
+                this.roomLogContext({
+                    component: "game-room",
+                    result: "startup",
+                }),
+            );
+
+            if (exit._tag === "Failure") {
+                this.state = createDefaultState();
+                this.clearInMemoryGameStates();
+            }
         });
     }
 
-    ensureSchema() {
-        this.ctx.storage.sql.exec(`
-            CREATE TABLE IF NOT EXISTS kv (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-        `);
-        this.ctx.storage.sql.exec(`
-            CREATE TABLE IF NOT EXISTS game_participants (
-                session_id TEXT NOT NULL,
-                player_id TEXT NOT NULL,
-                status TEXT NOT NULL,
-                joined_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL,
-                PRIMARY KEY (session_id, player_id)
-            )
-        `);
+    roomId() {
+        return this.ctx.id.toString();
     }
 
-    readMeta<T>(key: string): T | null {
-        const row = this.ctx.storage.sql
-            .exec<PersistedValueRow>("SELECT value FROM kv WHERE key = ?", key)
-            .toArray()[0];
-
-        if (!row) return null;
-        return JSON.parse(row.value) as T;
-    }
-
-    writeMeta(key: string, value: unknown) {
-        this.ctx.storage.sql.exec(
-            "INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)",
-            key,
-            JSON.stringify(value),
-        );
-    }
-
-    deleteMeta(key: string) {
-        this.ctx.storage.sql.exec("DELETE FROM kv WHERE key = ?", key);
-    }
-
-    readParticipants(sessionId: string): GameParticipant[] {
-        return this.ctx.storage.sql
-            .exec<PersistedParticipantRow>(
-                `
-                    SELECT player_id, status
-                    FROM game_participants
-                    WHERE session_id = ?
-                    ORDER BY joined_at ASC
-                `,
-                sessionId,
-            )
-            .toArray()
-            .map((row) => ({
-                playerId: row.player_id,
-                status: row.status,
-            }));
-    }
-
-    writeParticipants(sessionId: string, participants: GameParticipant[]) {
-        const now = Date.now();
-        this.ctx.storage.sql.exec(
-            "DELETE FROM game_participants WHERE session_id = ?",
-            sessionId,
-        );
-
-        for (const [index, participant] of participants.entries()) {
-            this.ctx.storage.sql.exec(
-                `
-                    INSERT INTO game_participants (
-                        session_id,
-                        player_id,
-                        status,
-                        joined_at,
-                        updated_at
-                    ) VALUES (?, ?, ?, ?, ?)
-                `,
-                sessionId,
-                participant.playerId,
-                participant.status,
-                now + index,
-                now,
-            );
-        }
-    }
-
-    deleteAllParticipants() {
-        this.ctx.storage.sql.exec("DELETE FROM game_participants");
-    }
-
-    loadPersistedState() {
-        const persistedState =
-            this.readMeta<Partial<GameState>>(ROOM_STATE_KEY);
-        this.state = {
-            ...createDefaultState(),
-            ...persistedState,
-            gameParticipants: [],
+    roomLogContext(
+        context: {
+            component?: string;
+            operation?: string;
+            gameType?: string | null;
+            messageType?: string;
+            playerId?: string | null;
+            phase?: string;
+            sessionCount?: number;
+            result?: string;
+            errorTag?: string;
+            branch?: string;
+        } = {},
+    ) {
+        return {
+            roomId: this.roomId(),
+            gameType: this.state.activeGameType,
+            phase: this.state.phase,
+            sessionCount: this.sessions.size,
+            ...context,
         };
+    }
 
-        if (this.state.gameSessionId) {
-            this.state.gameParticipants = this.readParticipants(
-                this.state.gameSessionId,
-            );
-        }
+    applyLoadedSnapshot(snapshot: PersistedGameSnapshot | null) {
+        this.clearInMemoryGameStates();
 
-        const snapshot =
-            this.readMeta<PersistedGameSnapshot>(GAME_SNAPSHOT_KEY);
-        this.goFishState.current = null;
-        this.pokerState.current = null;
-        this.blackjackState.current = null;
-        this.yahtzeeState.current = null;
-        this.perudoState.current = null;
-        this.rpsState.current = null;
-        this.herdState.current = null;
-        this.funFactsState.current = null;
-        this.cheeseThiefState.current = null;
-        this.cockroachPokerState.current = null;
-        this.flip7State.current = null;
-        this.skullState.current = null;
-        this.spicyState.current = null;
-
-        if (!snapshot || snapshot.gameType !== this.state.activeGameType) {
+        if (!snapshot) {
             return;
         }
 
         if (snapshot.gameType === "go_fish") {
             this.goFishState.current = snapshot.state;
+            return;
+        }
+
+        if (
+            snapshot.gameType === "poker" ||
+            snapshot.gameType === "backwards_poker"
+        ) {
+            this.pokerState.current = snapshot.state;
             return;
         }
 
@@ -343,14 +220,6 @@ export class GameRoom extends DurableObject {
 
         if (snapshot.gameType === "perudo") {
             this.perudoState.current = snapshot.state;
-            return;
-        }
-
-        if (
-            snapshot.gameType === "poker" ||
-            snapshot.gameType === "backwards_poker"
-        ) {
-            this.pokerState.current = snapshot.state;
             return;
         }
 
@@ -394,17 +263,38 @@ export class GameRoom extends DurableObject {
         }
     }
 
-    persistRoomState() {
-        this.writeMeta(ROOM_STATE_KEY, this.state);
-        if (this.state.gameSessionId) {
-            this.writeParticipants(
-                this.state.gameSessionId,
-                this.state.gameParticipants,
-            );
-            return;
-        }
+    loadPersistedState() {
+        this.state = runObservedSync(
+            loadRoomState(this.ctx),
+            "game-room.snapshot.load",
+            this.roomLogContext({
+                component: "room-storage",
+                operation: "game-room.snapshot.load",
+            }),
+        );
 
-        this.deleteAllParticipants();
+        const snapshot = runObservedSync(
+            loadGameSnapshot(this.ctx, this.state.activeGameType),
+            "game-room.snapshot.load",
+            this.roomLogContext({
+                component: "room-storage",
+                operation: "game-room.snapshot.load",
+            }),
+        );
+
+        this.applyLoadedSnapshot(snapshot);
+    }
+
+    persistRoomState() {
+        runObservedSync(
+            persistRoomStateToStorage(this.ctx, this.state),
+            "game-room.snapshot.persist",
+            this.roomLogContext({
+                component: "room-storage",
+                operation: "game-room.snapshot.persist",
+                result: "room_state",
+            }),
+        );
     }
 
     getCurrentGameSnapshot(): PersistedGameSnapshot | null {
@@ -529,12 +419,15 @@ export class GameRoom extends DurableObject {
 
     persistGameSnapshot() {
         const snapshot = this.getCurrentGameSnapshot();
-        if (!snapshot) {
-            this.deleteMeta(GAME_SNAPSHOT_KEY);
-            return;
-        }
-
-        this.writeMeta(GAME_SNAPSHOT_KEY, snapshot);
+        runObservedSync(
+            persistSnapshotToStorage(this.ctx, snapshot),
+            "game-room.snapshot.persist",
+            this.roomLogContext({
+                component: "room-storage",
+                operation: "game-room.snapshot.persist",
+                result: snapshot ? "snapshot" : "snapshot_cleared",
+            }),
+        );
     }
 
     persistAllState() {
@@ -631,13 +524,24 @@ export class GameRoom extends DurableObject {
 
         this.resetRoom();
         await this.ctx.storage.deleteAll();
-        this.ensureSchema();
+        runObservedSync(
+            ensureSchema(this.ctx),
+            "game-room.snapshot.persist",
+            this.roomLogContext({
+                component: "room-storage",
+                operation: "game-room.snapshot.persist",
+                result: "alarm-reset",
+            }),
+        );
     }
 
     roomStateMessage() {
-        return JSON.stringify({
+        return encodeServerMessage({
             type: "room_state",
-            data: server(this.state).getRoomState(),
+            data: server(this.state).getRoomState() as unknown as Record<
+                string,
+                unknown
+            >,
         });
     }
 
@@ -986,588 +890,832 @@ export class GameRoom extends DurableObject {
 
         sendRoomStateToSocket(serverWs);
 
-        serverWs.addEventListener("message", async (event) => {
+        serverWs.addEventListener("message", (event) => {
             const raw = event.data as string;
-            let json: any;
-            try {
-                json = JSON.parse(raw);
-            } catch {
-                return;
-            }
 
-            if (
-                (json.type === "identify" || json.type === "join") &&
-                json.playerId
-            ) {
-                const session = this.sessions.get(serverWs);
-                if (session) session.playerId = json.playerId;
-            }
+            const program = Effect.gen(() =>
+                (function* (this: GameRoom) {
+                const json = yield* Effect.try({
+                    try: () => JSON.parse(raw) as Record<string, unknown>,
+                    catch: (error) =>
+                        new RoomMessageDecodeError({
+                            issue: formatUnknownError(error),
+                        }),
+                }).pipe(
+                    Effect.catchTag("RoomMessageDecodeError", (error) =>
+                        Effect.gen(function*() {
+                            yield* Effect.logWarning(
+                                "game-room.message.invalid-json",
+                            ).pipe(
+                                Effect.annotateLogs({
+                                    component: "game-room",
+                                    result: "ignored",
+                                    errorTag: error._tag,
+                                }),
+                            );
+                            return null;
+                        }),
+                    ),
+                );
 
-            if (json.type === "identify" && json.playerId) {
-                const participant = this.getGameParticipant(json.playerId);
-                const didChange =
-                    this.state.phase !== "hibernated" &&
-                    participant?.status === "disconnected" &&
-                    this.setGameParticipantStatus(json.playerId, "active");
-
-                if (didChange) {
-                    this.persistRoomState();
-                    broadcastRoomState();
-                }
-
-                sendRoomStateToSocket(serverWs);
-
-                if (this.state.phase === "hibernated") {
+                if (!json) {
                     return;
                 }
 
-                rehydratePlayerGameState(
-                    json.playerId,
-                    typeof json.playerName === "string"
-                        ? json.playerName
-                        : getStoredPlayerName(json.playerId),
-                );
-                this.persistGameSnapshot();
-                return;
-            }
+                const messageType =
+                    typeof json.type === "string" ? json.type : undefined;
+                const messagePlayerId =
+                    typeof json.playerId === "string" ? json.playerId : null;
 
-            if (this.state.phase === "hibernated") {
+                yield* Effect.annotateCurrentSpan({
+                    messageType: messageType ?? "unknown",
+                    playerId: messagePlayerId ?? "",
+                });
+
+                const isSharedMessage =
+                    typeof messageType === "string" &&
+                    !messageType.includes(":");
+
+                const sharedMessage = isSharedMessage
+                    ? yield* decodeClientMessage(json).pipe(
+                          Effect.tap(() =>
+                              Effect.logInfo("game-room.room-message.decode").pipe(
+                                  Effect.annotateLogs({
+                                      component: "game-room",
+                                      operation: "game-room.room-message.decode",
+                                      result: "success",
+                                  }),
+                              ),
+                          ),
+                          Effect.catchTag("RoomMessageDecodeError", (error) =>
+                              Effect.gen(function*() {
+                                  yield* Effect.logWarning(
+                                      "game-room.room-message.decode",
+                                  ).pipe(
+                                      Effect.annotateLogs({
+                                          component: "game-room",
+                                          operation:
+                                              "game-room.room-message.decode",
+                                          result: "ignored",
+                                          errorTag: error._tag,
+                                      }),
+                                  );
+                                  return null;
+                              }),
+                          ),
+                      )
+                    : null;
+
                 if (
-                    json.type === "resume_room" &&
-                    typeof json.playerId === "string"
+                    sharedMessage &&
+                    (sharedMessage.type === "identify" ||
+                        sharedMessage.type === "join")
                 ) {
-                    if (!canManageHibernatedRoom(json.playerId)) {
-                        sendRoomStateToSocket(serverWs);
+                    const session = this.sessions.get(serverWs);
+                    if (session) {
+                        session.playerId = sharedMessage.playerId;
+                    }
+                }
+
+                if (sharedMessage?.type === "identify") {
+                    const participant = this.getGameParticipant(
+                        sharedMessage.playerId,
+                    );
+                    const didChange =
+                        this.state.phase !== "hibernated" &&
+                        participant?.status === "disconnected" &&
+                        this.setGameParticipantStatus(
+                            sharedMessage.playerId,
+                            "active",
+                        );
+
+                    if (didChange) {
+                        this.persistRoomState();
+                        broadcastRoomState();
+                    }
+
+                    sendRoomStateToSocket(serverWs);
+
+                    if (this.state.phase === "hibernated") {
+                        yield* Effect.logInfo(
+                            "game-room.message.processed",
+                        ).pipe(
+                            Effect.annotateLogs({
+                                component: "game-room",
+                                branch: "identify",
+                                result: "hibernated",
+                            }),
+                        );
                         return;
                     }
 
-                    await this.clearHibernationCleanup();
-                    this.state.phase = "playing";
-                    activateConnectedParticipants();
-                    this.persistRoomState();
-                    broadcastRoomState();
-                    rehydrateConnectedParticipants();
+                    rehydratePlayerGameState(
+                        sharedMessage.playerId,
+                        sharedMessage.playerName ||
+                            getStoredPlayerName(sharedMessage.playerId),
+                    );
+                    this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "identify",
+                            result: "ok",
+                        }),
+                    );
+                    return;
+                }
+
+                if (this.state.phase === "hibernated") {
+                    if (sharedMessage?.type === "resume_room") {
+                        if (!canManageHibernatedRoom(sharedMessage.playerId)) {
+                            sendRoomStateToSocket(serverWs);
+                            return;
+                        }
+
+                        yield* Effect.promise(() =>
+                            this.clearHibernationCleanup(),
+                        );
+                        this.state.phase = "playing";
+                        activateConnectedParticipants();
+                        this.persistRoomState();
+                        broadcastRoomState();
+                        rehydrateConnectedParticipants();
+                        this.persistGameSnapshot();
+                        yield* Effect.logInfo("game-room.message.processed").pipe(
+                            Effect.annotateLogs({
+                                component: "game-room",
+                                branch: "resume_room",
+                                result: "ok",
+                            }),
+                        );
+                        return;
+                    }
+
+                    if (sharedMessage?.type === "restart_room") {
+                        if (!canManageHibernatedRoom(sharedMessage.playerId)) {
+                            sendRoomStateToSocket(serverWs);
+                            return;
+                        }
+
+                        yield* Effect.promise(() => this.restartRoom());
+                        broadcastRoomState();
+                        yield* Effect.logInfo("game-room.message.processed").pipe(
+                            Effect.annotateLogs({
+                                component: "game-room",
+                                branch: "restart_room",
+                                result: "ok",
+                            }),
+                        );
+                        return;
+                    }
+
+                    sendRoomStateToSocket(serverWs);
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("go_fish:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "go_fish",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = goFishClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    goFishServer(this.goFishState).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
                     this.persistGameSnapshot();
                     return;
                 }
 
                 if (
-                    json.type === "restart_room" &&
-                    typeof json.playerId === "string"
+                    typeof messageType === "string" &&
+                    messageType.startsWith("poker:")
                 ) {
-                    if (!canManageHibernatedRoom(json.playerId)) {
-                        sendRoomStateToSocket(serverWs);
-                        return;
-                    }
-
-                    await this.restartRoom();
-                    broadcastRoomState();
-                    return;
-                }
-
-                sendRoomStateToSocket(serverWs);
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("go_fish:")
-            ) {
-                const parsed = goFishClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                goFishServer(this.goFishState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("poker:")
-            ) {
-                const parsed = pokerClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                pokerServer(this.pokerState, {
-                    scheduleNextHand: schedulePokerNextHand,
-                    visibilityMode: getPokerVisibilityMode(
-                        this.state.activeGameType,
-                    ),
-                }).processMessage(parsed.data, broadcast, sendTo);
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("blackjack:")
-            ) {
-                const parsed = blackjackClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                blackjackServer(this.blackjackState, {
-                    scheduleNextRound: scheduleBlackjackNextRound,
-                }).processMessage(parsed.data, broadcast, sendTo);
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("yahtzee:")
-            ) {
-                const parsed = yahtzeeClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                yahtzeeServer(this.yahtzeeState, {
-                    mode: getYahtzeeMode(this.state.activeGameType),
-                }).processMessage(parsed.data, broadcast, sendTo);
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("perudo:")
-            ) {
-                const parsed = perudoClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                perudoServer(this.perudoState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (typeof json.type === "string" && json.type.startsWith("rps:")) {
-                const parsed = rpsClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                rpsServer(this.rpsState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("herd:")
-            ) {
-                const parsed = herdClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                herdServer(this.herdState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("fun_facts:")
-            ) {
-                const parsed = funFactsClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                funFactsServer(this.funFactsState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("cheese_thief:")
-            ) {
-                const parsed = cheeseThiefClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                cheeseThiefServer(this.cheeseThiefState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("cockroach_poker:")
-            ) {
-                const parsed =
-                    cockroachPokerClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                cockroachPokerServer(this.cockroachPokerState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("flip_7:")
-            ) {
-                const parsed = flip7ClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                flip7Server(this.flip7State).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("skull:")
-            ) {
-                const parsed = skullClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                skullServer(this.skullState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            if (
-                typeof json.type === "string" &&
-                json.type.startsWith("spicy:")
-            ) {
-                const parsed = spicyClientMessageSchema.safeParse(json);
-                if (!parsed.success) return;
-                spicyServer(this.spicyState).processMessage(
-                    parsed.data,
-                    broadcast,
-                    sendTo,
-                );
-                this.persistGameSnapshot();
-                return;
-            }
-
-            const wasPoker = isPokerGameType(this.state.activeGameType);
-            const currentPokerState = this.pokerState.current;
-            const wasSeatedPokerPlayer =
-                wasPoker &&
-                !!currentPokerState?.players.some(
-                    (player) => player.id === json.playerId,
-                );
-
-            const processResult = await server(this.state).processMessage(
-                raw,
-                broadcast,
-                {
-                    createGameSession: () => ({
-                        gameSessionId: crypto.randomUUID(),
-                        participants: this.state.players.map((player) => ({
-                            playerId: player.id,
-                            status: "active",
-                        })),
-                    }),
-                },
-            );
-
-            if (
-                json.type === "join" &&
-                this.state.phase === "playing" &&
-                json.playerId
-            ) {
-                const participant = this.getGameParticipant(json.playerId);
-                if (participant?.status === "disconnected") {
-                    this.setGameParticipantStatus(json.playerId, "active");
-                    broadcastRoomState();
-                }
-
-                if (isPokerGameType(this.state.activeGameType)) {
-                    const poker = pokerServer(this.pokerState, {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "poker",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = pokerClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    pokerServer(this.pokerState, {
                         scheduleNextHand: schedulePokerNextHand,
                         visibilityMode: getPokerVisibilityMode(
                             this.state.activeGameType,
                         ),
-                    });
-                    if (participant || wasSeatedPokerPlayer) {
-                        poker.reconnectPlayer(
-                            {
-                                id: json.playerId,
-                                name: json.playerName,
-                            },
+                    }).processMessage(parsed.data, broadcast, sendTo);
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("blackjack:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "blackjack",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = blackjackClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    blackjackServer(this.blackjackState, {
+                        scheduleNextRound: scheduleBlackjackNextRound,
+                    }).processMessage(parsed.data, broadcast, sendTo);
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("yahtzee:")
+                ) {
+                    const parsed = yield* decodeYahtzeeClientMessage(json).pipe(
+                        Effect.tap(() =>
+                            Effect.logInfo("game-room.yahtzee-message.decode").pipe(
+                                Effect.annotateLogs({
+                                    component: "yahtzee-transport",
+                                    operation:
+                                        "game-room.yahtzee-message.decode",
+                                    result: "success",
+                                }),
+                            ),
+                        ),
+                        Effect.catchTag("YahtzeeMessageDecodeError", (error) =>
+                            Effect.gen(function*() {
+                                yield* Effect.logWarning(
+                                    "game-room.yahtzee-message.decode",
+                                ).pipe(
+                                    Effect.annotateLogs({
+                                        component: "yahtzee-transport",
+                                        operation:
+                                            "game-room.yahtzee-message.decode",
+                                        result: "ignored",
+                                        errorTag: error._tag,
+                                    }),
+                                );
+                                return null;
+                            }),
+                        ),
+                    );
+
+                    if (!parsed) {
+                        return;
+                    }
+
+                    yahtzeeServer(this.yahtzeeState, {
+                        mode: getYahtzeeMode(this.state.activeGameType),
+                    }).processMessage(parsed, broadcast, sendTo);
+                    this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "yahtzee",
+                            result: "ok",
+                        }),
+                    );
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("perudo:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "perudo",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = perudoClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    perudoServer(this.perudoState).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("rps:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "rps",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = rpsClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    rpsServer(this.rpsState).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("herd:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "herd",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = herdClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    herdServer(this.herdState).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("fun_facts:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "fun_facts",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = funFactsClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    funFactsServer(this.funFactsState).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("cheese_thief:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "cheese_thief",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = cheeseThiefClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    cheeseThiefServer(this.cheeseThiefState).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("cockroach_poker:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "cockroach_poker",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed =
+                        cockroachPokerClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    cockroachPokerServer(this.cockroachPokerState).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("flip_7:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "flip_7",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = flip7ClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    flip7Server(this.flip7State).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("skull:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "skull",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = skullClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    skullServer(this.skullState).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (
+                    typeof messageType === "string" &&
+                    messageType.startsWith("spicy:")
+                ) {
+                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "spicy",
+                            result: "legacy",
+                        }),
+                    );
+                    const parsed = spicyClientMessageSchema.safeParse(json);
+                    if (!parsed.success) return;
+                    spicyServer(this.spicyState).processMessage(
+                        parsed.data,
+                        broadcast,
+                        sendTo,
+                    );
+                    this.persistGameSnapshot();
+                    return;
+                }
+
+                if (!sharedMessage) {
+                    return;
+                }
+
+                const wasPoker = isPokerGameType(this.state.activeGameType);
+                const currentPokerState = this.pokerState.current;
+                const wasSeatedPokerPlayer =
+                    wasPoker &&
+                    !!currentPokerState?.players.some(
+                        (player) => player.id === sharedMessage.playerId,
+                    );
+
+                const processResult = yield* Effect.promise(() =>
+                    server(this.state).processClientMessage(
+                        sharedMessage,
+                        broadcast,
+                        {
+                            createGameSession: () => ({
+                                gameSessionId: crypto.randomUUID(),
+                                participants: this.state.players.map(
+                                    (player) => ({
+                                        playerId: player.id,
+                                        status: "active",
+                                    }),
+                                ),
+                            }),
+                        },
+                    ),
+                );
+
+                if (
+                    sharedMessage.type === "join" &&
+                    this.state.phase === "playing"
+                ) {
+                    const participant = this.getGameParticipant(
+                        sharedMessage.playerId,
+                    );
+                    if (participant?.status === "disconnected") {
+                        this.setGameParticipantStatus(
+                            sharedMessage.playerId,
+                            "active",
+                        );
+                        broadcastRoomState();
+                    }
+
+                    if (isPokerGameType(this.state.activeGameType)) {
+                        const poker = pokerServer(this.pokerState, {
+                            scheduleNextHand: schedulePokerNextHand,
+                            visibilityMode: getPokerVisibilityMode(
+                                this.state.activeGameType,
+                            ),
+                        });
+                        if (participant || wasSeatedPokerPlayer) {
+                            poker.reconnectPlayer(
+                                {
+                                    id: sharedMessage.playerId,
+                                    name: sharedMessage.playerName,
+                                },
+                                broadcast,
+                                sendTo,
+                            );
+                        } else {
+                            poker.addSpectator(
+                                {
+                                    id: sharedMessage.playerId,
+                                    name: sharedMessage.playerName,
+                                },
+                                broadcast,
+                                sendTo,
+                            );
+                        }
+                    } else if (participant) {
+                        rehydratePlayerGameState(
+                            sharedMessage.playerId,
+                            sharedMessage.playerName,
+                        );
+                    }
+                }
+
+                if (processResult.kind === "start") {
+                    yield* Effect.promise(() =>
+                        this.clearHibernationCleanup(),
+                    );
+                    this.clearNextHandTimer();
+                    this.clearInMemoryGameStates();
+                    if (processResult.gameType === "go_fish") {
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        goFishServer(this.goFishState).initGame(
+                            players,
+                            broadcast,
+                            sendTo,
+                        );
+                    } else if (isPokerGameType(processResult.gameType)) {
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        pokerServer(this.pokerState, {
+                            scheduleNextHand: schedulePokerNextHand,
+                            visibilityMode: getPokerVisibilityMode(
+                                processResult.gameType,
+                            ),
+                        }).initGame(players, broadcast, sendTo);
+                    } else if (processResult.gameType === "blackjack") {
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.yahtzeeState.current = null;
+                        blackjackServer(this.blackjackState, {
+                            scheduleNextRound: scheduleBlackjackNextRound,
+                        }).initGame(players, broadcast, sendTo);
+                    } else if (
+                        processResult.gameType === "yahtzee" ||
+                        processResult.gameType === "lying_yahtzee"
+                    ) {
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.perudoState.current = null;
+                        yahtzeeServer(this.yahtzeeState, {
+                            mode: getYahtzeeMode(processResult.gameType),
+                        }).initGame(players, broadcast, sendTo);
+                    } else if (processResult.gameType === "perudo") {
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        this.rpsState.current = null;
+                        perudoServer(this.perudoState).initGame(
+                            players,
+                            broadcast,
+                            sendTo,
+                        );
+                    } else if (processResult.gameType === "rps") {
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        this.perudoState.current = null;
+                        rpsServer(this.rpsState).initGame(
+                            players,
+                            broadcast,
+                            sendTo,
+                        );
+                    } else if (processResult.gameType === "herd") {
+                        const hostId = this.state.hostId;
+                        const players = this.state.players
+                            .filter((player) => player.id !== hostId)
+                            .map((player) => ({
+                                id: player.id,
+                                name: player.name,
+                            }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        this.perudoState.current = null;
+                        this.rpsState.current = null;
+                        herdServer(this.herdState).initGame(
+                            players,
+                            hostId!,
+                            broadcast,
+                            sendTo,
+                        );
+                    } else if (processResult.gameType === "fun_facts") {
+                        const hostId = this.state.hostId;
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        this.perudoState.current = null;
+                        this.rpsState.current = null;
+                        this.herdState.current = null;
+                        funFactsServer(this.funFactsState).initGame(
+                            players,
+                            hostId!,
+                            broadcast,
+                            sendTo,
+                        );
+                    } else if (processResult.gameType === "cheese_thief") {
+                        const hostId = this.state.hostId;
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        this.perudoState.current = null;
+                        this.rpsState.current = null;
+                        this.herdState.current = null;
+                        this.funFactsState.current = null;
+                        cheeseThiefServer(this.cheeseThiefState).initGame(
+                            players,
+                            hostId!,
+                            broadcast,
+                            sendTo,
+                        );
+                    } else if (
+                        processResult.gameType === "cockroach_poker"
+                    ) {
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        this.perudoState.current = null;
+                        this.rpsState.current = null;
+                        this.herdState.current = null;
+                        this.funFactsState.current = null;
+                        this.cheeseThiefState.current = null;
+                        cockroachPokerServer(
+                            this.cockroachPokerState,
+                        ).initGame(players, broadcast, sendTo);
+                    } else if (processResult.gameType === "flip_7") {
+                        const hostId = this.state.hostId;
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        this.perudoState.current = null;
+                        this.rpsState.current = null;
+                        this.herdState.current = null;
+                        this.funFactsState.current = null;
+                        this.cheeseThiefState.current = null;
+                        this.cockroachPokerState.current = null;
+                        this.skullState.current = null;
+                        flip7Server(this.flip7State).initGame(
+                            players,
+                            hostId!,
+                            broadcast,
+                            sendTo,
+                        );
+                    } else if (processResult.gameType === "skull") {
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        this.perudoState.current = null;
+                        this.rpsState.current = null;
+                        this.herdState.current = null;
+                        this.funFactsState.current = null;
+                        this.cheeseThiefState.current = null;
+                        this.cockroachPokerState.current = null;
+                        this.flip7State.current = null;
+                        skullServer(this.skullState).initGame(
+                            players,
+                            broadcast,
+                            sendTo,
+                        );
+                    } else if (processResult.gameType === "spicy") {
+                        const players = this.state.players.map((player) => ({
+                            id: player.id,
+                            name: player.name,
+                        }));
+                        this.goFishState.current = null;
+                        this.pokerState.current = null;
+                        this.blackjackState.current = null;
+                        this.yahtzeeState.current = null;
+                        this.perudoState.current = null;
+                        this.rpsState.current = null;
+                        this.herdState.current = null;
+                        this.funFactsState.current = null;
+                        this.cheeseThiefState.current = null;
+                        this.cockroachPokerState.current = null;
+                        this.flip7State.current = null;
+                        this.skullState.current = null;
+                        spicyServer(this.spicyState).initGame(
+                            players,
                             broadcast,
                             sendTo,
                         );
                     } else {
-                        poker.addSpectator(
-                            {
-                                id: json.playerId,
-                                name: json.playerName,
-                            },
-                            broadcast,
-                            sendTo,
-                        );
+                        this.clearInMemoryGameStates();
                     }
-                } else if (participant) {
-                    rehydratePlayerGameState(
-                        json.playerId,
-                        typeof json.playerName === "string"
-                            ? json.playerName
-                            : "",
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "shared",
+                            result: "start",
+                        }),
                     );
-                }
-            }
 
-            if (processResult.kind === "start") {
-                await this.clearHibernationCleanup();
-                this.clearNextHandTimer();
-                this.clearInMemoryGameStates();
-                if (processResult.gameType === "go_fish") {
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    goFishServer(this.goFishState).initGame(
-                        players,
-                        broadcast,
-                        sendTo,
-                    );
-                } else if (isPokerGameType(processResult.gameType)) {
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    pokerServer(this.pokerState, {
-                        scheduleNextHand: schedulePokerNextHand,
-                        visibilityMode: getPokerVisibilityMode(
-                            processResult.gameType,
-                        ),
-                    }).initGame(players, broadcast, sendTo);
-                } else if (processResult.gameType === "blackjack") {
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.yahtzeeState.current = null;
-                    blackjackServer(this.blackjackState, {
-                        scheduleNextRound: scheduleBlackjackNextRound,
-                    }).initGame(players, broadcast, sendTo);
-                } else if (
-                    processResult.gameType === "yahtzee" ||
-                    processResult.gameType === "lying_yahtzee"
-                ) {
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.perudoState.current = null;
-                    yahtzeeServer(this.yahtzeeState, {
-                        mode: getYahtzeeMode(processResult.gameType),
-                    }).initGame(players, broadcast, sendTo);
-                } else if (processResult.gameType === "perudo") {
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    this.rpsState.current = null;
-                    perudoServer(this.perudoState).initGame(
-                        players,
-                        broadcast,
-                        sendTo,
-                    );
-                } else if (processResult.gameType === "rps") {
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    this.perudoState.current = null;
-                    rpsServer(this.rpsState).initGame(
-                        players,
-                        broadcast,
-                        sendTo,
-                    );
-                } else if (processResult.gameType === "herd") {
-                    const hostId = this.state.hostId;
-                    const players = this.state.players
-                        .filter((player) => player.id !== hostId)
-                        .map((player) => ({
-                            id: player.id,
-                            name: player.name,
-                        }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    this.perudoState.current = null;
-                    this.rpsState.current = null;
-                    herdServer(this.herdState).initGame(
-                        players,
-                        hostId!,
-                        broadcast,
-                        sendTo,
-                    );
-                } else if (processResult.gameType === "fun_facts") {
-                    const hostId = this.state.hostId;
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    this.perudoState.current = null;
-                    this.rpsState.current = null;
-                    this.herdState.current = null;
-                    funFactsServer(this.funFactsState).initGame(
-                        players,
-                        hostId!,
-                        broadcast,
-                        sendTo,
-                    );
-                } else if (processResult.gameType === "cheese_thief") {
-                    const hostId = this.state.hostId;
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    this.perudoState.current = null;
-                    this.rpsState.current = null;
-                    this.herdState.current = null;
-                    this.funFactsState.current = null;
-                    cheeseThiefServer(this.cheeseThiefState).initGame(
-                        players,
-                        hostId!,
-                        broadcast,
-                        sendTo,
-                    );
-                } else if (processResult.gameType === "cockroach_poker") {
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    this.perudoState.current = null;
-                    this.rpsState.current = null;
-                    this.herdState.current = null;
-                    this.funFactsState.current = null;
-                    this.cheeseThiefState.current = null;
-                    cockroachPokerServer(this.cockroachPokerState).initGame(
-                        players,
-                        broadcast,
-                        sendTo,
-                    );
-                } else if (processResult.gameType === "flip_7") {
-                    const hostId = this.state.hostId;
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    this.perudoState.current = null;
-                    this.rpsState.current = null;
-                    this.herdState.current = null;
-                    this.funFactsState.current = null;
-                    this.cheeseThiefState.current = null;
-                    this.cockroachPokerState.current = null;
-                    this.skullState.current = null;
-                    flip7Server(this.flip7State).initGame(
-                        players,
-                        hostId!,
-                        broadcast,
-                        sendTo,
-                    );
-                } else if (processResult.gameType === "skull") {
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    this.perudoState.current = null;
-                    this.rpsState.current = null;
-                    this.herdState.current = null;
-                    this.funFactsState.current = null;
-                    this.cheeseThiefState.current = null;
-                    this.cockroachPokerState.current = null;
-                    this.flip7State.current = null;
-                    skullServer(this.skullState).initGame(
-                        players,
-                        broadcast,
-                        sendTo,
-                    );
-                } else if (processResult.gameType === "spicy") {
-                    const players = this.state.players.map((player) => ({
-                        id: player.id,
-                        name: player.name,
-                    }));
-                    this.goFishState.current = null;
-                    this.pokerState.current = null;
-                    this.blackjackState.current = null;
-                    this.yahtzeeState.current = null;
-                    this.perudoState.current = null;
-                    this.rpsState.current = null;
-                    this.herdState.current = null;
-                    this.funFactsState.current = null;
-                    this.cheeseThiefState.current = null;
-                    this.cockroachPokerState.current = null;
-                    this.flip7State.current = null;
-                    this.skullState.current = null;
-                    spicyServer(this.spicyState).initGame(
-                        players,
-                        broadcast,
-                        sendTo,
-                    );
-                } else {
-                    this.clearInMemoryGameStates();
+                    this.persistAllState();
+                    return;
                 }
 
-                this.persistAllState();
-                return;
-            }
-
-            if (processResult.kind === "end") {
+                if (processResult.kind === "end") {
                 if (isPokerGameType(processResult.gameType)) {
                     this.clearNextHandTimer();
                     pokerServer(this.pokerState, {
@@ -1626,27 +1774,65 @@ export class GameRoom extends DurableObject {
                 }
 
                 this.persistAllState();
+                yield* Effect.logInfo("game-room.message.processed").pipe(
+                    Effect.annotateLogs({
+                        component: "game-room",
+                        branch: "shared",
+                        result: "end",
+                    }),
+                );
                 return;
             }
 
             if (processResult.kind === "leave_game") {
                 removePlayerFromActiveGame(processResult.playerId);
                 this.persistAllState();
+                yield* Effect.logInfo("game-room.message.processed").pipe(
+                    Effect.annotateLogs({
+                        component: "game-room",
+                        branch: "shared",
+                        result: "leave_game",
+                    }),
+                );
                 return;
             }
 
             if (processResult.kind === "return_to_lobby") {
-                await this.clearHibernationCleanup();
+                yield* Effect.promise(() => this.clearHibernationCleanup());
                 this.clearNextHandTimer();
                 this.clearInMemoryGameStates();
                 this.persistAllState();
+                yield* Effect.logInfo("game-room.message.processed").pipe(
+                    Effect.annotateLogs({
+                        component: "game-room",
+                        branch: "shared",
+                        result: "return_to_lobby",
+                    }),
+                );
                 return;
             }
 
             this.persistRoomState();
-            if (json.type === "join" && json.playerId) {
+            if (sharedMessage.type === "join") {
                 this.persistGameSnapshot();
             }
+            yield* Effect.logInfo("game-room.message.processed").pipe(
+                Effect.annotateLogs({
+                    component: "game-room",
+                    branch: "shared",
+                    result: "ok",
+                }),
+            );
+                }).call(this),
+            );
+
+            void runObservedPromiseExit(
+                program,
+                "game-room.socket.message",
+                this.roomLogContext({
+                    component: "game-room",
+                }),
+            );
         });
 
         serverWs.addEventListener("close", async () => {

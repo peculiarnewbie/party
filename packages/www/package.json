@@ -6,6 +6,7 @@
     "scripts": {
         "dev": "vite dev",
         "build": "vite build && tsc --noEmit",
+        "typecheck": "tsc --noEmit",
         "preview": "vite preview",
         "deploy": "npm run build && wrangler deploy",
         "cf-typegen": "wrangler types",
@@ -21,6 +22,7 @@
         "@tanstack/solid-router-devtools": "^1.141.8",
         "@tanstack/solid-start": "^1.142.5",
         "animejs": "^4.2.2",
+        "effect": "4.0.0-beta.50",
         "luxon": "^3.7.2",
         "nanoid": "^5.1.6",
         "remeda": "^2.32.2",

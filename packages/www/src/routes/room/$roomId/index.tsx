@@ -8,7 +8,7 @@ import {
     Show,
 } from "solid-js";
 import { nanoid } from "nanoid";
-import z from "zod";
+import { Schema } from "effect";
 import { RoomLobby } from "~/components/room-lobby";
 import { SampleQuizRoom } from "~/components/sample-quiz-room";
 import { GoFishRoom } from "~/components/go-fish/go-fish-room";
@@ -169,12 +169,12 @@ function RouteComponent() {
                 return;
             }
 
-            const parseRes = z.safeParse(serverMessageSchema, json);
-            if (!parseRes.success) {
+            let parsed: typeof serverMessageSchema.Type;
+            try {
+                parsed = Schema.decodeUnknownSync(serverMessageSchema)(json);
+            } catch {
                 return;
             }
-
-            const parsed = parseRes.data;
 
             if (parsed.type === "room_state") {
                 const nextPlayers = parsed.data.players as Player[];

@@ -1,11 +1,11 @@
 import {
     Show,
     For,
-    Component,
     createSignal,
     createEffect,
     onMount,
 } from "solid-js";
+import type { Component } from "solid-js";
 import { GAME_RULES, getGameStartValidation, type GameType, type Player } from "~/game";
 
 export const RoomLobby: Component<{
