@@ -23,7 +23,7 @@ const __dirname = path.dirname(__filename);
 export async function startLocalApp(): Promise<LocalServerHandle> {
     const logState = { stdout: "", stderr: "" };
     const child = spawn(
-        "bun",
+        "pnpm",
         ["run", "dev", "--", "--host", "127.0.0.1", "--port", "3000"],
         {
             cwd: path.resolve(__dirname, "../.."),

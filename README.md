@@ -1,15 +1,32 @@
 # party
 
-To install dependencies:
+Casual multiplayer party game app built with TanStack Solid Start, deployed on Cloudflare Workers.
+
+This is a pnpm workspace. The app lives in `packages/www`.
+
+## Setup
 
 ```bash
-bun install
+pnpm install
 ```
 
-To run:
+## Common commands
 
 ```bash
-bun run index.ts
+# Dev server
+pnpm --filter www dev
+
+# Build (runs vite build + tsc --noEmit)
+pnpm --filter www build
+
+# Unit tests (Vitest)
+pnpm --filter www test:unit
+
+# E2E tests (Playwright + Stagehand, Yahtzee only)
+pnpm --filter www test:browser:yahtzee
+
+# Deploy to Cloudflare
+pnpm deploy
 ```
 
-This project was created using `bun init` in bun v1.3.2. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+See `CLAUDE.md` for architecture, code style, and game design notes.

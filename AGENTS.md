@@ -30,45 +30,50 @@ This is a TanStack Solid Start application with Cloudflare Workers deployment. I
 
 ## Build Commands
 
+This is a pnpm workspace. All commands run from the repo root unless noted.
+
 ```bash
 # Install dependencies
-bun i
+pnpm install
 
 # Start development server
-bun dev
+pnpm --filter www dev
 
 # Build for production (runs TypeScript check)
-bun build
+pnpm --filter www build
 
 # Preview production build
-bun preview
+pnpm --filter www preview
 
 # Deploy to Cloudflare
-bun run deploy
+pnpm deploy
 
 # Generate Cloudflare types
-bun run cf-typegen
+pnpm --filter www cf-typegen
 ```
 
-**Important**: `bun build` runs `vite build && tsc --noEmit` to validate TypeScript.
+**Important**: `pnpm --filter www build` runs `vite build && tsc --noEmit` to validate TypeScript.
 
 ## Testing
 
 ```bash
-# Run all tests
-bun test
+# Run all unit tests
+pnpm --filter www test:unit
 
-# Run specific test file
-bun test src/game/game.test.ts
+# Run a specific test file
+pnpm --filter www test:unit src/game/game.test.ts
 
-# Run tests with coverage
-bun test --coverage
+# Run browser (E2E) tests — Playwright + Stagehand
+pnpm --filter www test:browser:yahtzee
+
+# Run everything
+pnpm --filter www test:all
 ```
 
-- Uses Bun's native test runner (no external dependencies)
+- Uses Vitest (`vitest run`) with `vite-plugin-solid` for JSX support
 - Test files use `.test.ts` or `.test.tsx` extension
-- Bun test API is Vitest-compatible (`describe`, `it`, `expect`, `vi`)
-- No `@types/*` needed for test globals
+- Import test APIs from `vitest`: `import { describe, it, expect, vi } from "vitest"`
+- Vitest config lives at `packages/www/vitest.config.ts`
 
 ## TypeScript Configuration
 
@@ -107,7 +112,7 @@ import type { ErrorComponentProps } from "@tanstack/solid-router";
 
 ### Creating New Routes
 
-When creating new routes, keep the dev server running (`bun dev`). TanStack Router will automatically detect new route files and add the necessary boilerplate to `routeTree.gen.ts`.
+When creating new routes, keep the dev server running (`pnpm --filter www dev`). TanStack Router will automatically detect new route files and add the necessary boilerplate to `routeTree.gen.ts`.
 
 ### Component Patterns
 
@@ -231,7 +236,7 @@ src/
 
 - Access bindings via `import { env } from 'cloudflare:workers'` in server code
 - Server functions can use Cloudflare bindings directly
-- Run `bun run cf-typegen` after adding new bindings
+- Run `pnpm --filter www cf-typegen` after adding new bindings
 
 ### Git Workflow
 

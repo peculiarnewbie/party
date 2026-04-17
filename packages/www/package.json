@@ -32,9 +32,12 @@
     "devDependencies": {
         "@browserbasehq/stagehand": "^3.2.1",
         "@cloudflare/vite-plugin": "^1.13.7",
+        "@solidjs/testing-library": "^0.8.10",
         "@tailwindcss/vite": "^4.1.18",
+        "@testing-library/jest-dom": "^6.9.1",
         "@types/luxon": "^3.7.1",
         "@types/node": "^22.5.4",
+        "happy-dom": "^20.9.0",
         "playwright": "^1.59.1",
         "tailwindcss": "^4.1.18",
         "tsx": "^4.21.0",

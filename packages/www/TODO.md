@@ -41,7 +41,7 @@
 
 ### Testing
 
-- Bun native test runner, no external dependencies
+- Vitest test runner with vite-plugin-solid for JSX support
 - Tests for player management, host assignment, message types
 - Tests for quiz question schema validation
 
@@ -128,7 +128,7 @@
 4. **Scoring** - points for correct answer only, no time bonus
 5. **Player identity** - stored in cookie, nanoid(10) for session persistence
 6. **State ownership** - route owns state, components receive via props (extensible for multiple game types)
-7. **Testing** - Bun's native test runner, no external packages
+7. **Testing** - Vitest, with vite-plugin-solid for JSX support
 
 ---
 
@@ -159,15 +159,15 @@ src/
 
 ```bash
 # Run dev server
-bun dev
+pnpm dev
 
 # Build + typecheck
-bun run build
+pnpm build
 
 # Run tests
-bun test
-bun test src/game/game.test.ts
+pnpm test:unit
+pnpm test:unit src/game/game.test.ts
 
 # Deploy
-bun run deploy
+pnpm deploy
 ```
