@@ -109,6 +109,22 @@ describe("Yahtzee views", () => {
         expect(opponentView.canClaim).toBe(false);
     });
 
+    it("does not expose actual-roll potential scores in lying mode", () => {
+        const view = getPlayerView(
+            makeState({
+                mode: "lying",
+                currentPlayerIndex: 0,
+                phase: "mid_turn",
+                rollsLeft: 1,
+                dice: [6, 6, 6, 2, 1],
+            }),
+            "p1",
+        );
+
+        expect(view.potentialScores).toBeNull();
+        expect(view.suggestedCategories).toEqual([]);
+    });
+
     it("shows pending claim controls to the responder in lying mode", () => {
         const state = makeState({
             mode: "lying",

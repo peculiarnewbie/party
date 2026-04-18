@@ -739,9 +739,16 @@ function Scorecard(props: {
                     "text-[#ffd700] cursor-pointer bg-[#5c1a00]/50 hover:bg-[#5c1a00]/70 transition-colors"
                 );
             }
+            const potential = calculateScore(props.claimedDice, category);
+            if (potential > 0) {
+                return (
+                    base +
+                    "text-[#e8a87c]/70 cursor-pointer hover:text-[#ffd700] hover:bg-[#5c1a00]/40 transition-colors"
+                );
+            }
             return (
                 base +
-                "text-[#e8a87c]/70 cursor-pointer hover:text-[#ffd700] hover:bg-[#5c1a00]/40 transition-colors"
+                "text-[#ddd5c4]/20 cursor-pointer hover:text-[#ddd5c4]/40 hover:bg-[#5c1a00]/40 transition-colors"
             );
         }
 
@@ -770,11 +777,7 @@ function Scorecard(props: {
             return "";
         }
 
-        if (
-            playerId === props.myId &&
-            props.canClaim &&
-            props.selectedClaimCategory === category
-        ) {
+        if (playerId === props.myId && props.canClaim) {
             return String(calculateScore(props.claimedDice, category));
         }
 

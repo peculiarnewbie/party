@@ -70,7 +70,11 @@ export function getPlayerView(
 
     let potentialScores: Partial<Record<ScoringCategory, number>> | null = null;
     let suggestedCategories: ScoringCategory[] = [];
-    if (isMyTurn && state.phase === "mid_turn") {
+    if (
+        isMyTurn &&
+        state.phase === "mid_turn" &&
+        state.mode === "standard"
+    ) {
         potentialScores = {};
         const me = state.players.find((p) => p.id === playerId);
         if (me) {
