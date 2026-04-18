@@ -80,7 +80,7 @@ const RESULT_LABELS: Record<SkullResult["type"], string | null> = {
 
 export const SkullRoom: Component<SkullRoomProps> = (props) => {
     const [view, setView] = createSignal<SkullPlayerView | null>(null);
-    const [announcement, setAnnouncement] = createSignal<string | null>(null);
+    const [lastAction, setLastAction] = createSignal<string | null>(null);
     const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
     const [bidValue, setBidValue] = createSignal(1);
 
@@ -181,8 +181,7 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
         if (message.type === "skull:action") {
             const label = describeAction(message.data as SkullResult);
             if (label) {
-                setAnnouncement(label);
-                setTimeout(() => setAnnouncement(null), 2600);
+                setLastAction(label);
             }
             return;
         }
@@ -246,22 +245,17 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                 </div>
             </div>
 
-            <div class="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5">
-                <Show when={announcement()}>
-                    {(message) => (
-                        <div class="rounded-none border-2 border-[#442116] bg-[#f8ebd1] px-4 py-3 text-center font-bebas text-[1rem] tracking-[.12em] shadow-[4px_4px_0_#442116]">
+            <Show when={errorMessage()}>
+                {(message) => (
+                    <div class="pointer-events-none fixed inset-x-0 top-24 z-50 flex justify-center px-4">
+                        <div class="pointer-events-auto rounded-none border-2 border-[#6e241a] bg-[#f6d3c6] px-4 py-3 text-center font-bebas text-[.9rem] tracking-[.12em] text-[#6e241a] shadow-[4px_4px_0_#6e241a]">
                             {message()}
                         </div>
-                    )}
-                </Show>
-                <Show when={errorMessage()}>
-                    {(message) => (
-                        <div class="rounded-none border-2 border-[#6e241a] bg-[#f6d3c6] px-4 py-3 text-center font-bebas text-[.9rem] tracking-[.12em] text-[#6e241a] shadow-[4px_4px_0_#6e241a]">
-                            {message()}
-                        </div>
-                    )}
-                </Show>
+                    </div>
+                )}
+            </Show>
 
+            <div class="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5">
                 <Show when={view()} fallback={<LoadingState />}>
                     {(currentView) => (
                         <>
@@ -290,7 +284,10 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                 </div>
 
                                 <div class="flex flex-col gap-4">
-                                    <StatusCard view={currentView()} />
+                                    <StatusCard
+                                        view={currentView()}
+                                        lastAction={lastAction()}
+                                    />
                                     <div class="border-2 border-[#442116] bg-[#f5e3be] p-4 shadow-[5px_5px_0_#442116]">
                                         <div class="font-bebas text-[.8rem] tracking-[.22em] text-[#9c5838]">
                                             YOUR HAND
@@ -460,7 +457,10 @@ function phaseLabel(phase: SkullPlayerView["phase"]) {
     return "GAME OVER";
 }
 
-function StatusCard(props: { view: SkullPlayerView }) {
+function StatusCard(props: {
+    view: SkullPlayerView;
+    lastAction: string | null;
+}) {
     const currentPlayer = () =>
         props.view.players.find((player) => player.id === props.view.currentPlayerId);
     const highestBidder = () =>
@@ -477,6 +477,14 @@ function StatusCard(props: { view: SkullPlayerView }) {
                         CURRENT
                     </span>{" "}
                     {currentPlayer()?.name ?? "Unknown"}
+                </div>
+                <div class="min-h-[1.5em] truncate">
+                    <span class="font-bebas tracking-[.12em] text-[#6f4a38]">
+                        LAST
+                    </span>{" "}
+                    <Show when={props.lastAction} fallback={<span class="text-[#b1846b]">—</span>}>
+                        {(message) => <span>{message()}</span>}
+                    </Show>
                 </div>
                 <Show when={props.view.highestBid !== null}>
                     <div>
@@ -649,6 +657,18 @@ function PenaltyControls(props: {
 }) {
     const penalizedPlayer = () =>
         props.view.players.find((player) => player.id === props.view.penaltyPlayerId);
+    const chooserPlayer = () =>
+        props.view.players.find((player) => player.id === props.view.penaltyChooserId);
+    const chooserIsPenalized = () =>
+        props.view.penaltyChooserId !== null &&
+        props.view.penaltyChooserId === props.view.penaltyPlayerId;
+    const palette = () => {
+        const penalizedIndex = props.view.players.findIndex(
+            (player) => player.id === props.view.penaltyPlayerId,
+        );
+        if (penalizedIndex < 0) return PLAYER_PALETTES[0]!;
+        return PLAYER_PALETTES[penalizedIndex % PLAYER_PALETTES.length]!;
+    };
 
     return (
         <div class="border-2 border-[#442116] bg-[#f8ebd1] p-4 shadow-[5px_5px_0_#442116]">
@@ -658,31 +678,80 @@ function PenaltyControls(props: {
             <Show
                 when={props.view.needsDiscardChoice}
                 fallback={
-                    <p class="mt-3 text-[.95rem] leading-relaxed text-[#6f4a38]">
-                        {penalizedPlayer()?.name ?? "A player"} is secretly choosing a disc to lose.
-                    </p>
+                    <Show
+                        when={
+                            props.view.penaltyChooserId &&
+                            props.view.penaltyChooserId !== props.view.myId
+                        }
+                        fallback={
+                            <p class="mt-3 text-[.95rem] leading-relaxed text-[#6f4a38]">
+                                {penalizedPlayer()?.name ?? "A player"} is about to lose a disc.
+                            </p>
+                        }
+                    >
+                        <p class="mt-3 text-[.95rem] leading-relaxed text-[#6f4a38]">
+                            <Show
+                                when={
+                                    props.view.penaltyChooserId !==
+                                    props.view.penaltyPlayerId
+                                }
+                                fallback={
+                                    <>
+                                        {penalizedPlayer()?.name ?? "A player"} is
+                                        picking a face-down disc to lose.
+                                    </>
+                                }
+                            >
+                                {chooserPlayer()?.name ?? "A player"} is picking a
+                                face-down disc for{" "}
+                                {penalizedPlayer()?.name ?? "the challenger"} to lose
+                                (own skull).
+                            </Show>
+                        </p>
+                    </Show>
                 }
             >
                 <div>
                     <p class="mt-3 text-[.95rem] leading-relaxed text-[#6f4a38]">
-                        Pick one of your remaining discs to lose permanently.
+                        <Show
+                            when={chooserIsPenalized()}
+                            fallback={
+                                <>
+                                    {penalizedPlayer()?.name ?? "The challenger"} hit
+                                    their own skull, so pick one of their shuffled
+                                    face-down discs to destroy.
+                                </>
+                            }
+                        >
+                            Your discs are shuffled face-down. Pick one to lose
+                            permanently.
+                        </Show>
                     </p>
                     <div class="mt-4 flex flex-wrap gap-3">
-                        <For each={props.view.myHand}>
-                            {(disc, index) => (
+                        <For
+                            each={Array.from({
+                                length: props.view.penaltyTargetHandCount,
+                            })}
+                        >
+                            {(_, index) => (
                                 <button
                                     type="button"
                                     onClick={() => props.onDiscard(index())}
                                     class="group"
                                 >
                                     <SvgSkullDisc
-                                        disc={disc}
-                                        palette={PLAYER_PALETTES[0]!}
+                                        disc="hidden"
+                                        palette={palette()}
                                         class="h-20 w-20 transition-transform duration-[120ms] group-hover:-translate-y-1"
                                     />
                                 </button>
                             )}
                         </For>
+                        <Show when={props.view.penaltyTargetHandCount === 0}>
+                            <div class="font-bebas text-[.74rem] tracking-[.14em] text-[#b1846b]">
+                                NO DISCS LEFT
+                            </div>
+                        </Show>
                     </div>
                 </div>
             </Show>
@@ -767,13 +836,19 @@ function PlayerPanel(props: {
     canFlip: boolean;
     onFlip: () => void;
 }) {
+    const panelClass = () => {
+        if (props.canFlip) {
+            return "border-[#f5d675] bg-[#2f5b4a] text-[#fff5dd] shadow-[5px_5px_0_#442116] ring-2 ring-[#f5d675] ring-offset-2 ring-offset-[#2a120f]";
+        }
+        if (props.player.isCurrentPlayer) {
+            return "border-[#c77f1b] bg-[#fff3c4] shadow-[5px_5px_0_#c77f1b] ring-2 ring-[#f5c84c] ring-offset-2 ring-offset-[#2a120f]";
+        }
+        return "border-[#442116] bg-[#f7e6c4] shadow-[5px_5px_0_#442116]";
+    };
+
     return (
         <div
-            class={`border-2 p-4 shadow-[5px_5px_0_#442116] transition-colors duration-[120ms] ${
-                props.canFlip
-                    ? "border-[#f5d675] bg-[#2f5b4a] text-[#fff5dd]"
-                    : "border-[#442116] bg-[#f7e6c4]"
-            }`}
+            class={`border-2 p-4 transition-[box-shadow,background-color,border-color] duration-[120ms] ${panelClass()}`}
         >
             <div class="flex items-start justify-between gap-3">
                 <div>

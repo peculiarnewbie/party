@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { getPlayerView } from "./views";
 import { initGame, processAction } from "./engine";
+import type { ShuffleHand } from "./engine";
 import type { DiscType, SkullEngineResult, SkullState } from "./types";
+
+const identityShuffle: ShuffleHand = (hand) => [...hand];
+const testOptions = { shuffleHand: identityShuffle };
 
 const PLAYERS: { id: string; name: string }[] = [
     { id: "p1", name: "Ada" },
@@ -22,36 +26,62 @@ function expectOk(result: SkullEngineResult) {
 }
 
 function play(state: SkullState, playerId: string, disc: DiscType) {
-    return expectOk(processAction(state, { type: "play_disc", playerId, disc }));
+    return expectOk(
+        processAction(
+            state,
+            { type: "play_disc", playerId, disc },
+            testOptions,
+        ),
+    );
 }
 
 function startChallenge(state: SkullState, playerId: string, bid: number) {
     return expectOk(
-        processAction(state, { type: "start_challenge", playerId, bid }),
+        processAction(
+            state,
+            { type: "start_challenge", playerId, bid },
+            testOptions,
+        ),
     );
 }
 
 function raiseBid(state: SkullState, playerId: string, bid: number) {
-    return expectOk(processAction(state, { type: "raise_bid", playerId, bid }));
+    return expectOk(
+        processAction(
+            state,
+            { type: "raise_bid", playerId, bid },
+            testOptions,
+        ),
+    );
 }
 
 function passBid(state: SkullState, playerId: string) {
-    return expectOk(processAction(state, { type: "pass_bid", playerId }));
+    return expectOk(
+        processAction(state, { type: "pass_bid", playerId }, testOptions),
+    );
 }
 
 function flipDisc(state: SkullState, playerId: string, ownerId: string) {
     return expectOk(
-        processAction(state, { type: "flip_disc", playerId, ownerId }),
+        processAction(
+            state,
+            { type: "flip_disc", playerId, ownerId },
+            testOptions,
+        ),
     );
 }
 
 function discardDisc(state: SkullState, playerId: string, discIndex: number) {
     return expectOk(
-        processAction(state, {
-            type: "discard_lost_disc",
-            playerId,
-            discIndex,
-        }),
+        processAction(
+            state,
+            {
+                type: "discard_lost_disc",
+                playerId,
+                discIndex,
+            },
+            testOptions,
+        ),
     );
 }
 
@@ -61,11 +91,15 @@ function chooseStarter(
     nextStarterId: string,
 ) {
     return expectOk(
-        processAction(state, {
-            type: "choose_next_starter",
-            playerId,
-            nextStarterId,
-        }),
+        processAction(
+            state,
+            {
+                type: "choose_next_starter",
+                playerId,
+                nextStarterId,
+            },
+            testOptions,
+        ),
     );
 }
 
@@ -206,6 +240,7 @@ describe("skull engine", () => {
 
         expect(state.phase).toBe("penalty");
         expect(state.penaltyPlayerId).toBe("p1");
+        expect(state.penaltyChooserId).toBe("p2");
         expect(state.pendingNextStarterChooserId).toBe("p1");
         expect(events.map((event) => event.type)).toEqual([
             "bid_passed",
@@ -327,7 +362,21 @@ describe("skull engine", () => {
         startChallenge(state, "p1", 3);
         passBid(state, "p2");
         passBid(state, "p3");
-        const discardEvents = discardDisc(state, "p1", 0);
+
+        expect(state.penaltyPlayerId).toBe("p1");
+        expect(state.penaltyChooserId).toBe("p2");
+
+        const rejectSelf = processAction(
+            state,
+            { type: "discard_lost_disc", playerId: "p1", discIndex: 0 },
+            testOptions,
+        );
+        expect(rejectSelf).toEqual({
+            type: "error",
+            message: "Only the penalty chooser can discard now",
+        });
+
+        const discardEvents = discardDisc(state, "p2", 0);
 
         expect(state.phase).toBe("next_starter");
         expect(state.pendingNextStarterChooserId).toBe("p1");
@@ -354,6 +403,7 @@ describe("skull engine", () => {
         state.players[2]!.eliminated = true;
         state.phase = "penalty";
         state.penaltyPlayerId = "p2";
+        state.penaltyChooserId = "p2";
         state.pendingNextStarterChooserId = null;
 
         const events = discardDisc(state, "p2", 0);

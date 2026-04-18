@@ -56,6 +56,8 @@ export function makeView(
         highestBidderId: null,
         passedBidderIds: [],
         penaltyPlayerId: null,
+        penaltyChooserId: null,
+        penaltyTargetHandCount: 0,
         pendingNextStarterChooserId: null,
         winnerId: null,
         players,

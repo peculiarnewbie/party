@@ -37,6 +37,8 @@ export interface SkullPlayerView {
     highestBidderId: string | null;
     passedBidderIds: string[];
     penaltyPlayerId: string | null;
+    penaltyChooserId: string | null;
+    penaltyTargetHandCount: number;
     pendingNextStarterChooserId: string | null;
     winnerId: string | null;
     players: SkullPlayerInfo[];
@@ -96,6 +98,11 @@ export function getPlayerView(
                   .map((player) => player.id)
             : [];
 
+    const penaltyTarget = state.penaltyPlayerId
+        ? state.players.find((player) => player.id === state.penaltyPlayerId)
+        : null;
+    const penaltyTargetHandCount = penaltyTarget?.hand.length ?? 0;
+
     return {
         myId: playerId,
         phase: state.phase,
@@ -106,6 +113,8 @@ export function getPlayerView(
         highestBidderId: state.highestBidderId,
         passedBidderIds: [...state.passedBidderIds],
         penaltyPlayerId: state.penaltyPlayerId,
+        penaltyChooserId: state.penaltyChooserId,
+        penaltyTargetHandCount,
         pendingNextStarterChooserId: state.pendingNextStarterChooserId,
         winnerId: state.winnerId,
         players: state.players.map((player) => {
@@ -163,10 +172,10 @@ export function getPlayerView(
             : null,
         selectableFlipOwnerIds,
         needsDiscardChoice:
-            state.phase === "penalty" && state.penaltyPlayerId === playerId,
+            state.phase === "penalty" && state.penaltyChooserId === playerId,
         discardableDiscIndices:
-            state.phase === "penalty" && state.penaltyPlayerId === playerId
-                ? myHand.map((_, index) => index)
+            state.phase === "penalty" && state.penaltyChooserId === playerId
+                ? Array.from({ length: penaltyTargetHandCount }, (_, index) => index)
                 : [],
         canChooseNextStarter:
             state.phase === "next_starter" &&

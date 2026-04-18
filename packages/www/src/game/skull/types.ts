@@ -54,6 +54,7 @@ export interface SkullState {
     passedBidderIds: string[];
     attempt: SkullAttemptState | null;
     penaltyPlayerId: string | null;
+    penaltyChooserId: string | null;
     pendingNextStarterChooserId: string | null;
     winnerId: string | null;
 }

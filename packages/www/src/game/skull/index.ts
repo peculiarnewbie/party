@@ -20,7 +20,7 @@ export {
     removePlayer,
     endGameByHost,
 } from "./engine";
-export type { ChooseStartingPlayer } from "./engine";
+export type { ChooseStartingPlayer, ShuffleHand } from "./engine";
 export type { SkullPlayerInfo, SkullPlayerView, SkullAttemptView } from "./views";
 export { getPlayerView } from "./views";
 export type { SkullClientMessage, SkullServerMessage } from "./messages";

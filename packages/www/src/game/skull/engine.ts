@@ -12,10 +12,29 @@ export type ChooseStartingPlayer = (
     players: readonly { id: string; name: string }[],
 ) => string;
 
+export type ShuffleHand = (hand: readonly DiscType[]) => DiscType[];
+
 function defaultChooseStartingPlayer(
     players: readonly { id: string; name: string }[],
 ) {
     return players[Math.floor(Math.random() * players.length)]!.id;
+}
+
+const defaultShuffleHand: ShuffleHand = (hand) => {
+    const result = [...hand];
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = result[i]!;
+        result[i] = result[j]!;
+        result[j] = tmp;
+    }
+    return result;
+};
+
+function shuffleHandInPlace(hand: DiscType[], shuffle: ShuffleHand) {
+    const shuffled = shuffle(hand);
+    hand.length = 0;
+    hand.push(...shuffled);
 }
 
 function cloneStartingHand(): DiscType[] {
@@ -97,6 +116,7 @@ function clearRoundTransientState(state: SkullState) {
     state.passedBidderIds = [];
     state.attempt = null;
     state.penaltyPlayerId = null;
+    state.penaltyChooserId = null;
     state.pendingNextStarterChooserId = null;
 }
 
@@ -163,6 +183,7 @@ function endWithWinner(
     state.currentPlayerId = winnerId ?? state.currentPlayerId;
     state.attempt = null;
     state.penaltyPlayerId = null;
+    state.penaltyChooserId = null;
     state.pendingNextStarterChooserId = null;
     events.push({
         type: "game_over",
@@ -206,6 +227,7 @@ function resolveAttemptFailure(
     state: SkullState,
     ownerId: string,
     events: SkullResult[],
+    shuffleHand: ShuffleHand,
 ) {
     const attempt = state.attempt!;
     const ownSkull = ownerId === attempt.challengerId;
@@ -230,6 +252,15 @@ function resolveAttemptFailure(
     });
     state.attempt = null;
     collectMatsBackToHands(state);
+
+    const penaltyPlayer = getPlayer(state, ownerId);
+    if (penaltyPlayer) {
+        shuffleHandInPlace(penaltyPlayer.hand, shuffleHand);
+    }
+    state.penaltyChooserId = ownSkull
+        ? getNextPlayerId(state, ownerId) ?? ownerId
+        : ownerId;
+
     events.push({
         type: "discard_required",
         playerId: ownerId,
@@ -267,6 +298,7 @@ function revealDisc(
     ownerId: string,
     automatic: boolean,
     events: SkullResult[],
+    shuffleHand: ShuffleHand,
 ) {
     const attempt = state.attempt;
     if (!attempt) {
@@ -294,7 +326,7 @@ function revealDisc(
     });
 
     if (disc === "skull") {
-        resolveAttemptFailure(state, ownerId, events);
+        resolveAttemptFailure(state, ownerId, events, shuffleHand);
         return;
     }
 
@@ -303,7 +335,11 @@ function revealDisc(
     }
 }
 
-function runAutoReveal(state: SkullState, events: SkullResult[]) {
+function runAutoReveal(
+    state: SkullState,
+    events: SkullResult[],
+    shuffleHand: ShuffleHand,
+) {
     const attempt = state.attempt;
     if (!attempt) return;
 
@@ -313,7 +349,7 @@ function runAutoReveal(state: SkullState, events: SkullResult[]) {
             break;
         }
 
-        revealDisc(state, attempt.challengerId, true, events);
+        revealDisc(state, attempt.challengerId, true, events, shuffleHand);
         if (state.phase !== "attempt") {
             return;
         }
@@ -329,7 +365,11 @@ function runAutoReveal(state: SkullState, events: SkullResult[]) {
     }
 }
 
-function beginAttempt(state: SkullState, events: SkullResult[]) {
+function beginAttempt(
+    state: SkullState,
+    events: SkullResult[],
+    shuffleHand: ShuffleHand,
+) {
     if (!state.highestBid || !state.highestBidderId) {
         return;
     }
@@ -350,17 +390,18 @@ function beginAttempt(state: SkullState, events: SkullResult[]) {
         target: state.highestBid,
     });
 
-    runAutoReveal(state, events);
+    runAutoReveal(state, events, shuffleHand);
 }
 
 function finalizeAuctionIfNeeded(
     state: SkullState,
     currentPlayerId: string,
     events: SkullResult[],
+    shuffleHand: ShuffleHand,
 ) {
     const eligibleIds = getEligibleAuctionPlayerIds(state);
     if (eligibleIds.length <= 1) {
-        beginAttempt(state, events);
+        beginAttempt(state, events, shuffleHand);
         return;
     }
 
@@ -396,6 +437,7 @@ export function initGame(
         passedBidderIds: [],
         attempt: null,
         penaltyPlayerId: null,
+        penaltyChooserId: null,
         pendingNextStarterChooserId: null,
         winnerId: null,
     };
@@ -404,7 +446,9 @@ export function initGame(
 export function processAction(
     state: SkullState,
     action: SkullAction,
+    options: { shuffleHand?: ShuffleHand } = {},
 ): SkullEngineResult {
+    const shuffleHand = options.shuffleHand ?? defaultShuffleHand;
     if (state.phase === "game_over") {
         return { type: "error", message: "Game is over" };
     }
@@ -491,7 +535,7 @@ export function processAction(
             bid: action.bid,
         });
 
-        finalizeAuctionIfNeeded(state, action.playerId, events);
+        finalizeAuctionIfNeeded(state, action.playerId, events, shuffleHand);
         return { type: "ok", events };
     }
 
@@ -519,7 +563,7 @@ export function processAction(
             bid: action.bid,
         });
 
-        finalizeAuctionIfNeeded(state, action.playerId, events);
+        finalizeAuctionIfNeeded(state, action.playerId, events, shuffleHand);
         return { type: "ok", events };
     }
 
@@ -546,7 +590,7 @@ export function processAction(
             playerId: action.playerId,
         });
 
-        finalizeAuctionIfNeeded(state, action.playerId, events);
+        finalizeAuctionIfNeeded(state, action.playerId, events, shuffleHand);
         return { type: "ok", events };
     }
 
@@ -570,30 +614,41 @@ export function processAction(
             return { type: "error", message: "That mat has no hidden discs left" };
         }
 
-        revealDisc(state, action.ownerId, false, events);
+        revealDisc(state, action.ownerId, false, events, shuffleHand);
         return { type: "ok", events };
     }
 
     if (action.type === "discard_lost_disc") {
-        if (state.phase !== "penalty" || state.penaltyPlayerId !== action.playerId) {
-            return { type: "error", message: "Only the penalized player can discard now" };
+        if (state.phase !== "penalty" || state.penaltyChooserId !== action.playerId) {
+            return { type: "error", message: "Only the penalty chooser can discard now" };
         }
 
-        if (action.discIndex < 0 || action.discIndex >= player.hand.length) {
+        const penaltyPlayer = state.penaltyPlayerId
+            ? getPlayer(state, state.penaltyPlayerId)
+            : null;
+        if (!penaltyPlayer) {
+            return { type: "error", message: "No penalty in progress" };
+        }
+
+        if (
+            action.discIndex < 0 ||
+            action.discIndex >= penaltyPlayer.hand.length
+        ) {
             return { type: "error", message: "Invalid disc choice" };
         }
 
-        player.hand.splice(action.discIndex, 1);
-        if (player.hand.length === 0) {
-            player.eliminated = true;
+        penaltyPlayer.hand.splice(action.discIndex, 1);
+        if (penaltyPlayer.hand.length === 0) {
+            penaltyPlayer.eliminated = true;
         }
 
         state.penaltyPlayerId = null;
+        state.penaltyChooserId = null;
         events.push({
             type: "disc_lost",
-            playerId: player.id,
-            remainingHandCount: player.hand.length,
-            eliminated: player.eliminated,
+            playerId: penaltyPlayer.id,
+            remainingHandCount: penaltyPlayer.hand.length,
+            eliminated: penaltyPlayer.eliminated,
         });
 
         if (maybeEndForLastPlayerStanding(state, events)) {
@@ -707,6 +762,7 @@ export function endGameByHost(state: SkullState): SkullResult {
     state.phase = "game_over";
     state.attempt = null;
     state.penaltyPlayerId = null;
+    state.penaltyChooserId = null;
     state.pendingNextStarterChooserId = null;
     return {
         type: "game_over",
