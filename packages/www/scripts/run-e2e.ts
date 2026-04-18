@@ -7,6 +7,11 @@ type E2eSuite = {
 };
 
 const E2E_SUITES: Record<string, E2eSuite> = {
+    poker: {
+        description:
+            "Real workerd room-sequence coverage for poker start, spectators, reconnect, host controls, and hibernation",
+        workerFiles: ["src/worker/poker-room.test.ts"],
+    },
     yahtzee: {
         description:
             "Real workerd room-sequence coverage for standard, lying, reconnect, and hibernation flows",

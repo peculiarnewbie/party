@@ -18,6 +18,7 @@ export default defineProject({
         // WebSockets, alarms, R2, etc. Add files as they are migrated.
         include: [
             "src/worker/room-storage.test.ts",
+            "src/worker/poker-room.test.ts",
             "src/worker/yahtzee-room.test.ts",
         ],
     },

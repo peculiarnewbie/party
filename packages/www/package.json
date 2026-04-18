@@ -15,6 +15,7 @@
         "test:coverage": "vitest run --coverage",
         "test:e2e": "node --import tsx scripts/run-e2e.ts",
         "test:e2e:list": "node --import tsx scripts/run-e2e.ts --list",
+        "test:e2e:poker": "node --import tsx scripts/run-e2e.ts poker",
         "test:e2e:yahtzee": "node --import tsx scripts/run-e2e.ts yahtzee",
         "test:e2e:browser:yahtzee": "node --import tsx scripts/run-e2e.ts --browser yahtzee",
         "test:e2e:browser:yahtzee:headed": "node --import tsx scripts/run-e2e.ts --browser --headed yahtzee",
