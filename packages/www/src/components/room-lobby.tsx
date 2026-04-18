@@ -54,7 +54,10 @@ export const RoomLobby: Component<{
     };
 
     return (
-        <div class="min-h-screen grid grid-cols-[2fr_1fr] bg-[#ddd5c4] font-karla overflow-hidden max-sm:grid-cols-1">
+        <div
+            data-testid="room-lobby"
+            class="min-h-screen grid grid-cols-[2fr_1fr] bg-[#ddd5c4] font-karla overflow-hidden max-sm:grid-cols-1"
+        >
             {/* ── Left: content ── */}
             <div class="pt-12 pr-10 pb-20 pl-12 flex flex-col justify-center min-h-screen relative z-[1] max-sm:px-6 max-sm:py-10">
                 <div class="inline-block self-start font-bebas text-[.95rem] tracking-[.18em] bg-[#c0261a] text-[#ddd5c4] px-4 py-1 mb-4">
@@ -75,6 +78,7 @@ export const RoomLobby: Component<{
                 {/* Name input */}
                 <div class="flex gap-2 mb-6">
                     <input
+                        data-testid="room-name-input"
                         ref={inputRef}
                         type="text"
                         placeholder="YOUR NAME"
@@ -92,6 +96,7 @@ export const RoomLobby: Component<{
                         when={props.isJoined}
                         fallback={
                             <button
+                                data-testid="room-join-button"
                                 onClick={() => {
                                     setIsEditing(false);
                                     props.name && props.onJoin(props.name);
@@ -107,6 +112,7 @@ export const RoomLobby: Component<{
                             when={isEditing()}
                             fallback={
                                 <button
+                                    data-testid="room-rename-button"
                                     onClick={handleRenameClick}
                                     class="font-bebas text-[1.1rem] tracking-[.1em] bg-[#c9c0b0] text-[#1a1a1a] border-2 border-[#b8ae9e] px-6 py-3 cursor-pointer whitespace-nowrap shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#9a9080]"
                                 >
@@ -115,6 +121,7 @@ export const RoomLobby: Component<{
                             }
                         >
                             <button
+                                data-testid="room-save-name-button"
                                 onClick={handleSaveName}
                                 disabled={!props.name}
                                 class="font-bebas text-[1.1rem] tracking-[.1em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-6 py-3 cursor-pointer whitespace-nowrap shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] disabled:opacity-40 disabled:cursor-default disabled:shadow-none enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[5px_5px_0_#1a1a1a]"
@@ -193,6 +200,7 @@ export const RoomLobby: Component<{
                                 return (
                                     <button
                                         type="button"
+                                        data-testid={`room-game-option-${gameType}`}
                                         disabled={!props.isHost}
                                         onClick={() => props.onSelectGame(gameType)}
                                         class={`text-left border-2 px-4 py-4 transition-all duration-[120ms] ${
@@ -229,6 +237,7 @@ export const RoomLobby: Component<{
                         when={!props.isJoined}
                         fallback={
                             <button
+                                data-testid="room-leave-button"
                                 onClick={() => {
                                     props.onLeave();
                                     setIsEditing(true);
@@ -240,6 +249,7 @@ export const RoomLobby: Component<{
                         }
                     >
                         <button
+                            data-testid="room-cancel-button"
                             onClick={props.onLeave}
                             class="font-bebas text-[1.1rem] tracking-[.1em] bg-[#c9c0b0] text-[#5a5040] border-2 border-[#b8ae9e] px-6 py-3 cursor-pointer transition-all duration-[120ms] hover:bg-[#bfb5a4] hover:border-[#5a5040] hover:text-[#1a1a1a]"
                         >
@@ -248,6 +258,7 @@ export const RoomLobby: Component<{
                     </Show>
                     <Show when={props.isHost}>
                         <button
+                            data-testid="room-start-button"
                             onClick={props.onStart}
                             disabled={!startValidation().canStart}
                             class="flex-1 font-bebas text-[1.25rem] tracking-[.12em] bg-[#1a1a1a] text-[#ddd5c4] border-2 border-[#1a1a1a] py-[.85rem] cursor-pointer shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] disabled:opacity-40 disabled:cursor-default disabled:shadow-none enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[5px_5px_0_#9a9080]"

@@ -119,7 +119,8 @@ function RouteComponent() {
     const canAccessCurrentGame = createMemo(
         () =>
             roomPhase() !== "playing" ||
-            (myGameParticipant() !== null && myGameStatus() !== "left_game"),
+            (myGameParticipant() !== null && myGameStatus() !== "left_game") ||
+            (isActivePokerGame() && isJoined() && myGameStatus() !== "left_game"),
     );
 
     onMount(() => {
@@ -249,6 +250,30 @@ function RouteComponent() {
                         isHost={isHost()}
                         isJoined={isJoined()}
                         selectedGameType={selectedGameType()}
+                        onJoin={join}
+                        onLeave={leave}
+                        onSelectGame={selectGame}
+                        onStart={startGame}
+                    />
+                </Match>
+                <Match
+                    when={
+                        roomPhase() === "playing" &&
+                        isActivePokerGame() &&
+                        !isJoined()
+                    }
+                >
+                    <RoomLobby
+                        roomId={roomId()}
+                        playerId={playerId()}
+                        name={name()}
+                        setName={setName}
+                        players={players()}
+                        isHost={false}
+                        isJoined={false}
+                        selectedGameType={
+                            (activeGameType() ?? selectedGameType()) as GameType
+                        }
                         onJoin={join}
                         onLeave={leave}
                         onSelectGame={selectGame}

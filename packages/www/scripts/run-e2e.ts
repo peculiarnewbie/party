@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 type E2eSuite = {
     description: string;
     workerFiles: string[];
-    browserScript?: string;
+    browserScripts?: string[];
 };
 
 const E2E_SUITES: Record<string, E2eSuite> = {
@@ -11,13 +11,16 @@ const E2E_SUITES: Record<string, E2eSuite> = {
         description:
             "Real workerd room-sequence coverage for poker start, spectators, reconnect, host controls, and hibernation",
         workerFiles: ["src/worker/poker-room.test.ts"],
-        browserScript: "e2e/poker-seeded.spec.ts",
+        browserScripts: [
+            "e2e/poker-seeded.spec.ts",
+            "e2e/poker-live.spec.ts",
+        ],
     },
     yahtzee: {
         description:
             "Real workerd room-sequence coverage for standard, lying, reconnect, and hibernation flows",
         workerFiles: ["src/worker/yahtzee-room.test.ts"],
-        browserScript: "e2e/yahtzee-seeded.spec.ts",
+        browserScripts: ["e2e/yahtzee-seeded.spec.ts"],
     },
 };
 
@@ -74,13 +77,12 @@ console.log(
 if (browserMode) {
     const browserScripts = unique(
         selectedGames.flatMap((game) => {
-            const script = E2E_SUITES[game].browserScript;
-            return script ? [script] : [];
+            return E2E_SUITES[game].browserScripts ?? [];
         }),
     );
 
     const unsupportedGames = selectedGames.filter(
-        (game) => !E2E_SUITES[game].browserScript,
+        (game) => !(E2E_SUITES[game].browserScripts?.length),
     );
     if (unsupportedGames.length > 0) {
         console.error(
