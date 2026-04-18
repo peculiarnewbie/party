@@ -16,6 +16,9 @@ export default defineProject({
         name: "worker",
         // Tests here run inside workerd with real Durable Objects, SQLite,
         // WebSockets, alarms, R2, etc. Add files as they are migrated.
-        include: ["src/worker/room-storage.test.ts"],
+        include: [
+            "src/worker/room-storage.test.ts",
+            "src/worker/yahtzee-room.test.ts",
+        ],
     },
 });

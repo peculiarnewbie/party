@@ -142,17 +142,17 @@ const participantStatusSchema = Schema.Literals([
     "left_game",
 ] as const);
 const scoringCategorySchema = Schema.Literals(scoringCategories);
-const numberDieSchema = Schema.Number.check(
-    Schema.isGreaterThanOrEqualTo(1),
+const persistedNumberDieSchema = Schema.Number.check(
+    Schema.isGreaterThanOrEqualTo(0),
     Schema.isLessThanOrEqualTo(6),
 );
 const diceSchema = Schema.mutable(
     Schema.Tuple([
-        numberDieSchema,
-        numberDieSchema,
-        numberDieSchema,
-        numberDieSchema,
-        numberDieSchema,
+        persistedNumberDieSchema,
+        persistedNumberDieSchema,
+        persistedNumberDieSchema,
+        persistedNumberDieSchema,
+        persistedNumberDieSchema,
     ]),
 );
 const heldDiceSchema = Schema.mutable(

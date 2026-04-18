@@ -1868,38 +1868,50 @@ export class GameRoom extends DurableObject {
             );
         });
 
-        serverWs.addEventListener("close", async () => {
-            const session = this.sessions.get(serverWs);
-            this.sessions.delete(serverWs);
+        serverWs.addEventListener("close", () => {
+            void (async () => {
+                const session = this.sessions.get(serverWs);
+                this.sessions.delete(serverWs);
 
-            let didChange = false;
-            if (session?.playerId) {
-                didChange = this.setGameParticipantStatus(
-                    session.playerId,
-                    "disconnected",
-                );
+                let didChange = false;
+                if (session?.playerId) {
+                    didChange = this.setGameParticipantStatus(
+                        session.playerId,
+                        "disconnected",
+                    );
 
-                if (didChange && isPokerGameType(this.state.activeGameType)) {
-                    pokerServer(this.pokerState, {
-                        scheduleNextHand: schedulePokerNextHand,
-                        visibilityMode: getPokerVisibilityMode(
-                            this.state.activeGameType,
-                        ),
-                    }).disconnectPlayer(session.playerId, broadcast, sendTo);
+                    if (
+                        didChange &&
+                        isPokerGameType(this.state.activeGameType)
+                    ) {
+                        pokerServer(this.pokerState, {
+                            scheduleNextHand: schedulePokerNextHand,
+                            visibilityMode: getPokerVisibilityMode(
+                                this.state.activeGameType,
+                            ),
+                        }).disconnectPlayer(
+                            session.playerId,
+                            broadcast,
+                            sendTo,
+                        );
+                    }
                 }
-            }
 
-            if (this.sessions.size === 0 && this.state.phase === "playing") {
-                await this.hibernateRoom();
-                return;
-            }
+                if (
+                    this.sessions.size === 0 &&
+                    this.state.phase === "playing"
+                ) {
+                    await this.hibernateRoom();
+                    return;
+                }
 
-            if (!didChange) {
-                return;
-            }
+                if (!didChange) {
+                    return;
+                }
 
-            this.persistAllState();
-            broadcastRoomState();
+                this.persistAllState();
+                broadcastRoomState();
+            })();
         });
 
         return new Response(null, {

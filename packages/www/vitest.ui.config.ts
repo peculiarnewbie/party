@@ -15,7 +15,7 @@ export default defineProject({
         exclude: [
             // Tests migrated to the real Cloudflare runtime run in the
             // "worker" project instead (see vitest.worker.config.ts).
-            "src/worker/room-storage.test.ts",
+            "src/worker/*.test.ts",
         ],
         environment: "happy-dom",
         setupFiles: ["./src/test/setup.ts"],

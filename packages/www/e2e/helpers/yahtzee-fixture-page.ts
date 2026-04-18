@@ -22,9 +22,12 @@ const __dirname = path.dirname(__filename);
 
 export async function startLocalApp(): Promise<LocalServerHandle> {
     const logState = { stdout: "", stderr: "" };
+    const baseUrl = new URL(STAGEHAND_BASE_URL);
+    const host = baseUrl.hostname;
+    const port = baseUrl.port || "3000";
     const child = spawn(
         "pnpm",
-        ["run", "dev", "--", "--host", "127.0.0.1", "--port", "3000"],
+        ["run", "dev", "--", "--host", host, "--port", port],
         {
             cwd: path.resolve(__dirname, "../.."),
             stdio: ["ignore", "pipe", "pipe"],
@@ -39,7 +42,7 @@ export async function startLocalApp(): Promise<LocalServerHandle> {
         logState.stderr += chunk.toString();
     });
 
-    await waitForServerReady(STAGEHAND_BASE_URL, logState);
+    await waitForServerReady(baseUrl, logState);
 
     return {
         process: child,
@@ -67,22 +70,28 @@ function processEnvWithColorDisabled() {
 }
 
 async function waitForServerReady(
-    baseUrl: string,
+    baseUrl: URL,
     logState: { stdout: string; stderr: string },
 ) {
     const timeoutAt = Date.now() + 30_000;
+    const probeUrls = [
+        new URL("/", baseUrl),
+        new URL("/dev/yahtzee-fixture", baseUrl),
+    ];
 
     while (Date.now() < timeoutAt) {
-        try {
-            const response = await fetch(baseUrl);
-            if (response.ok) return;
-        } catch {}
+        for (const probeUrl of probeUrls) {
+            try {
+                const response = await fetch(probeUrl);
+                if (response.ok) return;
+            } catch {}
+        }
 
         await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
     throw new Error(
-        `Timed out waiting for dev server at ${baseUrl}\nstdout:\n${logState.stdout}\nstderr:\n${logState.stderr}`,
+        `Timed out waiting for dev server at ${baseUrl.toString()}\nstdout:\n${logState.stdout}\nstderr:\n${logState.stderr}`,
     );
 }
 
