@@ -5,6 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite dev",
+        "dev:party": "node --import tsx scripts/dev-party.ts",
         "build": "vite build && tsc --noEmit",
         "typecheck": "tsc --noEmit",
         "preview": "vite preview",
