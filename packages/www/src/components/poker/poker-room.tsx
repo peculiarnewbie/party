@@ -86,35 +86,54 @@ export const PokerRoom: Component<{
     };
 
     return (
-        <div class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla flex flex-col">
+        <div
+            data-testid="poker-room"
+            class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla flex flex-col"
+        >
             <div class="flex items-center justify-between px-4 py-2 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a] flex-wrap gap-2">
                 <div class="flex items-center gap-3">
                     <Show
                         when={gameView()?.actingPlayerId === props.playerId}
                         fallback={
-                            <span class="font-bebas text-[.85rem] tracking-[.12em] text-[#1a1a1a] px-3 py-1 bg-[#ddd5c4] border border-[#b8ae9e]">
+                            <span
+                                data-testid="poker-turn-banner"
+                                class="font-bebas text-[.85rem] tracking-[.12em] text-[#1a1a1a] px-3 py-1 bg-[#ddd5c4] border border-[#b8ae9e]"
+                            >
                                 {actingPlayerName().toUpperCase()}'S TURN
                             </span>
                         }
                     >
-                        <span class="font-bebas text-[.85rem] tracking-[.12em] text-[#ddd5c4] px-3 py-1 bg-[#c0261a]">
+                        <span
+                            data-testid="poker-turn-banner"
+                            class="font-bebas text-[.85rem] tracking-[.12em] text-[#ddd5c4] px-3 py-1 bg-[#c0261a]"
+                        >
                             YOUR TURN
                         </span>
                     </Show>
                 </div>
                 <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-bebas text-[.72rem] tracking-[.18em] text-[#5a5040] px-3 py-1 bg-[#ddd5c4] border border-[#b8ae9e]">
+                    <span
+                        data-testid="poker-title"
+                        class="font-bebas text-[.72rem] tracking-[.18em] text-[#5a5040] px-3 py-1 bg-[#ddd5c4] border border-[#b8ae9e]"
+                    >
                         {props.title.toUpperCase()}
                     </span>
-                    <span class="font-bebas text-[.72rem] tracking-[.18em] text-[#5a5040] px-3 py-1 bg-[#ddd5c4] border border-[#b8ae9e]">
+                    <span
+                        data-testid="poker-hand-number"
+                        class="font-bebas text-[.72rem] tracking-[.18em] text-[#5a5040] px-3 py-1 bg-[#ddd5c4] border border-[#b8ae9e]"
+                    >
                         HAND {gameView()?.handNumber ?? 0}
                     </span>
-                    <span class="font-bebas text-[.72rem] tracking-[.18em] text-[#5a5040] px-3 py-1 bg-[#ddd5c4] border border-[#b8ae9e]">
+                    <span
+                        data-testid="poker-street"
+                        class="font-bebas text-[.72rem] tracking-[.18em] text-[#5a5040] px-3 py-1 bg-[#ddd5c4] border border-[#b8ae9e]"
+                    >
                         {gameView()?.street?.replaceAll("_", " ").toUpperCase() ?? "LOADING"}
                     </span>
                     <Show when={props.isHost && gameView()?.street !== "tournament_over"}>
                         <button
                             type="button"
+                            data-testid="poker-end-button"
                             onClick={props.onEndGame}
                             class="font-bebas text-[.75rem] tracking-[.16em] border-2 border-[#1a1a1a] bg-[#ddd5c4] px-3 py-1 cursor-pointer transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_#1a1a1a]"
                         >
@@ -151,7 +170,10 @@ export const PokerRoom: Component<{
                                     <div class="font-bebas text-[.65rem] tracking-[.22em] text-[#7a7060]">
                                         SPECTATORS
                                     </div>
-                                    <div class="font-bebas text-[.95rem] tracking-[.08em] text-[#1a1a1a] mt-1">
+                                    <div
+                                        data-testid="poker-spectator-list"
+                                        class="font-bebas text-[.95rem] tracking-[.08em] text-[#1a1a1a] mt-1"
+                                    >
                                         {gameView()
                                             ?.spectators.map((spectator) => spectator.name)
                                             .join(" · ")}
@@ -182,7 +204,10 @@ export const PokerRoom: Component<{
                             onAction={sendAction}
                         />
                         <Show when={actionError()}>
-                            <div class="border-2 border-[#c0261a] bg-[#ddd5c4] px-4 py-3 font-bebas text-[.8rem] tracking-[.14em] text-[#c0261a]">
+                            <div
+                                data-testid="poker-action-error"
+                                class="border-2 border-[#c0261a] bg-[#ddd5c4] px-4 py-3 font-bebas text-[.8rem] tracking-[.14em] text-[#c0261a]"
+                            >
                                 {actionError()}
                             </div>
                         </Show>

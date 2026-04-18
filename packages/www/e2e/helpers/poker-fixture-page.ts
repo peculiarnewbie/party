@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { YahtzeeFixtureId } from "../../src/game/yahtzee/fixtures";
+import type { PokerFixtureId } from "../../src/game/poker/fixtures";
 import {
     createStagehandSession,
     startLocalApp,
@@ -15,29 +15,25 @@ import {
 export { createStagehandSession, startLocalApp };
 export type { LocalServerHandle };
 
-export class YahtzeeFixturePage {
+export class PokerFixturePage {
     constructor(private readonly page: any) {}
 
     async gotoFixture(
-        fixtureId: YahtzeeFixtureId,
+        fixtureId: PokerFixtureId,
         options: {
             playerId?: string;
-            step?: number;
         } = {},
     ) {
-        const url = new URL("/dev/yahtzee-fixture", STAGEHAND_BASE_URL);
+        const url = new URL("/dev/poker-fixture", STAGEHAND_BASE_URL);
         url.searchParams.set("fixture", fixtureId);
         if (options.playerId) {
             url.searchParams.set("playerId", options.playerId);
-        }
-        if (options.step) {
-            url.searchParams.set("step", String(options.step));
         }
 
         await this.page.goto(url.toString(), {
             waitUntil: "networkidle",
         });
-        await this.page.waitForSelector('[data-testid="yahtzee-room"]');
+        await this.page.waitForSelector('[data-testid="poker-room"]');
         await this.waitForWindowState();
     }
 
@@ -88,18 +84,18 @@ export class YahtzeeFixturePage {
     }
 
     async sentMessages() {
-        return this.page.evaluate(() => window.__YAHTZEE_FIXTURE__?.sentMessages ?? []);
+        return this.page.evaluate(() => window.__POKER_FIXTURE__?.sentMessages ?? []);
     }
 
     async hostActions() {
-        return this.page.evaluate(() => window.__YAHTZEE_FIXTURE__?.hostActions ?? []);
+        return this.page.evaluate(() => window.__POKER_FIXTURE__?.hostActions ?? []);
     }
 
     async takeScreenshot(name: string, testId?: string) {
         const mode = process.env.E2E_UPDATE_SCREENSHOTS === "1"
             ? "baseline"
             : "current";
-        const outputDir = path.join(getStagehandArtifactDir("yahtzee"), mode);
+        const outputDir = path.join(getStagehandArtifactDir("poker"), mode);
         await fs.mkdir(outputDir, { recursive: true });
         const outputPath = path.join(outputDir, `${name}.png`);
 
@@ -129,7 +125,7 @@ export class YahtzeeFixturePage {
 
         while (Date.now() < timeoutAt) {
             const hasState = await this.page.evaluate(
-                () => Boolean(window.__YAHTZEE_FIXTURE__),
+                () => Boolean(window.__POKER_FIXTURE__),
             );
             if (hasState) return;
             await this.page.waitForTimeout(100);

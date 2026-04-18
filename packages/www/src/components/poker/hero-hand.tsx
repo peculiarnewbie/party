@@ -11,13 +11,22 @@ export const HeroHand: Component<{
     status: string | null;
 }> = (props) => {
     return (
-        <div class="border-2 border-[#1a1a1a] bg-[#ddd5c4] px-5 py-4 shadow-[3px_3px_0_#1a1a1a]">
+        <div
+            data-testid="poker-hero-hand"
+            data-card-count={props.cardCount}
+            data-visible-card-count={props.cards.length}
+            data-spectator={String(props.isSpectator)}
+            class="border-2 border-[#1a1a1a] bg-[#ddd5c4] px-5 py-4 shadow-[3px_3px_0_#1a1a1a]"
+        >
             <div class="flex items-center justify-between gap-4 mb-4">
                 <div>
                     <div class="font-bebas text-[.7rem] tracking-[.22em] text-[#9a9080]">
                         YOUR HAND
                     </div>
-                    <div class="font-bebas text-[1.6rem] leading-none text-[#1a1a1a]">
+                    <div
+                        data-testid="poker-hero-status"
+                        class="font-bebas text-[1.6rem] leading-none text-[#1a1a1a]"
+                    >
                         {props.isSpectator ? "SPECTATING" : props.stack}
                     </div>
                 </div>

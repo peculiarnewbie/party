@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoomIndexRouteImport } from './routes/room/index'
 import { Route as DevYahtzeeFixtureRouteImport } from './routes/dev/yahtzee-fixture'
+import { Route as DevPokerFixtureRouteImport } from './routes/dev/poker-fixture'
 import { Route as DevAssetRouteImport } from './routes/dev/asset'
 import { Route as ApiUsersRouteImport } from './routes/api/users'
 import { Route as RoomRoomIdIndexRouteImport } from './routes/room/$roomId/index'
@@ -31,6 +32,11 @@ const RoomIndexRoute = RoomIndexRouteImport.update({
 const DevYahtzeeFixtureRoute = DevYahtzeeFixtureRouteImport.update({
   id: '/dev/yahtzee-fixture',
   path: '/dev/yahtzee-fixture',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevPokerFixtureRoute = DevPokerFixtureRouteImport.update({
+  id: '/dev/poker-fixture',
+  path: '/dev/poker-fixture',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevAssetRoute = DevAssetRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/users': typeof ApiUsersRouteWithChildren
   '/dev/asset': typeof DevAssetRoute
+  '/dev/poker-fixture': typeof DevPokerFixtureRoute
   '/dev/yahtzee-fixture': typeof DevYahtzeeFixtureRoute
   '/room/': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/users': typeof ApiUsersRouteWithChildren
   '/dev/asset': typeof DevAssetRoute
+  '/dev/poker-fixture': typeof DevPokerFixtureRoute
   '/dev/yahtzee-fixture': typeof DevYahtzeeFixtureRoute
   '/room': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/api/users': typeof ApiUsersRouteWithChildren
   '/dev/asset': typeof DevAssetRoute
+  '/dev/poker-fixture': typeof DevPokerFixtureRoute
   '/dev/yahtzee-fixture': typeof DevYahtzeeFixtureRoute
   '/room/': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/users'
     | '/dev/asset'
+    | '/dev/poker-fixture'
     | '/dev/yahtzee-fixture'
     | '/room/'
     | '/api/room/$roomId'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/users'
     | '/dev/asset'
+    | '/dev/poker-fixture'
     | '/dev/yahtzee-fixture'
     | '/room'
     | '/api/room/$roomId'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/users'
     | '/dev/asset'
+    | '/dev/poker-fixture'
     | '/dev/yahtzee-fixture'
     | '/room/'
     | '/api/room/$roomId'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiUsersRoute: typeof ApiUsersRouteWithChildren
   DevAssetRoute: typeof DevAssetRoute
+  DevPokerFixtureRoute: typeof DevPokerFixtureRoute
   DevYahtzeeFixtureRoute: typeof DevYahtzeeFixtureRoute
   RoomIndexRoute: typeof RoomIndexRoute
   ApiRoomRoomIdRoute: typeof ApiRoomRoomIdRoute
@@ -154,6 +167,13 @@ declare module '@tanstack/solid-router' {
       path: '/dev/yahtzee-fixture'
       fullPath: '/dev/yahtzee-fixture'
       preLoaderRoute: typeof DevYahtzeeFixtureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dev/poker-fixture': {
+      id: '/dev/poker-fixture'
+      path: '/dev/poker-fixture'
+      fullPath: '/dev/poker-fixture'
+      preLoaderRoute: typeof DevPokerFixtureRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dev/asset': {
@@ -210,6 +230,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiUsersRoute: ApiUsersRouteWithChildren,
   DevAssetRoute: DevAssetRoute,
+  DevPokerFixtureRoute: DevPokerFixtureRoute,
   DevYahtzeeFixtureRoute: DevYahtzeeFixtureRoute,
   RoomIndexRoute: RoomIndexRoute,
   ApiRoomRoomIdRoute: ApiRoomRoomIdRoute,

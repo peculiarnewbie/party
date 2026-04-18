@@ -14,15 +14,8 @@
         "test:unit": "vitest run",
         "test:coverage": "vitest run --coverage",
         "test:e2e": "node --import tsx scripts/run-e2e.ts",
-        "test:e2e:list": "node --import tsx scripts/run-e2e.ts --list",
-        "test:e2e:poker": "node --import tsx scripts/run-e2e.ts poker",
-        "test:e2e:yahtzee": "node --import tsx scripts/run-e2e.ts yahtzee",
-        "test:e2e:browser:yahtzee": "node --import tsx scripts/run-e2e.ts --browser yahtzee",
-        "test:e2e:browser:yahtzee:headed": "node --import tsx scripts/run-e2e.ts --browser --headed yahtzee",
         "test:browser:deps": "playwright install chromium",
-        "test:browser:yahtzee": "node --import tsx e2e/yahtzee-seeded.spec.ts",
-        "test:browser:yahtzee:update": "YAHTZEE_UPDATE_SCREENSHOTS=1 node --import tsx e2e/yahtzee-seeded.spec.ts",
-        "test:all": "npm run test:unit && npm run test:browser:yahtzee"
+        "test:all": "npm run test:unit && npm run test:e2e -- all && npm run test:e2e -- --browser all"
     },
     "dependencies": {
         "@tanstack/solid-router": "^1.141.8",

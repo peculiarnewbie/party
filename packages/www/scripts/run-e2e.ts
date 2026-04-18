@@ -11,6 +11,7 @@ const E2E_SUITES: Record<string, E2eSuite> = {
         description:
             "Real workerd room-sequence coverage for poker start, spectators, reconnect, host controls, and hibernation",
         workerFiles: ["src/worker/poker-room.test.ts"],
+        browserScript: "e2e/poker-seeded.spec.ts",
     },
     yahtzee: {
         description:
@@ -92,8 +93,8 @@ if (browserMode) {
 
     const env = {
         ...process.env,
-        ...(headedMode ? { YAHTZEE_HEADLESS: "0" } : {}),
-        ...(updateScreenshots ? { YAHTZEE_UPDATE_SCREENSHOTS: "1" } : {}),
+        ...(headedMode ? { E2E_HEADLESS: "0" } : {}),
+        ...(updateScreenshots ? { E2E_UPDATE_SCREENSHOTS: "1" } : {}),
     };
 
     for (const script of browserScripts) {

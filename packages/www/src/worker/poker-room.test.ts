@@ -9,6 +9,7 @@ import type {
     PokerPlayerView,
     PokerState,
 } from "~/game/poker";
+import type { GameRoom } from "./ws";
 
 import {
     type MessageEnvelope,
@@ -198,22 +199,14 @@ async function waitForPokerState(
 
 async function waitForRoomCondition<T>(
     roomId: string,
-    getValue: (instance: {
-        state: {
-            phase: string;
-        };
-    } & Record<string, unknown>) => T | null,
+    getValue: (instance: GameRoom) => T | null,
     timeoutMs = 5_000,
 ) {
     return withRoom(roomId, async (_, instance) => {
         const deadline = Date.now() + timeoutMs;
 
         while (Date.now() < deadline) {
-            const value = getValue(instance as unknown as {
-                state: {
-                    phase: string;
-                };
-            } & Record<string, unknown>);
+            const value = getValue(instance);
             if (value !== null) {
                 return value;
             }

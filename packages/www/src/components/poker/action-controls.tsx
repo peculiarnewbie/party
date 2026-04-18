@@ -22,7 +22,10 @@ export const ActionControls: Component<{
     };
 
     return (
-        <div class="border-2 border-[#1a1a1a] bg-[#ddd5c4] px-5 py-4 shadow-[3px_3px_0_#1a1a1a]">
+        <div
+            data-testid="poker-action-controls"
+            class="border-2 border-[#1a1a1a] bg-[#ddd5c4] px-5 py-4 shadow-[3px_3px_0_#1a1a1a]"
+        >
             <div class="flex items-center justify-between gap-4 mb-4">
                 <div class="font-bebas text-[.7rem] tracking-[.22em] text-[#9a9080]">
                     ACTIONS
@@ -37,7 +40,10 @@ export const ActionControls: Component<{
             <Show
                 when={!props.isSpectator}
                 fallback={
-                    <div class="font-bebas text-[.9rem] tracking-[.12em] text-[#9a9080]">
+                    <div
+                        data-testid="poker-spectator-copy"
+                        class="font-bebas text-[.9rem] tracking-[.12em] text-[#9a9080]"
+                    >
                         Spectators can follow the board and log, but cannot act.
                     </div>
                 }
@@ -45,6 +51,7 @@ export const ActionControls: Component<{
                 <div class="grid grid-cols-2 gap-3">
                     <button
                         type="button"
+                        data-testid="poker-fold-button"
                         disabled={!hasAction("fold")}
                         onClick={() => props.onAction("fold")}
                         class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#c9c0b0] text-[#5a5040] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
@@ -53,6 +60,7 @@ export const ActionControls: Component<{
                     </button>
                     <button
                         type="button"
+                        data-testid="poker-check-button"
                         disabled={!hasAction("check")}
                         onClick={() => props.onAction("check")}
                         class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
@@ -61,6 +69,7 @@ export const ActionControls: Component<{
                     </button>
                     <button
                         type="button"
+                        data-testid="poker-call-button"
                         disabled={!hasAction("call")}
                         onClick={() => props.onAction("call")}
                         class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
@@ -69,6 +78,7 @@ export const ActionControls: Component<{
                     </button>
                     <button
                         type="button"
+                        data-testid="poker-all-in-button"
                         disabled={!hasAction("all_in")}
                         onClick={() => props.onAction("all_in")}
                         class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#c0261a] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
@@ -81,6 +91,7 @@ export const ActionControls: Component<{
                     <div class="flex items-center gap-3">
                         <input
                             type="number"
+                            data-testid="poker-amount-input"
                             min={props.minBetOrRaise ?? undefined}
                             max={props.maxBet || undefined}
                             value={props.amount}
@@ -98,6 +109,7 @@ export const ActionControls: Component<{
                     <div class="grid grid-cols-2 gap-3">
                         <button
                             type="button"
+                            data-testid="poker-bet-button"
                             disabled={!hasAction("bet")}
                             onClick={() => submitSizedAction("bet")}
                             class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#9a9080]"
@@ -106,6 +118,7 @@ export const ActionControls: Component<{
                         </button>
                         <button
                             type="button"
+                            data-testid="poker-raise-button"
                             disabled={!hasAction("raise")}
                             onClick={() => submitSizedAction("raise")}
                             class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#9a9080]"

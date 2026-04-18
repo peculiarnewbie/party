@@ -19,12 +19,18 @@ export const ResultsOverlay: Component<{
             .join(" & ");
 
     return (
-        <div class="fixed inset-0 bg-[#1a1a1a]/60 flex items-center justify-center z-50 p-4">
+        <div
+            data-testid="poker-results-overlay"
+            class="fixed inset-0 bg-[#1a1a1a]/60 flex items-center justify-center z-50 p-4"
+        >
             <div class="w-full max-w-[520px] border-2 border-[#1a1a1a] bg-[#ddd5c4] px-6 py-6 shadow-[6px_6px_0_#1a1a1a]">
                 <div class="font-bebas text-[.7rem] tracking-[.28em] text-[#c0261a] mb-2">
                     {props.endedByHost ? "HOST ENDED THE GAME" : "TOURNAMENT COMPLETE"}
                 </div>
-                <div class="font-bebas text-[clamp(2rem,5vw,3rem)] leading-[.9] text-[#1a1a1a]">
+                <div
+                    data-testid="poker-results-title"
+                    class="font-bebas text-[clamp(2rem,5vw,3rem)] leading-[.9] text-[#1a1a1a]"
+                >
                     {winnerNames() ? `${winnerNames().toUpperCase()} LEADS` : "TABLE CLOSED"}
                 </div>
 
@@ -56,6 +62,7 @@ export const ResultsOverlay: Component<{
                 <Show when={props.isHost}>
                     <button
                         type="button"
+                        data-testid="poker-return-button"
                         onClick={props.onReturnToLobby}
                         class="mt-6 w-full font-bebas text-[1.1rem] tracking-[.12em] border-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#ddd5c4] py-3 cursor-pointer shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#9a9080]"
                     >

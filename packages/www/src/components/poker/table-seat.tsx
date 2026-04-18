@@ -26,6 +26,12 @@ export const TableSeat: Component<{
 
     return (
         <div
+            data-testid={`poker-seat-${props.player.id}`}
+            data-status={props.player.status}
+            data-acting={String(props.player.isActing)}
+            data-connected={String(props.player.connected)}
+            data-visible-card-count={props.player.visibleHoleCards.length}
+            data-hole-card-count={props.player.holeCardCount}
             class={`min-w-[175px] border-2 px-4 py-3 transition-all duration-[120ms] ${
                 props.player.isActing
                     ? "border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] shadow-[3px_3px_0_#1a1a1a] -translate-x-0.5 -translate-y-0.5"
