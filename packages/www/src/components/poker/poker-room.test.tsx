@@ -71,10 +71,10 @@ describe("PokerRoom", () => {
             myStack: 980,
             pots: [makePot({ amount: 40, eligiblePlayerIds: ["p1", "p2"] })],
         });
-        const { getByText } = renderRoom({ view });
+        const { getByText, getByTestId } = renderRoom({ view });
 
         expect(getByText("HAND 3")).toBeInTheDocument();
-        expect(getByText("FLOP")).toBeInTheDocument();
+        expect(getByTestId("poker-street").textContent).toBe("FLOP");
         expect(getByText("YOUR TURN")).toBeInTheDocument();
         expect(getByText("MAIN POT")).toBeInTheDocument();
         expect(getByText("40")).toBeInTheDocument();
@@ -124,13 +124,13 @@ describe("PokerRoom", () => {
             handNumber: 1,
             street: "preflop",
         });
-        const { getByText, connection } = renderRoom({ view: initialView });
+        const { getByText, getByTestId, connection } = renderRoom({ view: initialView });
         expect(getByText("HAND 1")).toBeInTheDocument();
 
         connection.setView(makeView({ handNumber: 2, street: "turn" }));
 
         expect(getByText("HAND 2")).toBeInTheDocument();
-        expect(getByText("TURN")).toBeInTheDocument();
+        expect(getByTestId("poker-street").textContent).toBe("TURN");
     });
 
     it("displays an action error when a poker:action_result side event has an error", () => {

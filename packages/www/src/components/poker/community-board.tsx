@@ -10,18 +10,18 @@ export const CommunityBoard: Component<{
         Array.from({ length: 5 }, (_, index) => props.board[index] ?? null);
 
     return (
-        <div class="flex flex-wrap justify-center gap-3">
+        <div class="flex flex-wrap justify-center gap-2 sm:gap-3">
             <For each={slots()}>
                 {(card) => (
-                    <div class="w-[86px] h-[120px] border-2 border-dashed border-[#b8ae9e] bg-[#ddd5c4] flex items-center justify-center">
+                    <div class="w-[64px] sm:w-[72px] md:w-[86px] aspect-[250/350] border-2 border-dashed border-[#b8ae9e] bg-[#ddd5c4] flex items-center justify-center">
                         {card ? (
                             <PlayingCard
                                 suit={card.suit}
                                 rank={card.rank}
-                                size={86}
+                                class="w-full"
                             />
                         ) : (
-                            <div class="font-bebas text-[.7rem] tracking-[.18em] text-[#9a9080]">
+                            <div class="font-bebas text-[.6rem] sm:text-[.7rem] tracking-[.18em] text-[#9a9080]">
                                 WAIT
                             </div>
                         )}

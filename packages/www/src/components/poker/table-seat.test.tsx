@@ -32,7 +32,7 @@ describe("TableSeat", () => {
         expect(getByText("Alice")).toBeInTheDocument();
         expect(getByText("IN")).toBeInTheDocument();
         expect(getByText("1000")).toBeInTheDocument();
-        expect(getByText("40")).toBeInTheDocument();
+        expect(getByText("+40")).toBeInTheDocument();
     });
 
     it("shows FOLDED and ALL-IN status labels based on player state", () => {

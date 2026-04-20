@@ -1,17 +1,24 @@
 export function CardBack({
     size = 250,
+    class: className,
 }: {
     size?: number;
+    class?: string;
 }) {
     const patternId = `crosshatch-${Math.random().toString(36).slice(2, 8)}`;
+    const isResponsive = !!className;
 
     return (
         <svg
-            width={size}
-            height={size * 1.4}
+            width={isResponsive ? undefined : size}
+            height={isResponsive ? undefined : size * 1.4}
             viewBox="0 0 250 350"
             fill="none"
-            style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.14))" }}
+            class={className}
+            style={{
+                filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.14))",
+                ...(isResponsive ? { width: "100%", height: "auto" } : {}),
+            }}
         >
             <defs>
                 <pattern

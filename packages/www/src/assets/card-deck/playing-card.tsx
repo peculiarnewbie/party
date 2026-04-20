@@ -33,23 +33,31 @@ export function PlayingCard({
     suit,
     rank,
     size = 250,
+    class: className,
 }: {
     suit: Suit;
     rank: Rank;
     size?: number;
+    class?: string;
 }) {
     const label = RANK_LABEL[rank];
     const color = SUIT_COLOR[suit];
     const fontSize = label === "10" ? "26" : "30";
     const renderSymbol = SUIT_SYMBOL[suit];
 
+    const isResponsive = !!className;
+
     return (
         <svg
-            width={size}
-            height={size * 1.4}
+            width={isResponsive ? undefined : size}
+            height={isResponsive ? undefined : size * 1.4}
             viewBox="0 0 250 350"
             fill="none"
-            style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.14))" }}
+            class={className}
+            style={{
+                filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.14))",
+                ...(isResponsive ? { width: "100%", height: "auto" } : {}),
+            }}
         >
             <rect
                 x="2"

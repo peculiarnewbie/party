@@ -6,7 +6,7 @@ import type { PokerPot } from "~/game/poker";
 describe("PotDisplay", () => {
     it("shows NO POT YET when pots are empty", () => {
         const { getByText } = render(() => <PotDisplay pots={[]} />);
-        expect(getByText("NO POT YET")).toBeInTheDocument();
+        expect(getByText("NO POT")).toBeInTheDocument();
     });
 
     it("labels the first pot as MAIN POT and renders its amount", () => {

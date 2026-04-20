@@ -10,6 +10,7 @@ describe("ActionControls", () => {
                 callAmount={0}
                 minBetOrRaise={null}
                 maxBet={0}
+                stack={0}
                 amount=""
                 setAmount={() => {}}
                 isSpectator={true}
@@ -32,6 +33,7 @@ describe("ActionControls", () => {
                 callAmount={10}
                 minBetOrRaise={null}
                 maxBet={100}
+                stack={1000}
                 amount=""
                 setAmount={() => {}}
                 isSpectator={false}
@@ -53,6 +55,7 @@ describe("ActionControls", () => {
                 callAmount={0}
                 minBetOrRaise={20}
                 maxBet={200}
+                stack={1000}
                 amount="0"
                 setAmount={() => {}}
                 isSpectator={false}
@@ -78,6 +81,7 @@ describe("ActionControls", () => {
                 callAmount={20}
                 minBetOrRaise={60}
                 maxBet={300}
+                stack={1000}
                 amount="40"
                 setAmount={() => {}}
                 isSpectator={false}
@@ -103,6 +107,7 @@ describe("ActionControls", () => {
                 callAmount={0}
                 minBetOrRaise={20}
                 maxBet={200}
+                stack={1000}
                 amount="50"
                 setAmount={() => {}}
                 isSpectator={false}
@@ -126,6 +131,7 @@ describe("ActionControls", () => {
                 callAmount={20}
                 minBetOrRaise={60}
                 maxBet={400}
+                stack={1000}
                 amount="80"
                 setAmount={() => {}}
                 isSpectator={false}
@@ -151,6 +157,7 @@ describe("ActionControls", () => {
                 callAmount={0}
                 minBetOrRaise={20}
                 maxBet={120}
+                stack={1000}
                 amount="50"
                 setAmount={setAmount}
                 isSpectator={false}
@@ -174,6 +181,7 @@ describe("ActionControls", () => {
                 callAmount={20}
                 minBetOrRaise={60}
                 maxBet={400}
+                stack={1000}
                 amount="80"
                 setAmount={() => {}}
                 isSpectator={false}
@@ -194,6 +202,7 @@ describe("ActionControls", () => {
                 callAmount={10}
                 minBetOrRaise={null}
                 maxBet={100}
+                stack={1000}
                 amount=""
                 setAmount={() => {}}
                 isSpectator={false}
@@ -209,6 +218,7 @@ describe("ActionControls", () => {
                 callAmount={10}
                 minBetOrRaise={null}
                 maxBet={100}
+                stack={1000}
                 amount=""
                 setAmount={() => {}}
                 isSpectator={false}
