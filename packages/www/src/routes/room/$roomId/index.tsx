@@ -13,6 +13,21 @@ import { RoomLobby } from "~/components/room-lobby";
 import { SampleQuizRoom } from "~/components/sample-quiz-room";
 import { GoFishRoom } from "~/components/go-fish/go-fish-room";
 import { PokerRoom } from "~/components/poker/poker-room";
+import { createGameConnection } from "~/game/connection-from-ws";
+import type { PokerConnection } from "~/game/poker/connection";
+import type { YahtzeeConnection } from "~/game/yahtzee/connection";
+import type { GoFishConnection } from "~/game/go-fish/connection";
+import type { BlackjackConnection } from "~/game/blackjack/connection";
+import type { Flip7Connection } from "~/game/flip-7/connection";
+import type { PerudoConnection } from "~/game/perudo/connection";
+import type { CheeseThiefConnection } from "~/game/cheese-thief/connection";
+import type { CockroachPokerConnection } from "~/game/cockroach-poker/connection";
+import type { SkullConnection } from "~/game/skull/connection";
+import type { SpicyConnection } from "~/game/spicy/connection";
+import type { FunFactsConnection } from "~/game/fun-facts/connection";
+import type { RpsConnection } from "~/game/rps/connection";
+import type { HerdConnection } from "~/game/herd/connection";
+import type { QuizConnection } from "~/game/quiz/connection";
 import { BlackjackRoom } from "~/components/blackjack/blackjack-room";
 import { YahtzeeRoom } from "~/components/yahtzee/yahtzee-room";
 import { PerudoRoom } from "~/components/perudo/perudo-room";
@@ -306,12 +321,27 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <GoFishRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                        />
+                        {(() => {
+                            const connection: GoFishConnection = createGameConnection(
+                                getWs(),
+                                {
+                                    stateType: "go_fish:state",
+                                    prefix: "go_fish:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                },
+                            );
+                            return (
+                                <GoFishRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match when={roomPhase() === "playing" && isActivePokerGame()}>
@@ -324,19 +354,34 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <PokerRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            title={
-                                activeGameType() === "backwards_poker"
-                                    ? "Backwards Poker"
-                                    : "Texas Hold'em"
-                            }
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: PokerConnection = createGameConnection(
+                                getWs(),
+                                {
+                                    stateType: "poker:state",
+                                    prefix: "poker:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                },
+                            );
+                            return (
+                                <PokerRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    title={
+                                        activeGameType() === "backwards_poker"
+                                            ? "Backwards Poker"
+                                            : "Texas Hold'em"
+                                    }
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -354,14 +399,27 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <BlackjackRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: BlackjackConnection =
+                                createGameConnection(getWs(), {
+                                    stateType: "blackjack:state",
+                                    prefix: "blackjack:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                });
+                            return (
+                                <BlackjackRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -379,15 +437,30 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <YahtzeeRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            title="Yahtzee"
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: YahtzeeConnection = createGameConnection(
+                                getWs(),
+                                {
+                                    stateType: "yahtzee:state",
+                                    prefix: "yahtzee:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                },
+                            );
+                            return (
+                                <YahtzeeRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    title="Yahtzee"
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -405,15 +478,30 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <YahtzeeRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            title="Lying Yahtzee"
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: YahtzeeConnection = createGameConnection(
+                                getWs(),
+                                {
+                                    stateType: "yahtzee:state",
+                                    prefix: "yahtzee:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                },
+                            );
+                            return (
+                                <YahtzeeRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    title="Lying Yahtzee"
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -431,14 +519,29 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <PerudoRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: PerudoConnection = createGameConnection(
+                                getWs(),
+                                {
+                                    stateType: "perudo:state",
+                                    prefix: "perudo:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                },
+                            );
+                            return (
+                                <PerudoRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -455,14 +558,29 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <RpsRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: RpsConnection = createGameConnection(
+                                getWs(),
+                                {
+                                    stateType: "rps:state",
+                                    prefix: "rps:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                },
+                            );
+                            return (
+                                <RpsRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -479,14 +597,29 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <HerdRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: HerdConnection = createGameConnection(
+                                getWs(),
+                                {
+                                    stateType: "herd:state",
+                                    prefix: "herd:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                },
+                            );
+                            return (
+                                <HerdRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -504,14 +637,27 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <FunFactsRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: FunFactsConnection =
+                                createGameConnection(getWs(), {
+                                    stateType: "fun_facts:state",
+                                    prefix: "fun_facts:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                });
+                            return (
+                                <FunFactsRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -529,14 +675,27 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <CheeseThiefRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: CheeseThiefConnection =
+                                createGameConnection(getWs(), {
+                                    stateType: "cheese_thief:state",
+                                    prefix: "cheese_thief:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                });
+                            return (
+                                <CheeseThiefRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -554,14 +713,27 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <CockroachPokerRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: CockroachPokerConnection =
+                                createGameConnection(getWs(), {
+                                    stateType: "cockroach_poker:state",
+                                    prefix: "cockroach_poker:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                });
+                            return (
+                                <CockroachPokerRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -579,14 +751,27 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <Flip7Room
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: Flip7Connection =
+                                createGameConnection(getWs(), {
+                                    stateType: "flip_7:state",
+                                    prefix: "flip_7:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                });
+                            return (
+                                <Flip7Room
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -604,14 +789,27 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <SkullRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: SkullConnection =
+                                createGameConnection(getWs(), {
+                                    stateType: "skull:state",
+                                    prefix: "skull:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                });
+                            return (
+                                <SkullRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -629,14 +827,27 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <SpicyRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                            onEndGame={endGame}
-                            onReturnToLobby={returnToLobby}
-                        />
+                        {(() => {
+                            const connection: SpicyConnection =
+                                createGameConnection(getWs(), {
+                                    stateType: "spicy:state",
+                                    prefix: "spicy:",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                });
+                            return (
+                                <SpicyRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                    onEndGame={endGame}
+                                    onReturnToLobby={returnToLobby}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
                 <Match
@@ -653,12 +864,25 @@ function RouteComponent() {
                             />
                         }
                     >
-                        <SampleQuizRoom
-                            roomId={roomId()}
-                            playerId={playerId()}
-                            isHost={isHost()}
-                            ws={getWs()}
-                        />
+                        {(() => {
+                            const connection: QuizConnection =
+                                createGameConnection(getWs(), {
+                                    stateType: "__quiz_no_state__",
+                                    prefix: "player_answered",
+                                    envelope: () => ({
+                                        playerId: playerId(),
+                                        playerName: name(),
+                                    }),
+                                });
+                            return (
+                                <SampleQuizRoom
+                                    roomId={roomId()}
+                                    playerId={playerId()}
+                                    isHost={isHost()}
+                                    connection={connection}
+                                />
+                            );
+                        })()}
                     </Show>
                 </Match>
             </Switch>

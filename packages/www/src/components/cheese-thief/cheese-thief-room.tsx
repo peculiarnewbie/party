@@ -1,6 +1,5 @@
 import {
     createSignal,
-    createEffect,
     For,
     Show,
     Switch,
@@ -9,66 +8,76 @@ import {
 } from "solid-js";
 import type { Component } from "solid-js";
 import type { CheeseThiefPlayerView } from "~/game/cheese-thief/views";
+import type { CheeseThiefConnection } from "~/game/cheese-thief/connection";
 
 interface CheeseThiefRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: CheeseThiefConnection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
 
 export const CheeseThiefRoom: Component<CheeseThiefRoomProps> = (props) => {
-    const [view, setView] = createSignal<CheeseThiefPlayerView | null>(null);
+    const view = () => props.connection.view();
     const [selectedTarget, setSelectedTarget] = createSignal<string | null>(
         null,
     );
 
-    const send = (type: string, data: Record<string, unknown> = {}) => {
-        if (!props.ws || !props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
-    };
-
-    const handleMessage = (e: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(e.data);
-        } catch {
-            return;
-        }
-
-        if (data.type === "cheese_thief:state") {
-            setView(data.data as CheeseThiefPlayerView);
-        }
-
-        if (data.type === "cheese_thief:action") {
-            const action = data.data;
-            if (action.type === "round_started" || action.type === "voting_started") {
-                setSelectedTarget(null);
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "cheese_thief:action") {
+                const action = event.data as Record<string, unknown>;
+                if (
+                    action.type === "round_started" ||
+                    action.type === "voting_started"
+                ) {
+                    setSelectedTarget(null);
+                }
             }
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => {
-            props.ws.removeEventListener("message", handleMessage);
-        });
-    });
+        }),
+    );
 
     const handleVote = () => {
         const target = selectedTarget();
-        if (target) {
-            send("cheese_thief:cast_vote", { targetId: target });
-        }
+        if (!target || !props.playerId) return;
+        props.connection.send({
+            type: "cheese_thief:cast_vote",
+            data: { targetId: target },
+        });
+    };
+
+    const startDay = () => {
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "cheese_thief:start_day",
+            data: {},
+        });
+    };
+
+    const startVoting = () => {
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "cheese_thief:start_voting",
+            data: {},
+        });
+    };
+
+    const revealVotes = () => {
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "cheese_thief:reveal_votes",
+            data: {},
+        });
+    };
+
+    const nextRound = () => {
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "cheese_thief:next_round",
+            data: {},
+        });
     };
 
     return (
@@ -89,17 +98,13 @@ export const CheeseThiefRoom: Component<CheeseThiefRoomProps> = (props) => {
                                 <Match when={v().phase === "night"}>
                                     <NightPhase
                                         view={v()}
-                                        onStartDay={() =>
-                                            send("cheese_thief:start_day")
-                                        }
+                                        onStartDay={startDay}
                                     />
                                 </Match>
                                 <Match when={v().phase === "day"}>
                                     <DayPhase
                                         view={v()}
-                                        onStartVoting={() =>
-                                            send("cheese_thief:start_voting")
-                                        }
+                                        onStartVoting={startVoting}
                                     />
                                 </Match>
                                 <Match when={v().phase === "voting"}>
@@ -108,17 +113,13 @@ export const CheeseThiefRoom: Component<CheeseThiefRoomProps> = (props) => {
                                         selectedTarget={selectedTarget()}
                                         onSelectTarget={setSelectedTarget}
                                         onVote={handleVote}
-                                        onReveal={() =>
-                                            send("cheese_thief:reveal_votes")
-                                        }
+                                        onReveal={revealVotes}
                                     />
                                 </Match>
                                 <Match when={v().phase === "reveal"}>
                                     <RevealPhase
                                         view={v()}
-                                        onNextRound={() =>
-                                            send("cheese_thief:next_round")
-                                        }
+                                        onNextRound={nextRound}
                                         onReturnToLobby={props.onReturnToLobby}
                                     />
                                 </Match>

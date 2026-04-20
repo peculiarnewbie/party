@@ -12,12 +12,13 @@ import type { Component } from "solid-js";
 import { SvgSkullDisc } from "~/assets/svg-skull-disc";
 import type { SkullPlayerView } from "~/game/skull";
 import type { DiscType, SkullResult } from "~/game/skull";
+import type { SkullConnection } from "~/game/skull/connection";
 
 interface SkullRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: SkullConnection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
@@ -79,22 +80,10 @@ const RESULT_LABELS: Record<SkullResult["type"], string | null> = {
 };
 
 export const SkullRoom: Component<SkullRoomProps> = (props) => {
-    const [view, setView] = createSignal<SkullPlayerView | null>(null);
+    const view = () => props.connection.view();
     const [lastAction, setLastAction] = createSignal<string | null>(null);
     const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
     const [bidValue, setBidValue] = createSignal(1);
-
-    const send = (type: string, data: Record<string, unknown> = {}) => {
-        if (!props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
-    };
 
     const playerName = (playerId: string) =>
         view()?.players.find((player) => player.id === playerId)?.name ?? "Unknown";
@@ -153,54 +142,34 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
         return RESULT_LABELS[action.type]?.toUpperCase() ?? null;
     };
 
-    const handleMessage = (event: MessageEvent) => {
-        let data: unknown;
-        try {
-            data = JSON.parse(event.data);
-        } catch {
-            return;
-        }
-
-        if (!data || typeof data !== "object" || !("type" in data)) {
-            return;
-        }
-
-        const message = data as { type: string; data: any };
-        if (message.type === "skull:state") {
-            const nextView = message.data as SkullPlayerView;
-            setView(nextView);
-            setBidValue((currentBid) =>
-                Math.min(
-                    Math.max(nextView.minBid, currentBid),
-                    Math.max(nextView.minBid, nextView.maxBid),
-                ),
-            );
-            return;
-        }
-
-        if (message.type === "skull:action") {
-            const label = describeAction(message.data as SkullResult);
-            if (label) {
-                setLastAction(label);
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "skull:action") {
+                const label = describeAction(event.data as SkullResult);
+                if (label) {
+                    setLastAction(label);
+                }
+                return;
             }
-            return;
-        }
 
-        if (message.type === "skull:error") {
-            setErrorMessage(message.data.message as string);
-            setTimeout(() => setErrorMessage(null), 3200);
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => props.ws.removeEventListener("message", handleMessage));
-    });
+            if (event.type === "skull:error") {
+                setErrorMessage(
+                    (event.data as { message: string }).message,
+                );
+                setTimeout(() => setErrorMessage(null), 3200);
+            }
+        }),
+    );
 
     createEffect(() => {
         const currentView = view();
         if (!currentView) return;
-        setBidValue((currentBid) => clampBid(currentBid));
+        setBidValue((currentBid) =>
+            Math.min(
+                Math.max(currentView.minBid, currentBid),
+                Math.max(currentView.minBid, currentView.maxBid),
+            ),
+        );
     });
 
     const me = createMemo(
@@ -274,8 +243,9 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                 }
                                                 canFlip={currentView().selectableFlipOwnerIds.includes(player.id)}
                                                 onFlip={() =>
-                                                    send("skull:flip_disc", {
-                                                        ownerId: player.id,
+                                                    props.connection.send({
+                                                        type: "skull:flip_disc",
+                                                        data: { ownerId: player.id },
                                                     })
                                                 }
                                             />
@@ -294,12 +264,15 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                         </div>
                                         <div class="mt-3 flex flex-wrap gap-3">
                                             <For each={currentView().myHand}>
-                                                {(disc, index) => (
+                                                {(disc) => (
                                                     <button
                                                         type="button"
                                                         disabled={!currentView().canPlayDisc}
                                                         onClick={() =>
-                                                            send("skull:play_disc", { disc })
+                                                            props.connection.send({
+                                                                type: "skull:play_disc",
+                                                                data: { disc },
+                                                            })
                                                         }
                                                         class="group rounded-none disabled:cursor-default disabled:opacity-55"
                                                     >
@@ -348,8 +321,9 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                     )
                                                 }
                                                 onStartChallenge={() =>
-                                                    send("skull:start_challenge", {
-                                                        bid: bidValue(),
+                                                    props.connection.send({
+                                                        type: "skull:start_challenge",
+                                                        data: { bid: bidValue() },
                                                     })
                                                 }
                                             />
@@ -369,11 +343,17 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                     )
                                                 }
                                                 onRaise={() =>
-                                                    send("skull:raise_bid", {
-                                                        bid: bidValue(),
+                                                    props.connection.send({
+                                                        type: "skull:raise_bid",
+                                                        data: { bid: bidValue() },
                                                     })
                                                 }
-                                                onPass={() => send("skull:pass_bid")}
+                                                onPass={() =>
+                                                    props.connection.send({
+                                                        type: "skull:pass_bid",
+                                                        data: {},
+                                                    })
+                                                }
                                             />
                                         </Match>
                                         <Match when={currentView().phase === "attempt"}>
@@ -383,8 +363,9 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                             <PenaltyControls
                                                 view={currentView()}
                                                 onDiscard={(discIndex) =>
-                                                    send("skull:discard_lost_disc", {
-                                                        discIndex,
+                                                    props.connection.send({
+                                                        type: "skull:discard_lost_disc",
+                                                        data: { discIndex },
                                                     })
                                                 }
                                             />
@@ -392,9 +373,10 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                         <Match when={currentView().phase === "next_starter"}>
                                             <NextStarterControls
                                                 view={currentView()}
-                                                onChoose={(playerId) =>
-                                                    send("skull:choose_next_starter", {
-                                                        playerId,
+                                                onChoose={(targetPlayerId) =>
+                                                    props.connection.send({
+                                                        type: "skull:choose_next_starter",
+                                                        data: { playerId: targetPlayerId },
                                                     })
                                                 }
                                             />

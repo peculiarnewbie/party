@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { Flip7Room } from "./flip-7-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    Flip7ClientOutgoing,
+    Flip7SideEvent,
+} from "~/game/flip-7/connection";
 import {
     makePlayerInfo,
     makeView,
     numberCard,
 } from "~/game/flip-7/test-helpers";
 import type { Flip7PlayerView } from "~/game/flip-7/views";
-
-type Flip7Envelope =
-    | { type: "flip_7:state"; data: Flip7PlayerView }
-    | { type: "flip_7:error"; data: { message: string } };
 
 function renderRoom(
     options: {
@@ -28,25 +28,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: Flip7Envelope[] = [
-        { type: "flip_7:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<Flip7Envelope>(
-        (ws) => (
-            <Flip7Room
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        Flip7PlayerView,
+        Flip7ClientOutgoing,
+        Flip7SideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <Flip7Room
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("Flip7Room", () => {
@@ -86,15 +86,13 @@ describe("Flip7Room", () => {
             currentPlayerId: "p1",
             canHit: true,
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^hit$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "flip_7:hit",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -107,15 +105,13 @@ describe("Flip7Room", () => {
             canHit: false,
             canStay: true,
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^stay$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "flip_7:stay",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -153,24 +149,21 @@ describe("Flip7Room", () => {
     });
 
     it("renders flip_7:error message when received", () => {
-        const { getByText, socket } = renderRoom();
-        socket.emit({
+        const { getByText, connection } = renderRoom();
+        connection.emit({
             type: "flip_7:error",
             data: { message: "You can't hit right now" },
         });
         expect(getByText(/can't hit right now/i)).toBeInTheDocument();
     });
 
-    it("updates the UI reactively on a new flip_7:state message", () => {
-        const { getByText, socket } = renderRoom({
+    it("updates the UI reactively on a new view", () => {
+        const { getByText, connection } = renderRoom({
             view: makeView({ roundNumber: 1 }),
         });
         expect(getByText(/ROUND 1/i)).toBeInTheDocument();
 
-        socket.emit({
-            type: "flip_7:state",
-            data: makeView({ roundNumber: 2 }),
-        });
+        connection.setView(makeView({ roundNumber: 2 }));
         expect(getByText(/ROUND 2/i)).toBeInTheDocument();
     });
 

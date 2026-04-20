@@ -1,17 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { YahtzeeRoom } from "./yahtzee-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    YahtzeeClientOutgoing,
+    YahtzeeSideEvent,
+} from "~/game/yahtzee/connection";
 import {
     makePlayerInfo,
     makeView,
 } from "~/game/yahtzee/test-helpers";
 import type { YahtzeePlayerView } from "~/game/yahtzee/views";
-
-type YahtzeeEnvelope =
-    | { type: "yahtzee:state"; data: YahtzeePlayerView }
-    | { type: "yahtzee:action"; data: Record<string, unknown> }
-    | { type: "yahtzee:game_over"; data: { winners: string[] } };
 
 function renderRoom(
     options: {
@@ -30,27 +29,27 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: YahtzeeEnvelope[] = [
-        { type: "yahtzee:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<YahtzeeEnvelope>(
-        (ws) => (
-            <YahtzeeRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                title={title}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-                announcementDelayMs={0}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        YahtzeePlayerView,
+        YahtzeeClientOutgoing,
+        YahtzeeSideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <YahtzeeRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            title={title}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+            announcementDelayMs={0}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("YahtzeeRoom", () => {
@@ -72,15 +71,13 @@ describe("YahtzeeRoom", () => {
             rollsLeft: 3,
             isMyTurn: true,
         });
-        const { getByTestId, socket } = renderRoom({ view });
+        const { getByTestId, connection } = renderRoom({ view });
 
         fireEvent.click(getByTestId("yahtzee-roll-button"));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "yahtzee:roll",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -95,15 +92,13 @@ describe("YahtzeeRoom", () => {
             dice: [5, 5, 3, 2, 1],
             held: [false, false, false, false, false],
         });
-        const { getByTestId, socket } = renderRoom({ view });
+        const { getByTestId, connection } = renderRoom({ view });
 
         fireEvent.click(getByTestId("yahtzee-die-0"));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "yahtzee:toggle_hold",
-                playerId: "p1",
-                playerName: "",
                 data: { diceIndex: 0 },
             },
         ]);
@@ -121,15 +116,13 @@ describe("YahtzeeRoom", () => {
             potentialScores: { fives: 15, chance: 18 },
             suggestedCategories: ["chance"],
         });
-        const { getByTestId, socket } = renderRoom({ view });
+        const { getByTestId, connection } = renderRoom({ view });
 
         fireEvent.click(getByTestId("scorecard-cell-p1-fives"));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "yahtzee:score",
-                playerId: "p1",
-                playerName: "",
                 data: { category: "fives" },
             },
         ]);
@@ -181,8 +174,8 @@ describe("YahtzeeRoom", () => {
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
-    it("reactively updates dice on incoming yahtzee:state", () => {
-        const { container, socket } = renderRoom({
+    it("reactively updates dice when the connection view changes", () => {
+        const { container, connection } = renderRoom({
             view: makeView({
                 phase: "pre_roll",
                 dice: [0, 0, 0, 0, 0],
@@ -190,21 +183,19 @@ describe("YahtzeeRoom", () => {
             }),
         });
 
-        // After initial render, no die has a numeric value yet.
         expect(
             container.querySelector("[data-testid='yahtzee-die-0']")
                 ?.getAttribute("data-has-value"),
         ).toBe("false");
 
-        socket.emit({
-            type: "yahtzee:state",
-            data: makeView({
+        connection.setView(
+            makeView({
                 phase: "mid_turn",
                 rollsLeft: 2,
                 canRoll: true,
                 dice: [3, 3, 3, 3, 3],
             }),
-        });
+        );
 
         expect(
             container.querySelector("[data-testid='yahtzee-die-0']")
@@ -228,15 +219,13 @@ describe("YahtzeeRoom", () => {
                 claimedPoints: 25,
             },
         });
-        const { getByTestId, socket } = renderRoom({ view });
+        const { getByTestId, connection } = renderRoom({ view });
 
         fireEvent.click(getByTestId("yahtzee-liar-button"));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "yahtzee:challenge_claim",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);

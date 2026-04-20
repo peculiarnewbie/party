@@ -1,20 +1,18 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { SpicyRoom } from "./spicy-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    SpicyClientOutgoing,
+    SpicySideEvent,
+} from "~/game/spicy/connection";
 import {
     makeFinalScore,
-    makePlayerInfo,
     makeStackTop,
     makeView,
     standardCard,
 } from "~/game/spicy/test-helpers";
 import type { SpicyPlayerView } from "~/game/spicy";
-
-type SpicyEnvelope =
-    | { type: "spicy:state"; data: SpicyPlayerView }
-    | { type: "spicy:action"; data: Record<string, unknown> }
-    | { type: "spicy:error"; data: { message: string } };
 
 function renderRoom(
     options: {
@@ -31,25 +29,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: SpicyEnvelope[] = [
-        { type: "spicy:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<SpicyEnvelope>(
-        (ws) => (
-            <SpicyRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        SpicyPlayerView,
+        SpicyClientOutgoing,
+        SpicySideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <SpicyRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("SpicyRoom", () => {
@@ -85,15 +83,13 @@ describe("SpicyRoom", () => {
             allowedDeclarationNumbers: [1, 2, 3],
             allowedDeclarationSpices: ["chili", "wasabi", "pepper"],
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /play face down/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "spicy:play_card",
-                playerId: "p1",
-                playerName: "",
                 data: {
                     cardId: "card-a",
                     declaredNumber: 1,
@@ -105,15 +101,13 @@ describe("SpicyRoom", () => {
 
     it("sends spicy:pass when PASS + DRAW is clicked", () => {
         const view = makeView({ isMyTurn: true, canPass: true });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /pass \+ draw/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "spicy:pass",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -128,15 +122,13 @@ describe("SpicyRoom", () => {
             canChallenge: true,
             stackTop: makeStackTop(),
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /challenge number/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "spicy:challenge",
-                playerId: "p1",
-                playerName: "",
                 data: { trait: "number" },
             },
         ]);
@@ -173,28 +165,27 @@ describe("SpicyRoom", () => {
     });
 
     it("reactively updates UI when a new spicy:state message arrives", () => {
-        const { getByText, socket } = renderRoom({
+        const { getByText, connection } = renderRoom({
             view: makeView({ stackTop: null }),
         });
         expect(getByText(/FRESH STACK/i)).toBeInTheDocument();
 
-        socket.emit({
-            type: "spicy:state",
-            data: makeView({
+        connection.setView(
+            makeView({
                 stackTop: makeStackTop({
                     declaredNumber: 5,
                     declaredSpice: "pepper",
                 }),
             }),
-        });
+        );
 
         expect(getByText(/5 Pepper/i)).toBeInTheDocument();
     });
 
     it("shows spicy:error message when received", () => {
-        const { getByText, socket } = renderRoom();
+        const { getByText, connection } = renderRoom();
 
-        socket.emit({
+        connection.emit({
             type: "spicy:error",
             data: { message: "Invalid declaration" },
         });

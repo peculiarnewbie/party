@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { PerudoRoom } from "./perudo-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    PerudoClientOutgoing,
+    PerudoSideEvent,
+} from "~/game/perudo/connection";
 import {
     makeBid,
     makeChallengeResult,
@@ -9,11 +13,6 @@ import {
     makeView,
 } from "~/game/perudo/test-helpers";
 import type { PerudoPlayerView } from "~/game/perudo";
-
-type PerudoEnvelope =
-    | { type: "perudo:state"; data: PerudoPlayerView }
-    | { type: "perudo:action"; data: Record<string, unknown> }
-    | { type: "perudo:game_over"; data: Record<string, unknown> };
 
 function renderRoom(
     options: {
@@ -30,25 +29,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: PerudoEnvelope[] = [
-        { type: "perudo:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<PerudoEnvelope>(
-        (ws) => (
-            <PerudoRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        PerudoPlayerView,
+        PerudoClientOutgoing,
+        PerudoSideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <PerudoRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("PerudoRoom", () => {
@@ -83,15 +82,13 @@ describe("PerudoRoom", () => {
             currentBid: makeBid({ playerId: "p2", quantity: 2, faceValue: 3 }),
             nextHigherBid: { quantity: 3, faceValue: 3 },
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^bid$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "perudo:bid",
-                playerId: "p1",
-                playerName: "",
                 data: { quantity: 3, faceValue: 3 },
             },
         ]);
@@ -104,14 +101,12 @@ describe("PerudoRoom", () => {
             canChallenge: true,
             currentBid: makeBid({ playerId: "p2", quantity: 2, faceValue: 3 }),
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^challenge$/i }));
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "perudo:challenge",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -123,14 +118,12 @@ describe("PerudoRoom", () => {
             isMyTurn: true,
             currentBid: null,
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /open bidding/i }));
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "perudo:start_round",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -165,16 +158,13 @@ describe("PerudoRoom", () => {
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
-    it("updates UI when a new perudo:state arrives", () => {
-        const { getByText, socket } = renderRoom({
+    it("updates UI when the connection view changes", () => {
+        const { getByText, connection } = renderRoom({
             view: makeView({ roundNumber: 1 }),
         });
         expect(getByText(/ROUND 1/i)).toBeInTheDocument();
 
-        socket.emit({
-            type: "perudo:state",
-            data: makeView({ roundNumber: 5 }),
-        });
+        connection.setView(makeView({ roundNumber: 5 }));
         expect(getByText(/ROUND 5/i)).toBeInTheDocument();
     });
 

@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { BlackjackRoom } from "./blackjack-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    BlackjackClientOutgoing,
+    BlackjackSideEvent,
+} from "~/game/blackjack/connection";
 import {
     makeCard,
     makeDealer,
@@ -10,11 +14,6 @@ import {
     makeView,
 } from "~/game/blackjack/test-helpers";
 import type { BlackjackPlayerView } from "~/game/blackjack";
-
-type BlackjackEnvelope =
-    | { type: "blackjack:state"; data: BlackjackPlayerView }
-    | { type: "blackjack:action"; data: Record<string, unknown> }
-    | { type: "blackjack:settled"; data: Record<string, unknown> };
 
 function renderRoom(
     options: {
@@ -31,25 +30,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: BlackjackEnvelope[] = [
-        { type: "blackjack:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<BlackjackEnvelope>(
-        (ws) => (
-            <BlackjackRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        BlackjackPlayerView,
+        BlackjackClientOutgoing,
+        BlackjackSideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <BlackjackRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("BlackjackRoom", () => {
@@ -75,15 +74,13 @@ describe("BlackjackRoom", () => {
 
     it("sends blackjack:bet with the current bet amount on DEAL click", () => {
         const view = makeView({ phase: "betting", needsBet: true });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^deal$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "blackjack:bet",
-                playerId: "p1",
-                playerName: "",
                 data: { amount: 50 },
             },
         ]);
@@ -111,15 +108,13 @@ describe("BlackjackRoom", () => {
                 }),
             ],
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^hit$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "blackjack:hit",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -135,15 +130,13 @@ describe("BlackjackRoom", () => {
             dealer: makeDealer({ cards: [makeCard(5), "hidden"], upCardValue: 5 }),
             players: [makePlayerInfo({ id: "p1", hands: [makeHand()] })],
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^stand$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "blackjack:stand",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -160,15 +153,13 @@ describe("BlackjackRoom", () => {
             }),
             players: [makePlayerInfo({ id: "p1", bet: 50 })],
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^yes$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "blackjack:insurance",
-                playerId: "p1",
-                playerName: "",
                 data: { accept: true },
             },
         ]);
@@ -183,16 +174,13 @@ describe("BlackjackRoom", () => {
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
-    it("updates UI reactively on a new blackjack:state message", () => {
-        const { getByText, socket } = renderRoom({
+    it("updates UI reactively on a new blackjack:state view", () => {
+        const { getByText, connection } = renderRoom({
             view: makeView({ roundNumber: 1 }),
         });
         expect(getByText(/ROUND 1/i)).toBeInTheDocument();
 
-        socket.emit({
-            type: "blackjack:state",
-            data: makeView({ roundNumber: 7 }),
-        });
+        connection.setView(makeView({ roundNumber: 7 }));
         expect(getByText(/ROUND 7/i)).toBeInTheDocument();
     });
 

@@ -1,6 +1,5 @@
 import {
     createSignal,
-    createEffect,
     For,
     Show,
     onCleanup,
@@ -8,7 +7,7 @@ import {
 import type { Component } from "solid-js";
 import type { Rank } from "~/assets/card-deck/types";
 import { RANK_LABEL } from "~/assets/card-deck/types";
-import type { GoFishPlayerView } from "~/game/go-fish";
+import type { GoFishConnection } from "~/game/go-fish/connection";
 import { PlayerHand } from "./player-hand";
 import { OpponentZone } from "./opponent-zone";
 import { DrawPile } from "./draw-pile";
@@ -20,13 +19,11 @@ interface GoFishRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: GoFishConnection;
 }
 
 export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
-    const [gameView, setGameView] = createSignal<GoFishPlayerView | null>(
-        null,
-    );
+    const gameView = () => props.connection.view();
     const [selectedOpponent, setSelectedOpponent] = createSignal<string | null>(
         null,
     );
@@ -49,84 +46,70 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
         }, 50);
     };
 
-    const handleMessage = (e: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(e.data);
-        } catch {
-            return;
-        }
-
-        if (data.type === "go_fish:state") {
-            setGameView(data.data as GoFishPlayerView);
-        }
-
-        if (data.type === "go_fish:ask_result" && !data.data.error) {
-            const d = data.data;
-            const askerName = d.askerName ?? "Someone";
-            const targetPlayer = gameView()?.players.find(
-                (p) => p.id === d.targetId,
-            );
-            const targetName = targetPlayer?.name ?? "someone";
-            const rankLabel = RANK_LABEL[d.rank as Rank] ?? d.rank;
-
-            if (d.success) {
-                showAnnouncement(
-                    `${askerName.toUpperCase()} GOT ${d.count} ${rankLabel}${d.count > 1 ? "s" : ""} FROM ${targetName.toUpperCase()}`,
-                    "success",
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "go_fish:ask_result") {
+                const d = event.data as Record<string, any>;
+                if (d.error) return;
+                const askerName = d.askerName ?? "Someone";
+                const targetPlayer = gameView()?.players.find(
+                    (p) => p.id === d.targetId,
                 );
-            } else {
-                showAnnouncement("GO FISH!", "go_fish");
-            }
-        }
+                const targetName = targetPlayer?.name ?? "someone";
+                const rankLabel = RANK_LABEL[d.rank as Rank] ?? d.rank;
 
-        if (data.type === "go_fish:draw_result" && !data.data.error) {
-            const d = data.data;
-            if (d.drewAskedRank) {
+                if (d.success) {
+                    showAnnouncement(
+                        `${askerName.toUpperCase()} GOT ${d.count} ${rankLabel}${d.count > 1 ? "s" : ""} FROM ${targetName.toUpperCase()}`,
+                        "success",
+                    );
+                } else {
+                    showAnnouncement("GO FISH!", "go_fish");
+                }
+            }
+
+            if (event.type === "go_fish:draw_result") {
+                const d = event.data as Record<string, any>;
+                if (d.error) return;
+                if (d.drewAskedRank) {
+                    const name = d.playerName ?? "Someone";
+                    showAnnouncement(
+                        `${name.toUpperCase()} DREW WHAT THEY ASKED FOR!`,
+                        "success",
+                    );
+                }
+            }
+
+            if (event.type === "go_fish:book_made") {
+                const d = event.data as Record<string, any>;
                 const name = d.playerName ?? "Someone";
+                const rankLabel = RANK_LABEL[d.rank as Rank] ?? d.rank;
                 showAnnouncement(
-                    `${name.toUpperCase()} DREW WHAT THEY ASKED FOR!`,
-                    "success",
-                );
-            }
-        }
-
-        if (data.type === "go_fish:book_made") {
-            const d = data.data;
-            const name = d.playerName ?? "Someone";
-            const rankLabel = RANK_LABEL[d.rank as Rank] ?? d.rank;
-            showAnnouncement(
-                `BOOK COMPLETE: ${name.toUpperCase()} GOT ALL ${rankLabel}s`,
-                "book",
-            );
-        }
-
-        if (data.type === "go_fish:game_over") {
-            const d = data.data;
-            const winners = d.winners as string[];
-            const view = gameView();
-            if (view) {
-                const winnerNames = winners
-                    .map(
-                        (id) =>
-                            view.players.find((p) => p.id === id)?.name ??
-                            id,
-                    )
-                    .join(" & ");
-                showAnnouncement(
-                    `GAME OVER! ${winnerNames.toUpperCase()} WINS!`,
+                    `BOOK COMPLETE: ${name.toUpperCase()} GOT ALL ${rankLabel}s`,
                     "book",
                 );
             }
-        }
-    };
 
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() =>
-            props.ws.removeEventListener("message", handleMessage),
-        );
-    });
+            if (event.type === "go_fish:game_over") {
+                const d = event.data as Record<string, any>;
+                const winners = d.winners as string[];
+                const view = gameView();
+                if (view) {
+                    const winnerNames = winners
+                        .map(
+                            (id) =>
+                                view.players.find((p) => p.id === id)?.name ??
+                                id,
+                        )
+                        .join(" & ");
+                    showAnnouncement(
+                        `GAME OVER! ${winnerNames.toUpperCase()} WINS!`,
+                        "book",
+                    );
+                }
+            }
+        }),
+    );
 
     const isMyTurn = () => {
         const view = gameView();
@@ -165,14 +148,10 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
     const trySendAsk = (oppId: string | null, rank: Rank | null) => {
         if (!oppId || !rank || !props.playerId) return;
 
-        props.ws.send(
-            JSON.stringify({
-                type: "go_fish:ask",
-                playerId: props.playerId,
-                playerName: "",
-                data: { targetId: oppId, rank },
-            }),
-        );
+        props.connection.send({
+            type: "go_fish:ask",
+            data: { targetId: oppId, rank },
+        });
 
         setSelectedOpponent(null);
         setSelectedRank(null);
@@ -190,14 +169,10 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
 
     const sendDraw = () => {
         if (!props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type: "go_fish:draw",
-                playerId: props.playerId,
-                playerName: "",
-                data: {},
-            }),
-        );
+        props.connection.send({
+            type: "go_fish:draw",
+            data: {},
+        });
     };
 
     const cancelSelection = () => {

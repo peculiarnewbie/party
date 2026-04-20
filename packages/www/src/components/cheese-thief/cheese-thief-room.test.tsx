@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { CheeseThiefRoom } from "./cheese-thief-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    CheeseThiefClientOutgoing,
+    CheeseThiefSideEvent,
+} from "~/game/cheese-thief/connection";
 import {
     makePlayerInfo,
     makeView,
     makeVoteResult,
 } from "~/game/cheese-thief/test-helpers";
 import type { CheeseThiefPlayerView } from "~/game/cheese-thief/views";
-
-type CheeseEnvelope =
-    | { type: "cheese_thief:state"; data: CheeseThiefPlayerView }
-    | { type: "cheese_thief:action"; data: Record<string, unknown> };
 
 function renderRoom(
     options: {
@@ -28,25 +28,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: CheeseEnvelope[] = [
-        { type: "cheese_thief:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<CheeseEnvelope>(
-        (ws) => (
-            <CheeseThiefRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        CheeseThiefPlayerView,
+        CheeseThiefClientOutgoing,
+        CheeseThiefSideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <CheeseThiefRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("CheeseThiefRoom", () => {
@@ -67,15 +67,13 @@ describe("CheeseThiefRoom", () => {
 
     it("sends cheese_thief:start_day when host clicks BEGIN DISCUSSION", () => {
         const view = makeView({ phase: "night", isHost: true });
-        const { getByRole, socket } = renderRoom({ view, isHost: true });
+        const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /begin discussion/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "cheese_thief:start_day",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -83,15 +81,13 @@ describe("CheeseThiefRoom", () => {
 
     it("sends cheese_thief:start_voting when host clicks START VOTING", () => {
         const view = makeView({ phase: "day", isHost: true });
-        const { getByRole, socket } = renderRoom({ view, isHost: true });
+        const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /start voting/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "cheese_thief:start_voting",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -103,16 +99,14 @@ describe("CheeseThiefRoom", () => {
             isHost: false,
             hasVoted: false,
         });
-        const { getByRole, socket } = renderRoom({ view, isHost: false });
+        const { getByRole, connection } = renderRoom({ view, isHost: false });
 
         fireEvent.click(getByRole("button", { name: /^bob$/i }));
         fireEvent.click(getByRole("button", { name: /^cast vote$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "cheese_thief:cast_vote",
-                playerId: "p1",
-                playerName: "",
                 data: { targetId: "p2" },
             },
         ]);
@@ -125,15 +119,13 @@ describe("CheeseThiefRoom", () => {
             votedCount: 3,
             totalVoters: 3,
         });
-        const { getByRole, socket } = renderRoom({ view, isHost: true });
+        const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /reveal votes/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "cheese_thief:reveal_votes",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -173,16 +165,13 @@ describe("CheeseThiefRoom", () => {
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
-    it("updates UI on a new cheese_thief:state message", () => {
-        const { getAllByText, socket } = renderRoom({
+    it("updates UI when the connection view changes", () => {
+        const { getAllByText, connection } = renderRoom({
             view: makeView({ phase: "night", round: 1 }),
         });
         expect(getAllByText(/ROUND 1/i).length).toBeGreaterThan(0);
 
-        socket.emit({
-            type: "cheese_thief:state",
-            data: makeView({ phase: "night", round: 7 }),
-        });
+        connection.setView(makeView({ phase: "night", round: 7 }));
         expect(getAllByText(/ROUND 7/i).length).toBeGreaterThan(0);
     });
 });

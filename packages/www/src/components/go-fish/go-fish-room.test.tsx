@@ -1,16 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { describe, it, expect } from "vitest";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { GoFishRoom } from "./go-fish-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    GoFishClientOutgoing,
+    GoFishSideEvent,
+} from "~/game/go-fish/connection";
 import { makeSeat, makeView, SAMPLE_HAND } from "~/game/go-fish/test-helpers";
 import type { GoFishPlayerView } from "~/game/go-fish";
-
-type GoFishEnvelope =
-    | { type: "go_fish:state"; data: GoFishPlayerView }
-    | { type: "go_fish:ask_result"; data: Record<string, unknown> }
-    | { type: "go_fish:draw_result"; data: Record<string, unknown> }
-    | { type: "go_fish:book_made"; data: Record<string, unknown> }
-    | { type: "go_fish:game_over"; data: Record<string, unknown> };
 
 function renderRoom(
     options: {
@@ -25,21 +22,22 @@ function renderRoom(
         isHost = false,
     } = options;
 
-    const initialMessages: GoFishEnvelope[] = [
-        { type: "go_fish:state", data: view },
-    ];
+    const connection = createFakeGameConnection<
+        GoFishPlayerView,
+        GoFishClientOutgoing,
+        GoFishSideEvent
+    >({ initialView: view });
 
-    return renderWithWs<GoFishEnvelope>(
-        (ws) => (
-            <GoFishRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-            />
-        ),
-        { initialMessages },
-    );
+    const result = render(() => (
+        <GoFishRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+        />
+    ));
+
+    return { ...result, connection };
 }
 
 describe("GoFishRoom", () => {
@@ -83,7 +81,7 @@ describe("GoFishRoom", () => {
             ],
             myHand: SAMPLE_HAND,
         });
-        const { getByRole, socket, container } = renderRoom({
+        const { getByRole, connection, container } = renderRoom({
             view,
             playerId: "p1",
         });
@@ -95,11 +93,9 @@ describe("GoFishRoom", () => {
         );
         fireEvent.click(handButtons[0]!);
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "go_fish:ask",
-                playerId: "p1",
-                playerName: "",
                 data: { targetId: "p2", rank: 7 },
             },
         ]);
@@ -114,32 +110,27 @@ describe("GoFishRoom", () => {
                 makeSeat({ id: "p2", name: "Bob" }),
             ],
         });
-        const { getByRole, socket } = renderRoom({ view, playerId: "p1" });
+        const { getByRole, connection } = renderRoom({ view, playerId: "p1" });
 
         fireEvent.click(getByRole("button", { name: /go fish!/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "go_fish:draw",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
     });
 
-    it("updates UI when a new go_fish:state message arrives", () => {
+    it("updates UI when a new view is pushed via the connection", () => {
         const initialView = makeView({
             drawPileCount: 40,
             myHand: [],
         });
-        const { getByText, socket } = renderRoom({ view: initialView });
+        const { getByText, connection } = renderRoom({ view: initialView });
         expect(getByText(/40 LEFT/i)).toBeInTheDocument();
 
-        socket.emit({
-            type: "go_fish:state",
-            data: makeView({ drawPileCount: 12, myHand: SAMPLE_HAND }),
-        });
+        connection.setView(makeView({ drawPileCount: 12, myHand: SAMPLE_HAND }));
 
         expect(getByText(/12 LEFT/i)).toBeInTheDocument();
     });

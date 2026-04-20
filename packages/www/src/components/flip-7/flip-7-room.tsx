@@ -1,5 +1,4 @@
 import {
-    createEffect,
     createSignal,
     For,
     Match,
@@ -13,12 +12,16 @@ import type {
     Flip7PlayerInfo,
     Flip7PlayerView,
 } from "~/game/flip-7/views";
+import type {
+    Flip7ClientOutgoing,
+    Flip7Connection,
+} from "~/game/flip-7/connection";
 
 interface Flip7RoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: Flip7Connection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
@@ -30,46 +33,26 @@ const TARGET_LABELS = {
 } as const;
 
 export const Flip7Room: Component<Flip7RoomProps> = (props) => {
-    const [view, setView] = createSignal<Flip7PlayerView | null>(null);
+    const view = () => props.connection.view();
     const [error, setError] = createSignal<string | null>(null);
 
-    const sendFlip7 = (type: string, data: Record<string, unknown> = {}) => {
+    const sendFlip7 = (message: Flip7ClientOutgoing) => {
         if (!props.playerId) return;
-
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
+        props.connection.send(message);
     };
 
-    const handleMessage = (event: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(event.data);
-        } catch {
-            return;
-        }
-
-        if (data.type === "flip_7:state") {
-            setView(data.data as Flip7PlayerView);
-            return;
-        }
-
-        if (data.type === "flip_7:error") {
-            setError((data.data?.message as string) ?? "Something went wrong");
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => {
-            props.ws.removeEventListener("message", handleMessage);
-        });
-    });
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "flip_7:error") {
+                const message = (event.data as { message?: unknown })?.message;
+                setError(
+                    typeof message === "string"
+                        ? message
+                        : "Something went wrong",
+                );
+            }
+        }),
+    );
 
     const playerName = (playerId: string) =>
         view()?.players.find((player) => player.id === playerId)?.name ?? "Unknown";
@@ -165,7 +148,10 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                                                 view={state}
                                                 playerName={playerName}
                                                 onChooseTarget={(targetId) =>
-                                                    sendFlip7("flip_7:choose_target", { targetId })
+                                                    sendFlip7({
+                                                        type: "flip_7:choose_target",
+                                                        data: { targetId },
+                                                    })
                                                 }
                                             />
                                         </Match>
@@ -187,15 +173,30 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                                             <TurnPanel
                                                 view={state}
                                                 playerName={playerName}
-                                                onHit={() => sendFlip7("flip_7:hit")}
-                                                onStay={() => sendFlip7("flip_7:stay")}
+                                                onHit={() =>
+                                                    sendFlip7({
+                                                        type: "flip_7:hit",
+                                                        data: {},
+                                                    })
+                                                }
+                                                onStay={() =>
+                                                    sendFlip7({
+                                                        type: "flip_7:stay",
+                                                        data: {},
+                                                    })
+                                                }
                                             />
                                         </Match>
                                         <Match when={state.phase === "round_over" && state.lastRoundResult}>
                                             <RoundOverPanel
                                                 view={state}
                                                 playerName={playerName}
-                                                onNextRound={() => sendFlip7("flip_7:next_round")}
+                                                onNextRound={() =>
+                                                    sendFlip7({
+                                                        type: "flip_7:next_round",
+                                                        data: {},
+                                                    })
+                                                }
                                                 onReturnToLobby={props.onReturnToLobby}
                                             />
                                         </Match>

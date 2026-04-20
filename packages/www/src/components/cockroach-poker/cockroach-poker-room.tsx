@@ -1,6 +1,5 @@
 import {
     createSignal,
-    createEffect,
     For,
     Show,
     Switch,
@@ -11,12 +10,13 @@ import type { Component } from "solid-js";
 import type { CockroachPokerPlayerView } from "~/game/cockroach-poker/views";
 import type { CreatureType } from "~/game/cockroach-poker/types";
 import { CREATURE_TYPES } from "~/game/cockroach-poker/types";
+import type { CockroachPokerConnection } from "~/game/cockroach-poker/connection";
 
 interface CockroachPokerRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: CockroachPokerConnection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
@@ -46,9 +46,7 @@ const CREATURE_COLORS: Record<CreatureType, string> = {
 export const CockroachPokerRoom: Component<CockroachPokerRoomProps> = (
     props,
 ) => {
-    const [view, setView] = createSignal<CockroachPokerPlayerView | null>(
-        null,
-    );
+    const view = () => props.connection.view();
     const [selectedCard, setSelectedCard] = createSignal<number | null>(null);
     const [selectedTarget, setSelectedTarget] = createSignal<string | null>(
         null,
@@ -60,38 +58,24 @@ export const CockroachPokerRoom: Component<CockroachPokerRoomProps> = (
     const [passClaim, setPassClaim] = createSignal<CreatureType | null>(null);
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
 
-    const send = (type: string, data: Record<string, unknown> = {}) => {
-        if (!props.ws || !props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
-    };
-
     const playerName = (id: string) => {
         const v = view();
         if (!v) return "Unknown";
         return v.players.find((p) => p.id === id)?.name ?? "Unknown";
     };
 
-    const handleMessage = (e: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(e.data);
-        } catch {
-            return;
-        }
+    const resetSelections = () => {
+        setSelectedCard(null);
+        setSelectedTarget(null);
+        setSelectedClaim(null);
+        setPassTarget(null);
+        setPassClaim(null);
+    };
 
-        if (data.type === "cockroach_poker:state") {
-            setView(data.data as CockroachPokerPlayerView);
-        }
-
-        if (data.type === "cockroach_poker:action") {
-            const action = data.data;
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type !== "cockroach_poker:action") return;
+            const action = event.data as Record<string, any>;
             if (action.type === "card_offered") {
                 setAnnouncement(
                     `${playerName(action.offererId)} offered a card to ${playerName(action.receiverId)}, claiming ${CREATURE_LABELS[action.claim as CreatureType]}`,
@@ -116,33 +100,31 @@ export const CockroachPokerRoom: Component<CockroachPokerRoomProps> = (
             }
 
             setTimeout(() => setAnnouncement(null), 4000);
-        }
-    };
-
-    const resetSelections = () => {
-        setSelectedCard(null);
-        setSelectedTarget(null);
-        setSelectedClaim(null);
-        setPassTarget(null);
-        setPassClaim(null);
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => {
-            props.ws.removeEventListener("message", handleMessage);
-        });
-    });
+        }),
+    );
 
     const handleOffer = () => {
         const card = selectedCard();
         const target = selectedTarget();
         const claim = selectedClaim();
         if (card === null || !target || !claim) return;
-        send("cockroach_poker:offer_card", {
-            targetId: target,
-            cardIndex: card,
-            claim,
+        props.connection.send({
+            type: "cockroach_poker:offer_card",
+            data: { targetId: target, cardIndex: card, claim },
+        });
+    };
+
+    const handleCallTrue = () => {
+        props.connection.send({
+            type: "cockroach_poker:call_true",
+            data: {},
+        });
+    };
+
+    const handleCallFalse = () => {
+        props.connection.send({
+            type: "cockroach_poker:call_false",
+            data: {},
         });
     };
 
@@ -150,9 +132,9 @@ export const CockroachPokerRoom: Component<CockroachPokerRoomProps> = (
         const target = passTarget();
         const claim = passClaim();
         if (!target || !claim) return;
-        send("cockroach_poker:peek_and_pass", {
-            targetId: target,
-            newClaim: claim,
+        props.connection.send({
+            type: "cockroach_poker:peek_and_pass",
+            data: { targetId: target, newClaim: claim },
         });
     };
 
@@ -211,12 +193,8 @@ export const CockroachPokerRoom: Component<CockroachPokerRoomProps> = (
                                         passClaim={passClaim()}
                                         onSetPassTarget={setPassTarget}
                                         onSetPassClaim={setPassClaim}
-                                        onCallTrue={() =>
-                                            send("cockroach_poker:call_true")
-                                        }
-                                        onCallFalse={() =>
-                                            send("cockroach_poker:call_false")
-                                        }
+                                        onCallTrue={handleCallTrue}
+                                        onCallFalse={handleCallFalse}
                                         onPeekAndPass={handlePeekAndPass}
                                     />
                                 </Match>

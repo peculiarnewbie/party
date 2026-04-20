@@ -1,6 +1,5 @@
 import {
     createSignal,
-    createEffect,
     For,
     Show,
     Switch,
@@ -12,12 +11,13 @@ import type {
     FunFactsPlayerView,
     PlacedArrowView,
 } from "~/game/fun-facts/views";
+import type { FunFactsConnection } from "~/game/fun-facts/connection";
 
 interface FunFactsRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: FunFactsConnection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
@@ -42,75 +42,64 @@ function getArrowColor(index: number): string {
 }
 
 export const FunFactsRoom: Component<FunFactsRoomProps> = (props) => {
-    const [view, setView] = createSignal<FunFactsPlayerView | null>(null);
+    const view = () => props.connection.view();
     const [answerInput, setAnswerInput] = createSignal("");
     const [customQuestionInput, setCustomQuestionInput] = createSignal("");
     const [submitted, setSubmitted] = createSignal(false);
 
-    const sendFunFacts = (
-        type: string,
-        data: Record<string, unknown> = {},
-    ) => {
-        if (!props.ws || !props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
-    };
-
-    const handleMessage = (e: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(e.data);
-        } catch {
-            return;
-        }
-
-        if (data.type === "fun_facts:state") {
-            setView(data.data as FunFactsPlayerView);
-        }
-
-        if (data.type === "fun_facts:action") {
-            const action = data.data;
-            if (
-                action.type === "question_started" ||
-                action.type === "round_advanced"
-            ) {
-                setAnswerInput("");
-                setSubmitted(false);
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "fun_facts:action") {
+                const action = event.data as { type?: string };
+                if (
+                    action.type === "question_started" ||
+                    action.type === "round_advanced"
+                ) {
+                    setAnswerInput("");
+                    setSubmitted(false);
+                }
             }
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => {
-            props.ws.removeEventListener("message", handleMessage);
-        });
-    });
+        }),
+    );
 
     const handleSubmitAnswer = () => {
         const val = parseFloat(answerInput().trim());
         if (isNaN(val)) return;
-        sendFunFacts("fun_facts:submit_answer", { answer: val });
+        props.connection.send({
+            type: "fun_facts:submit_answer",
+            data: { answer: val },
+        });
         setSubmitted(true);
     };
 
     const handleNextQuestion = () => {
         const custom = customQuestionInput().trim();
-        sendFunFacts(
-            "fun_facts:next_question",
-            custom ? { customQuestion: custom } : {},
-        );
+        props.connection.send({
+            type: "fun_facts:next_question",
+            data: custom ? { customQuestion: custom } : {},
+        });
         setCustomQuestionInput("");
     };
 
     const handlePlaceArrow = (position: number) => {
-        sendFunFacts("fun_facts:place_arrow", { position });
+        props.connection.send({
+            type: "fun_facts:place_arrow",
+            data: { position },
+        });
+    };
+
+    const handleCloseAnswers = () => {
+        props.connection.send({
+            type: "fun_facts:close_answers",
+            data: {},
+        });
+    };
+
+    const handleNextRound = () => {
+        props.connection.send({
+            type: "fun_facts:next_round",
+            data: {},
+        });
     };
 
     const playerColorMap = () => {
@@ -179,9 +168,7 @@ export const FunFactsRoom: Component<FunFactsRoomProps> = (props) => {
                                             submitted={submitted()}
                                             onSubmit={handleSubmitAnswer}
                                             onChangeAnswer={() => setSubmitted(false)}
-                                            onCloseAnswers={() =>
-                                                sendFunFacts("fun_facts:close_answers")
-                                            }
+                                            onCloseAnswers={handleCloseAnswers}
                                         />
                                     </Match>
                                     <Match when={v.phase === "placing"}>
@@ -195,9 +182,7 @@ export const FunFactsRoom: Component<FunFactsRoomProps> = (props) => {
                                         <RevealPhase
                                             view={v}
                                             colorMap={playerColorMap()}
-                                            onNextRound={() =>
-                                                sendFunFacts("fun_facts:next_round")
-                                            }
+                                            onNextRound={handleNextRound}
                                         />
                                     </Match>
                                     <Match when={v.phase === "game_over"}>

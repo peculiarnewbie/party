@@ -24,8 +24,9 @@ export class PokerFixturePage {
             playerId?: string;
         } = {},
     ) {
-        const url = new URL("/dev/poker-fixture", STAGEHAND_BASE_URL);
+        const url = new URL("/dev/poker", STAGEHAND_BASE_URL);
         url.searchParams.set("fixture", fixtureId);
+        url.searchParams.set("island", "hidden");
         if (options.playerId) {
             url.searchParams.set("playerId", options.playerId);
         }

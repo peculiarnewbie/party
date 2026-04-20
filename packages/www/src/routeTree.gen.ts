@@ -11,9 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoomIndexRouteImport } from './routes/room/index'
-import { Route as DevYahtzeeFixtureRouteImport } from './routes/dev/yahtzee-fixture'
-import { Route as DevPokerFixtureRouteImport } from './routes/dev/poker-fixture'
+import { Route as DevIndexRouteImport } from './routes/dev/index'
 import { Route as DevAssetRouteImport } from './routes/dev/asset'
+import { Route as DevGameRouteImport } from './routes/dev/$game'
 import { Route as ApiUsersRouteImport } from './routes/api/users'
 import { Route as RoomRoomIdIndexRouteImport } from './routes/room/$roomId/index'
 import { Route as ApiUsersUserIdRouteImport } from './routes/api/users.$userId'
@@ -29,19 +29,19 @@ const RoomIndexRoute = RoomIndexRouteImport.update({
   path: '/room/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DevYahtzeeFixtureRoute = DevYahtzeeFixtureRouteImport.update({
-  id: '/dev/yahtzee-fixture',
-  path: '/dev/yahtzee-fixture',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DevPokerFixtureRoute = DevPokerFixtureRouteImport.update({
-  id: '/dev/poker-fixture',
-  path: '/dev/poker-fixture',
+const DevIndexRoute = DevIndexRouteImport.update({
+  id: '/dev/',
+  path: '/dev/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevAssetRoute = DevAssetRouteImport.update({
   id: '/dev/asset',
   path: '/dev/asset',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevGameRoute = DevGameRouteImport.update({
+  id: '/dev/$game',
+  path: '/dev/$game',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiUsersRoute = ApiUsersRouteImport.update({
@@ -68,9 +68,9 @@ const ApiRoomRoomIdRoute = ApiRoomRoomIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/users': typeof ApiUsersRouteWithChildren
+  '/dev/$game': typeof DevGameRoute
   '/dev/asset': typeof DevAssetRoute
-  '/dev/poker-fixture': typeof DevPokerFixtureRoute
-  '/dev/yahtzee-fixture': typeof DevYahtzeeFixtureRoute
+  '/dev/': typeof DevIndexRoute
   '/room/': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
@@ -79,9 +79,9 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/users': typeof ApiUsersRouteWithChildren
+  '/dev/$game': typeof DevGameRoute
   '/dev/asset': typeof DevAssetRoute
-  '/dev/poker-fixture': typeof DevPokerFixtureRoute
-  '/dev/yahtzee-fixture': typeof DevYahtzeeFixtureRoute
+  '/dev': typeof DevIndexRoute
   '/room': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
@@ -91,9 +91,9 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/users': typeof ApiUsersRouteWithChildren
+  '/dev/$game': typeof DevGameRoute
   '/dev/asset': typeof DevAssetRoute
-  '/dev/poker-fixture': typeof DevPokerFixtureRoute
-  '/dev/yahtzee-fixture': typeof DevYahtzeeFixtureRoute
+  '/dev/': typeof DevIndexRoute
   '/room/': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/api/users/$userId': typeof ApiUsersUserIdRoute
@@ -104,9 +104,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/api/users'
+    | '/dev/$game'
     | '/dev/asset'
-    | '/dev/poker-fixture'
-    | '/dev/yahtzee-fixture'
+    | '/dev/'
     | '/room/'
     | '/api/room/$roomId'
     | '/api/users/$userId'
@@ -115,9 +115,9 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/api/users'
+    | '/dev/$game'
     | '/dev/asset'
-    | '/dev/poker-fixture'
-    | '/dev/yahtzee-fixture'
+    | '/dev'
     | '/room'
     | '/api/room/$roomId'
     | '/api/users/$userId'
@@ -126,9 +126,9 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/api/users'
+    | '/dev/$game'
     | '/dev/asset'
-    | '/dev/poker-fixture'
-    | '/dev/yahtzee-fixture'
+    | '/dev/'
     | '/room/'
     | '/api/room/$roomId'
     | '/api/users/$userId'
@@ -138,9 +138,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiUsersRoute: typeof ApiUsersRouteWithChildren
+  DevGameRoute: typeof DevGameRoute
   DevAssetRoute: typeof DevAssetRoute
-  DevPokerFixtureRoute: typeof DevPokerFixtureRoute
-  DevYahtzeeFixtureRoute: typeof DevYahtzeeFixtureRoute
+  DevIndexRoute: typeof DevIndexRoute
   RoomIndexRoute: typeof RoomIndexRoute
   ApiRoomRoomIdRoute: typeof ApiRoomRoomIdRoute
   RoomRoomIdIndexRoute: typeof RoomRoomIdIndexRoute
@@ -162,18 +162,11 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof RoomIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dev/yahtzee-fixture': {
-      id: '/dev/yahtzee-fixture'
-      path: '/dev/yahtzee-fixture'
-      fullPath: '/dev/yahtzee-fixture'
-      preLoaderRoute: typeof DevYahtzeeFixtureRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dev/poker-fixture': {
-      id: '/dev/poker-fixture'
-      path: '/dev/poker-fixture'
-      fullPath: '/dev/poker-fixture'
-      preLoaderRoute: typeof DevPokerFixtureRouteImport
+    '/dev/': {
+      id: '/dev/'
+      path: '/dev'
+      fullPath: '/dev/'
+      preLoaderRoute: typeof DevIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dev/asset': {
@@ -181,6 +174,13 @@ declare module '@tanstack/solid-router' {
       path: '/dev/asset'
       fullPath: '/dev/asset'
       preLoaderRoute: typeof DevAssetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dev/$game': {
+      id: '/dev/$game'
+      path: '/dev/$game'
+      fullPath: '/dev/$game'
+      preLoaderRoute: typeof DevGameRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/users': {
@@ -229,9 +229,9 @@ const ApiUsersRouteWithChildren = ApiUsersRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiUsersRoute: ApiUsersRouteWithChildren,
+  DevGameRoute: DevGameRoute,
   DevAssetRoute: DevAssetRoute,
-  DevPokerFixtureRoute: DevPokerFixtureRoute,
-  DevYahtzeeFixtureRoute: DevYahtzeeFixtureRoute,
+  DevIndexRoute: DevIndexRoute,
   RoomIndexRoute: RoomIndexRoute,
   ApiRoomRoomIdRoute: ApiRoomRoomIdRoute,
   RoomRoomIdIndexRoute: RoomRoomIdIndexRoute,

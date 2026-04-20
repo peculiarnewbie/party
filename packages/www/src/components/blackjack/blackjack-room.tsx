@@ -1,6 +1,5 @@
 import {
     createSignal,
-    createEffect,
     For,
     Show,
     onCleanup,
@@ -12,24 +11,23 @@ import { RANK_LABEL } from "~/assets/card-deck/types";
 import { PlayingCard } from "~/assets/card-deck/playing-card";
 import { CardBack } from "~/assets/card-deck/card-back";
 import type {
-    BlackjackPlayerView,
     PlayerHandView,
     PlayerInfoView,
 } from "~/game/blackjack";
 import { MIN_BET, MAX_BET } from "~/game/blackjack";
+import type { BlackjackConnection } from "~/game/blackjack/connection";
 
 interface BlackjackRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: BlackjackConnection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
 
 export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
-    const [gameView, setGameView] =
-        createSignal<BlackjackPlayerView | null>(null);
+    const gameView = () => props.connection.view();
     const [betAmount, setBetAmount] = createSignal(50);
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
     const [announcementKey, setAnnouncementKey] = createSignal(0);
@@ -42,65 +40,52 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
         }, 30);
     };
 
-    const handleMessage = (e: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(e.data);
-        } catch {
-            return;
-        }
-
-        if (data.type === "blackjack:state") {
-            setGameView(data.data as BlackjackPlayerView);
-        }
-
-        if (data.type === "blackjack:action") {
-            const d = data.data;
-            if (d.type === "player_hit" && d.busted) {
-                const name = playerName(d.playerId);
-                showAnnouncement(`${name} BUSTED!`);
-            }
-            if (d.type === "player_doubled") {
-                const name = playerName(d.playerId);
-                showAnnouncement(
-                    `${name} DOUBLED DOWN${d.busted ? " AND BUSTED!" : "!"}`,
-                );
-            }
-            if (d.type === "player_split") {
-                const name = playerName(d.playerId);
-                showAnnouncement(`${name} SPLIT!`);
-            }
-            if (d.type === "insurance_resolved") {
-                showAnnouncement(
-                    d.dealerBlackjack
-                        ? "DEALER HAS BLACKJACK!"
-                        : "NO BLACKJACK - PLAY ON",
-                );
-            }
-        }
-
-        if (data.type === "blackjack:settled") {
-            const me = data.data.results?.find(
-                (r: any) => r.playerId === props.playerId,
-            );
-            if (me) {
-                if (me.netChips > 0) {
-                    showAnnouncement(`YOU WON ${me.netChips} CHIPS!`);
-                } else if (me.netChips < 0) {
-                    showAnnouncement(`YOU LOST ${Math.abs(me.netChips)} CHIPS`);
-                } else {
-                    showAnnouncement("PUSH - CHIPS RETURNED");
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "blackjack:action") {
+                const d = event.data as Record<string, any>;
+                if (d.type === "player_hit" && d.busted) {
+                    const name = playerName(d.playerId);
+                    showAnnouncement(`${name} BUSTED!`);
+                }
+                if (d.type === "player_doubled") {
+                    const name = playerName(d.playerId);
+                    showAnnouncement(
+                        `${name} DOUBLED DOWN${d.busted ? " AND BUSTED!" : "!"}`,
+                    );
+                }
+                if (d.type === "player_split") {
+                    const name = playerName(d.playerId);
+                    showAnnouncement(`${name} SPLIT!`);
+                }
+                if (d.type === "insurance_resolved") {
+                    showAnnouncement(
+                        d.dealerBlackjack
+                            ? "DEALER HAS BLACKJACK!"
+                            : "NO BLACKJACK - PLAY ON",
+                    );
                 }
             }
-        }
-    };
 
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() =>
-            props.ws.removeEventListener("message", handleMessage),
-        );
-    });
+            if (event.type === "blackjack:settled") {
+                const d = event.data as Record<string, any>;
+                const me = d.results?.find(
+                    (r: any) => r.playerId === props.playerId,
+                );
+                if (me) {
+                    if (me.netChips > 0) {
+                        showAnnouncement(`YOU WON ${me.netChips} CHIPS!`);
+                    } else if (me.netChips < 0) {
+                        showAnnouncement(
+                            `YOU LOST ${Math.abs(me.netChips)} CHIPS`,
+                        );
+                    } else {
+                        showAnnouncement("PUSH - CHIPS RETURNED");
+                    }
+                }
+            }
+        }),
+    );
 
     const playerName = (id: string) => {
         const view = gameView();
@@ -130,30 +115,43 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
         return cp?.name ?? "";
     });
 
-    const sendMsg = (
-        type: string,
-        data: Record<string, unknown> = {},
-    ) => {
+    const placeBet = () => {
         if (!props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
+        props.connection.send({
+            type: "blackjack:bet",
+            data: { amount: betAmount() },
+        });
     };
-
-    const placeBet = () => sendMsg("blackjack:bet", { amount: betAmount() });
-    const hit = () => sendMsg("blackjack:hit");
-    const stand = () => sendMsg("blackjack:stand");
-    const doubleDown = () => sendMsg("blackjack:double");
-    const split = () => sendMsg("blackjack:split");
-    const acceptInsurance = () =>
-        sendMsg("blackjack:insurance", { accept: true });
-    const declineInsurance = () =>
-        sendMsg("blackjack:insurance", { accept: false });
+    const hit = () => {
+        if (!props.playerId) return;
+        props.connection.send({ type: "blackjack:hit", data: {} });
+    };
+    const stand = () => {
+        if (!props.playerId) return;
+        props.connection.send({ type: "blackjack:stand", data: {} });
+    };
+    const doubleDown = () => {
+        if (!props.playerId) return;
+        props.connection.send({ type: "blackjack:double", data: {} });
+    };
+    const split = () => {
+        if (!props.playerId) return;
+        props.connection.send({ type: "blackjack:split", data: {} });
+    };
+    const acceptInsurance = () => {
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "blackjack:insurance",
+            data: { accept: true },
+        });
+    };
+    const declineInsurance = () => {
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "blackjack:insurance",
+            data: { accept: false },
+        });
+    };
 
     function handValueLabel(hand: PlayerHandView): string {
         if (hand.isBlackjack) return "BJ";

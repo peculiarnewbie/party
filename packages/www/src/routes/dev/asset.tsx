@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/solid-router";
+import { createFileRoute, notFound } from "@tanstack/solid-router";
 import { For, createSignal } from "solid-js";
 import { SvgPawn } from "~/assets/svg-pawn";
 import { SvgCard } from "~/assets/svg-card";
@@ -12,6 +12,9 @@ import { SpadeCard, SvgSpade } from "~/assets/card-deck";
 import type { SpadeRank } from "~/assets/card-deck";
 
 export const Route = createFileRoute("/dev/asset")({
+    beforeLoad: () => {
+        if (import.meta.env.PROD) throw notFound();
+    },
     component: AssetGallery,
 });
 

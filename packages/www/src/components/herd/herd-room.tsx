@@ -1,6 +1,5 @@
 import {
     createSignal,
-    createEffect,
     For,
     Show,
     Switch,
@@ -9,69 +8,39 @@ import {
 } from "solid-js";
 import type { Component } from "solid-js";
 import type { HerdPlayerView, AnswerGroupView } from "~/game/herd/views";
+import type { HerdConnection } from "~/game/herd/connection";
 
 interface HerdRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: HerdConnection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
 
 export const HerdRoom: Component<HerdRoomProps> = (props) => {
-    const [view, setView] = createSignal<HerdPlayerView | null>(null);
+    const view = () => props.connection.view();
     const [answerInput, setAnswerInput] = createSignal("");
     const [customQuestionInput, setCustomQuestionInput] = createSignal("");
     const [selectedGroups, setSelectedGroups] = createSignal<string[]>([]);
     const [submitted, setSubmitted] = createSignal(false);
 
-    const sendHerd = (
-        type: string,
-        data: Record<string, unknown> = {},
-    ) => {
-        if (!props.ws || !props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
-    };
-
-    const handleMessage = (e: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(e.data);
-        } catch {
-            return;
-        }
-
-        if (data.type === "herd:state") {
-            setView(data.data as HerdPlayerView);
-        }
-
-        if (data.type === "herd:action") {
-            const action = data.data;
-            if (
-                action.type === "question_started" ||
-                action.type === "round_advanced"
-            ) {
-                setAnswerInput("");
-                setSubmitted(false);
-                setSelectedGroups([]);
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "herd:action") {
+                const action = event.data as { type?: string };
+                if (
+                    action.type === "question_started" ||
+                    action.type === "round_advanced"
+                ) {
+                    setAnswerInput("");
+                    setSubmitted(false);
+                    setSelectedGroups([]);
+                }
             }
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => {
-            props.ws.removeEventListener("message", handleMessage);
-        });
-    });
+        }),
+    );
 
     const toggleGroupSelection = (groupId: string) => {
         setSelectedGroups((prev) => {
@@ -88,9 +57,9 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
     const handleMerge = () => {
         const sel = selectedGroups();
         if (sel.length === 2) {
-            sendHerd("herd:merge_groups", {
-                groupId1: sel[0],
-                groupId2: sel[1],
+            props.connection.send({
+                type: "herd:merge_groups",
+                data: { groupId1: sel[0]!, groupId2: sel[1]! },
             });
             setSelectedGroups([]);
         }
@@ -99,14 +68,48 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
     const handleSubmitAnswer = () => {
         const answer = answerInput().trim();
         if (answer.length === 0) return;
-        sendHerd("herd:submit_answer", { answer });
+        props.connection.send({
+            type: "herd:submit_answer",
+            data: { answer },
+        });
         setSubmitted(true);
     };
 
     const handleNextQuestion = () => {
         const custom = customQuestionInput().trim();
-        sendHerd("herd:next_question", custom ? { customQuestion: custom } : {});
+        props.connection.send({
+            type: "herd:next_question",
+            data: custom ? { customQuestion: custom } : {},
+        });
         setCustomQuestionInput("");
+    };
+
+    const handleTogglePinkCow = (enabled: boolean) => {
+        props.connection.send({
+            type: "herd:toggle_pink_cow",
+            data: { enabled },
+        });
+    };
+
+    const handleCloseAnswers = () => {
+        props.connection.send({
+            type: "herd:close_answers",
+            data: {},
+        });
+    };
+
+    const handleConfirmScoring = () => {
+        props.connection.send({
+            type: "herd:confirm_scoring",
+            data: {},
+        });
+    };
+
+    const handleNextRound = () => {
+        props.connection.send({
+            type: "herd:next_round",
+            data: {},
+        });
     };
 
     const playerName = (id: string) => {
@@ -152,9 +155,7 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                             customQuestion={customQuestionInput()}
                                             setCustomQuestion={setCustomQuestionInput}
                                             onNextQuestion={handleNextQuestion}
-                                            onTogglePinkCow={(enabled) =>
-                                                sendHerd("herd:toggle_pink_cow", { enabled })
-                                            }
+                                            onTogglePinkCow={handleTogglePinkCow}
                                             onReturnToLobby={props.onReturnToLobby}
                                         />
                                     </Match>
@@ -166,7 +167,7 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                             submitted={submitted()}
                                             onSubmit={handleSubmitAnswer}
                                             onChangeAnswer={() => setSubmitted(false)}
-                                            onCloseAnswers={() => sendHerd("herd:close_answers")}
+                                            onCloseAnswers={handleCloseAnswers}
                                         />
                                     </Match>
                                     <Match when={v.phase === "reveal"}>
@@ -175,15 +176,13 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                             selectedGroups={selectedGroups()}
                                             onToggleGroup={toggleGroupSelection}
                                             onMerge={handleMerge}
-                                            onConfirmScoring={() =>
-                                                sendHerd("herd:confirm_scoring")
-                                            }
+                                            onConfirmScoring={handleConfirmScoring}
                                         />
                                     </Match>
                                     <Match when={v.phase === "scored"}>
                                         <ScoredPhase
                                             view={v}
-                                            onNextRound={() => sendHerd("herd:next_round")}
+                                            onNextRound={handleNextRound}
                                         />
                                     </Match>
                                     <Match when={v.phase === "game_over"}>

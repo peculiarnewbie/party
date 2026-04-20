@@ -1,3 +1,5 @@
+import { YahtzeeFixtureHarness } from "~/components/yahtzee/yahtzee-fixture-harness";
+import type { GameFixtureModule } from "~/game/fixture-module";
 import { CATEGORY_LABELS } from "./types";
 import { resolveWinners, makePlayer, makeState, TEST_PLAYERS } from "./test-helpers";
 import type { ScoringCategory, YahtzeeState } from "./types";
@@ -342,3 +344,12 @@ export function getDefaultFixturePlayerId(fixtureId: YahtzeeFixtureId): string {
 export function getFixturePlayerIds(): string[] {
     return [...TEST_PLAYERS.map((player) => player.id)];
 }
+
+export const gameFixtureModule: GameFixtureModule<YahtzeeFixtureId> = {
+    game: "yahtzee",
+    title: "Yahtzee",
+    fixtures: YAHTZEE_FIXTURES,
+    defaultFixtureId: "standard-my-turn-pre-roll",
+    playerIds: TEST_PLAYERS.map((player) => player.id),
+    Harness: YahtzeeFixtureHarness,
+};

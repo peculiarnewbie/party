@@ -1,6 +1,5 @@
 import {
     createSignal,
-    createEffect,
     createMemo,
     For,
     Show,
@@ -14,16 +13,16 @@ import type {
     RpsMatchView,
     RpsRoundView,
     RpsThrowView,
-    RpsPlayerInfo,
 } from "~/game/rps";
 import type { RpsChoice, BestOf } from "~/game/rps";
 import { getRoundLabel } from "~/game/rps";
+import type { RpsConnection } from "~/game/rps/connection";
 
 interface RpsRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: RpsConnection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
@@ -35,7 +34,7 @@ const CHOICE_LABEL: Record<RpsChoice, string> = {
 };
 
 export const RpsRoom: Component<RpsRoomProps> = (props) => {
-    const [gameView, setGameView] = createSignal<RpsPlayerView | null>(null);
+    const gameView = () => props.connection.view();
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
     const [announcementKey, setAnnouncementKey] = createSignal(0);
 
@@ -54,65 +53,45 @@ export const RpsRoom: Component<RpsRoomProps> = (props) => {
         );
     };
 
-    const handleMessage = (e: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(e.data);
-        } catch {
-            return;
-        }
-
-        if (data.type === "rps:state") {
-            setGameView(data.data as RpsPlayerView);
-        }
-
-        if (data.type === "rps:action") {
-            const d = data.data;
-            if (d.type === "round_advanced") {
-                showAnnouncement(
-                    getRoundLabel(d.roundNumber, gameView()?.totalRounds ?? 1),
-                );
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "rps:action") {
+                const d = event.data as Record<string, any>;
+                if (d.type === "round_advanced") {
+                    showAnnouncement(
+                        getRoundLabel(
+                            d.roundNumber,
+                            gameView()?.totalRounds ?? 1,
+                        ),
+                    );
+                }
+                if (d.type === "best_of_changed") {
+                    showAnnouncement(`BEST OF ${d.bestOf}`);
+                }
             }
-            if (d.type === "best_of_changed") {
-                showAnnouncement(`BEST OF ${d.bestOf}`);
+
+            if (event.type === "rps:game_over") {
+                const winnerId = (event.data as { winnerId?: string })
+                    .winnerId;
+                if (winnerId) {
+                    showAnnouncement(
+                        `${playerName(winnerId)} WINS THE TOURNAMENT!`,
+                    );
+                }
             }
-        }
-
-        if (data.type === "rps:game_over") {
-            const winnerId = data.data.winnerId as string;
-            showAnnouncement(`${playerName(winnerId)} WINS THE TOURNAMENT!`);
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() =>
-            props.ws.removeEventListener("message", handleMessage),
-        );
-    });
-
-    const sendMsg = (type: string, data: Record<string, unknown> = {}) => {
-        if (!props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
-    };
+        }),
+    );
 
     const throwChoice = (choice: RpsChoice) => {
-        sendMsg("rps:throw", { choice });
+        props.connection.send({ type: "rps:throw", data: { choice } });
     };
 
     const nextRound = () => {
-        sendMsg("rps:next_round", {});
+        props.connection.send({ type: "rps:next_round", data: {} });
     };
 
     const setBestOf = (bo: BestOf) => {
-        sendMsg("rps:set_best_of", { bestOf: bo });
+        props.connection.send({ type: "rps:set_best_of", data: { bestOf: bo } });
     };
 
     const myMatch = createMemo(() => gameView()?.myMatch ?? null);

@@ -1,21 +1,24 @@
 import { onMount } from "solid-js";
 import { PokerRoom } from "~/components/poker/poker-room";
-import type { PokerServerMessage } from "~/game/poker";
+import type { PokerPlayerView } from "~/game/poker";
+import type {
+    PokerClientOutgoing,
+    PokerSideEvent,
+} from "~/game/poker/connection";
 import type { PokerFixtureId } from "~/game/poker/fixtures";
 import { getPokerFixture } from "~/game/poker/fixtures";
-import {
-    FakeFixtureWebSocket,
-    type FakeFixtureWebSocketState,
-} from "~/test/fake-fixture-websocket";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
 
 interface PokerFixtureHarnessProps {
     fixtureId: PokerFixtureId;
     playerId: string;
+    step?: number;
 }
 
-interface FixtureWindowState extends FakeFixtureWebSocketState<PokerServerMessage> {
+interface FixtureWindowState {
     fixtureId: PokerFixtureId;
     playerId: string;
+    sentMessages: PokerClientOutgoing[];
     hostActions: string[];
 }
 
@@ -31,26 +34,25 @@ export function PokerFixtureHarness(props: PokerFixtureHarnessProps) {
         fixtureId: props.fixtureId,
         playerId: props.playerId,
         sentMessages: [],
-        deliveredMessages: [],
         hostActions: [],
     };
-    const socket = new FakeFixtureWebSocket<PokerServerMessage>({
-        initialMessages: [
-            {
-                type: "poker:state",
-                data: fixture.view as unknown as Record<string, unknown>,
-            },
-        ],
-        state: fixtureState,
-        onStateChange: () => {
+
+    const connection = createFakeGameConnection<
+        PokerPlayerView,
+        PokerClientOutgoing,
+        PokerSideEvent
+    >({
+        initialView: fixture.view,
+        onSend: (message) => {
+            fixtureState.sentMessages.push(message);
             window.__POKER_FIXTURE__ = fixtureState;
         },
     });
+
     const isHost = fixture.hostPlayerId === props.playerId;
 
     onMount(() => {
         window.__POKER_FIXTURE__ = fixtureState;
-        queueMicrotask(() => socket.start());
     });
 
     return (
@@ -58,7 +60,7 @@ export function PokerFixtureHarness(props: PokerFixtureHarnessProps) {
             roomId={fixture.roomId}
             playerId={props.playerId}
             isHost={isHost}
-            ws={socket as unknown as WebSocket}
+            connection={connection}
             title={fixture.title}
             onEndGame={() => {
                 fixtureState.hostActions.push("end_game");

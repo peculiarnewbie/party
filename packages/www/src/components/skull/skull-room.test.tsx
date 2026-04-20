@@ -1,18 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { SkullRoom } from "./skull-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    SkullClientOutgoing,
+    SkullSideEvent,
+} from "~/game/skull/connection";
 import {
     makeAttempt,
     makePlayerInfo,
     makeView,
 } from "~/game/skull/test-helpers";
 import type { SkullPlayerView } from "~/game/skull/views";
-
-type SkullEnvelope =
-    | { type: "skull:state"; data: SkullPlayerView }
-    | { type: "skull:action"; data: Record<string, unknown> }
-    | { type: "skull:error"; data: { message: string } };
 
 function renderRoom(
     options: {
@@ -29,25 +28,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: SkullEnvelope[] = [
-        { type: "skull:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<SkullEnvelope>(
-        (ws) => (
-            <SkullRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        SkullPlayerView,
+        SkullClientOutgoing,
+        SkullSideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <SkullRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("SkullRoom", () => {
@@ -74,18 +73,16 @@ describe("SkullRoom", () => {
             canPlayDisc: true,
             myHand: ["flower", "skull"],
         });
-        const { container, socket } = renderRoom({ view });
+        const { container, connection } = renderRoom({ view });
 
         const discButtons = container.querySelectorAll(
             "div.border-2.border-\\[\\#442116\\].bg-\\[\\#f5e3be\\] button",
         );
         fireEvent.click(discButtons[0]!);
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "skull:play_disc",
-                playerId: "p1",
-                playerName: "",
                 data: { disc: "flower" },
             },
         ]);
@@ -101,15 +98,13 @@ describe("SkullRoom", () => {
             maxBid: 5,
             myHand: ["flower"],
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /start challenge/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "skull:start_challenge",
-                playerId: "p1",
-                playerName: "",
                 data: { bid: 1 },
             },
         ]);
@@ -128,15 +123,13 @@ describe("SkullRoom", () => {
             maxBid: 6,
             myHand: [],
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^pass$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "skull:pass_bid",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -165,15 +158,13 @@ describe("SkullRoom", () => {
             ],
             myHand: [],
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /flip top disc/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "skull:flip_disc",
-                playerId: "p1",
-                playerName: "",
                 data: { ownerId: "p2" },
             },
         ]);
@@ -211,16 +202,13 @@ describe("SkullRoom", () => {
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
-    it("reactively updates phase label on incoming skull:state", () => {
-        const { getByText, getAllByText, socket } = renderRoom({
+    it("reactively updates phase label on connection view change", () => {
+        const { getByText, getAllByText, connection } = renderRoom({
             view: makeView({ phase: "turn_prep" }),
         });
         expect(getByText("TURN PREP")).toBeInTheDocument();
 
-        socket.emit({
-            type: "skull:state",
-            data: makeView({ phase: "auction", highestBid: 2 }),
-        });
+        connection.setView(makeView({ phase: "auction", highestBid: 2 }));
 
         expect(getAllByText("AUCTION").length).toBeGreaterThan(0);
     });

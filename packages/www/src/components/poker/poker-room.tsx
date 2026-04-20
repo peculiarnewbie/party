@@ -1,6 +1,7 @@
 import { createEffect, createSignal, onCleanup, Show, For } from "solid-js";
 import type { Component } from "solid-js";
-import type { PokerActionType, PokerPlayerView } from "~/game/poker";
+import type { PokerActionType } from "~/game/poker";
+import type { PokerConnection } from "~/game/poker/connection";
 import { ActionControls } from "./action-controls";
 import { CommunityBoard } from "./community-board";
 import { EventLog } from "./event-log";
@@ -13,43 +14,32 @@ export const PokerRoom: Component<{
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: PokerConnection;
     title: string;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }> = (props) => {
-    const [gameView, setGameView] = createSignal<PokerPlayerView | null>(null);
+    const gameView = () => props.connection.view();
     const [amount, setAmount] = createSignal("20");
     const [actionError, setActionError] = createSignal<string | null>(null);
 
-    const handleMessage = (event: MessageEvent) => {
-        let payload: any;
-        try {
-            payload = JSON.parse(event.data);
-        } catch {
-            return;
-        }
-
-        if (payload.type === "poker:state") {
-            const nextView = payload.data as PokerPlayerView;
-            setGameView(nextView);
-            setActionError(null);
-            if (nextView.minBetOrRaise !== null) {
-                setAmount(String(nextView.minBetOrRaise));
-            }
-        }
-
-        if (payload.type === "poker:action_result" && payload.data.error) {
-            setActionError(payload.data.error as string);
-        }
-    };
-
     createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => {
-            props.ws.removeEventListener("message", handleMessage);
-        });
+        const view = gameView();
+        if (!view) return;
+        setActionError(null);
+        if (view.minBetOrRaise !== null) {
+            setAmount(String(view.minBetOrRaise));
+        }
     });
+
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "poker:action_result") {
+                const error = (event.data as { error?: string }).error;
+                if (error) setActionError(error);
+            }
+        }),
+    );
 
     const actingPlayerName = () => {
         const view = gameView();
@@ -75,14 +65,10 @@ export const PokerRoom: Component<{
                 ? { type, amount: numericAmount ?? Number(amount()) }
                 : { type };
 
-        props.ws.send(
-            JSON.stringify({
-                type: "poker:act",
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
+        props.connection.send({
+            type: "poker:act",
+            data: data as never,
+        });
     };
 
     return (

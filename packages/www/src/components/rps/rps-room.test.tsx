@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { RpsRoom } from "./rps-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    RpsClientOutgoing,
+    RpsSideEvent,
+} from "~/game/rps/connection";
 import {
     makeMatch,
     makePlayerInfo,
@@ -9,11 +13,6 @@ import {
     makeView,
 } from "~/game/rps/test-helpers";
 import type { RpsPlayerView } from "~/game/rps";
-
-type RpsEnvelope =
-    | { type: "rps:state"; data: RpsPlayerView }
-    | { type: "rps:action"; data: Record<string, unknown> }
-    | { type: "rps:game_over"; data: Record<string, unknown> };
 
 function renderRoom(
     options: {
@@ -30,25 +29,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: RpsEnvelope[] = [
-        { type: "rps:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<RpsEnvelope>(
-        (ws) => (
-            <RpsRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        RpsPlayerView,
+        RpsClientOutgoing,
+        RpsSideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <RpsRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("RpsRoom", () => {
@@ -84,15 +83,13 @@ describe("RpsRoom", () => {
             needsToThrow: true,
             myMatch: makeMatch({ myChoice: null, status: "active" }),
         });
-        const { getByRole, socket } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^rock$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "rps:throw",
-                playerId: "p1",
-                playerName: "",
                 data: { choice: "rock" },
             },
         ]);
@@ -122,14 +119,12 @@ describe("RpsRoom", () => {
                 player2Wins: 1,
             }),
         });
-        const { getByRole, socket } = renderRoom({ view, isHost: true });
+        const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /next round/i }));
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "rps:next_round",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -165,7 +160,7 @@ describe("RpsRoom", () => {
     });
 
     it("updates the UI when a new rps:state message arrives", () => {
-        const { getAllByText, socket } = renderRoom({
+        const { getAllByText, connection } = renderRoom({
             view: makeView({
                 currentRound: 1,
                 totalRounds: 1,
@@ -174,14 +169,13 @@ describe("RpsRoom", () => {
         });
         expect(getAllByText("FINAL").length).toBeGreaterThan(0);
 
-        socket.emit({
-            type: "rps:state",
-            data: makeView({
+        connection.setView(
+            makeView({
                 currentRound: 1,
                 totalRounds: 2,
                 rounds: [makeRound({ label: "SEMIFINAL" })],
             }),
-        });
+        );
         expect(getAllByText("SEMIFINAL").length).toBeGreaterThan(0);
     });
 

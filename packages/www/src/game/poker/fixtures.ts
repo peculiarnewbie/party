@@ -1,3 +1,5 @@
+import { PokerFixtureHarness } from "~/components/poker/poker-fixture-harness";
+import type { GameFixtureModule } from "~/game/fixture-module";
 import type { PokerPlayerView } from "./views";
 
 export const POKER_FIXTURE_IDS = [
@@ -418,3 +420,12 @@ export function getDefaultFixturePlayerId(fixtureId: PokerFixtureId) {
 export function getFixturePlayerIds(): string[] {
     return [...FIXTURE_PLAYER_IDS];
 }
+
+export const gameFixtureModule: GameFixtureModule<PokerFixtureId> = {
+    game: "poker",
+    title: "Poker",
+    fixtures: POKER_FIXTURES,
+    defaultFixtureId: "standard-my-turn",
+    playerIds: FIXTURE_PLAYER_IDS,
+    Harness: PokerFixtureHarness,
+};

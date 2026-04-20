@@ -14,12 +14,13 @@ import type {
     Bid,
     ChallengeResult,
 } from "~/game/perudo";
+import type { PerudoConnection } from "~/game/perudo/connection";
 
 interface PerudoRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: PerudoConnection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
@@ -34,7 +35,7 @@ const FACE_LABELS: Record<number, string> = {
 };
 
 export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
-    const [gameView, setGameView] = createSignal<PerudoPlayerView | null>(null);
+    const gameView = () => props.connection.view();
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
     const [announcementKey, setAnnouncementKey] = createSignal(0);
     const [selectedQuantity, setSelectedQuantity] = createSignal<number>(1);
@@ -57,67 +58,53 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
         );
     };
 
-    const handleMessage = (e: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(e.data);
-        } catch {
-            return;
-        }
-
-        if (data.type === "perudo:state") {
-            setGameView(data.data as PerudoPlayerView);
-        }
-
-        if (data.type === "perudo:action") {
-            const d = data.data;
-            if (d.type === "round_started") {
-                showAnnouncement(
-                    `ROUND ${d.roundNumber}${d.palificoRound ? " — PALIFICO" : ""}`,
-                );
-            }
-            if (d.type === "bid_placed") {
-                const bv =
-                    FACE_LABELS[d.bid.faceValue] ?? String(d.bid.faceValue);
-                showAnnouncement(
-                    `${playerName(d.bid.playerId)}: ${d.bid.quantity}x${bv}`,
-                );
-            }
-            if (d.type === "challenge_made") {
-                showAnnouncement(
-                    `${playerName(d.challengerId)} CALLS A CHALLENGE!`,
-                );
-            }
-            if (d.type === "player_eliminated") {
-                const bv =
-                    FACE_LABELS[d.bid.faceValue] ?? String(d.bid.faceValue);
-                if (d.wasCorrect) {
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "perudo:action") {
+                const d = event.data as Record<string, any>;
+                if (d.type === "round_started") {
                     showAnnouncement(
-                        `CORRECT! ${playerName(d.challengerId)} LOSES A DIE`,
-                    );
-                } else {
-                    showAnnouncement(
-                        `WRONG! ${playerName(d.bidderId)} LOSES A DIE`,
+                        `ROUND ${d.roundNumber}${d.palificoRound ? " — PALIFICO" : ""}`,
                     );
                 }
+                if (d.type === "bid_placed") {
+                    const bv =
+                        FACE_LABELS[d.bid.faceValue] ?? String(d.bid.faceValue);
+                    showAnnouncement(
+                        `${playerName(d.bid.playerId)}: ${d.bid.quantity}x${bv}`,
+                    );
+                }
+                if (d.type === "challenge_made") {
+                    showAnnouncement(
+                        `${playerName(d.challengerId)} CALLS A CHALLENGE!`,
+                    );
+                }
+                if (d.type === "player_eliminated") {
+                    const bv =
+                        FACE_LABELS[d.bid.faceValue] ?? String(d.bid.faceValue);
+                    if (d.wasCorrect) {
+                        showAnnouncement(
+                            `CORRECT! ${playerName(d.challengerId)} LOSES A DIE`,
+                        );
+                    } else {
+                        showAnnouncement(
+                            `WRONG! ${playerName(d.bidderId)} LOSES A DIE`,
+                        );
+                    }
+                }
             }
-        }
 
-        if (data.type === "perudo:game_over") {
-            const winners = data.data.winners as string[];
-            const names = winners.map((id: string) => playerName(id));
-            if (winners.length === 1) {
-                showAnnouncement(`${names[0]} WINS!`);
-            } else {
-                showAnnouncement(`TIE: ${names.join(" & ")}`);
+            if (event.type === "perudo:game_over") {
+                const winners = (event.data as { winners: string[] }).winners;
+                const names = winners.map((id: string) => playerName(id));
+                if (winners.length === 1) {
+                    showAnnouncement(`${names[0]} WINS!`);
+                } else {
+                    showAnnouncement(`TIE: ${names.join(" & ")}`);
+                }
             }
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => props.ws.removeEventListener("message", handleMessage));
-    });
+        }),
+    );
 
     createEffect(() => {
         const view = gameView();
@@ -139,31 +126,31 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
         return cp?.name ?? "";
     });
 
-    const sendMsg = (type: string, data: Record<string, unknown> = {}) => {
-        if (!props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
-    };
-
     const placeBid = () => {
-        sendMsg("perudo:bid", {
-            quantity: selectedQuantity(),
-            faceValue: selectedFace(),
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "perudo:bid",
+            data: {
+                quantity: selectedQuantity(),
+                faceValue: selectedFace() as 1 | 2 | 3 | 4 | 5 | 6,
+            },
         });
     };
 
     const challenge = () => {
-        sendMsg("perudo:challenge", {});
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "perudo:challenge",
+            data: {},
+        });
     };
 
     const startRound = () => {
-        sendMsg("perudo:start_round", {});
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "perudo:start_round",
+            data: {},
+        });
     };
 
     const myDice = createMemo(() => {

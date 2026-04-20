@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { HerdRoom } from "./herd-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    HerdClientOutgoing,
+    HerdSideEvent,
+} from "~/game/herd/connection";
 import {
     makeAnswerGroup,
     makePlayerInfo,
     makeView,
 } from "~/game/herd/test-helpers";
 import type { HerdPlayerView } from "~/game/herd/views";
-
-type HerdEnvelope =
-    | { type: "herd:state"; data: HerdPlayerView }
-    | { type: "herd:action"; data: Record<string, unknown> };
 
 function renderRoom(
     options: {
@@ -28,25 +28,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: HerdEnvelope[] = [
-        { type: "herd:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<HerdEnvelope>(
-        (ws) => (
-            <HerdRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        HerdPlayerView,
+        HerdClientOutgoing,
+        HerdSideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <HerdRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("HerdRoom", () => {
@@ -73,15 +73,13 @@ describe("HerdRoom", () => {
             isHost: true,
             roundNumber: 0,
         });
-        const { getByRole, socket } = renderRoom({ view, isHost: true });
+        const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /start first question/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "herd:next_question",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -94,7 +92,7 @@ describe("HerdRoom", () => {
             hasAnswered: false,
             currentQuestion: "What is your favorite animal?",
         });
-        const { getByRole, socket, container } = renderRoom({ view });
+        const { getByRole, connection, container } = renderRoom({ view });
 
         const input = container.querySelector(
             "input[type='text']",
@@ -102,11 +100,9 @@ describe("HerdRoom", () => {
         fireEvent.input(input, { target: { value: "dog" } });
         fireEvent.click(getByRole("button", { name: /^submit$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "herd:submit_answer",
-                playerId: "p1",
-                playerName: "",
                 data: { answer: "dog" },
             },
         ]);
@@ -120,15 +116,13 @@ describe("HerdRoom", () => {
             answeredCount: 2,
             totalPlayers: 3,
         });
-        const { getByRole, socket } = renderRoom({ view, isHost: true });
+        const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /close answers/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "herd:close_answers",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -149,15 +143,13 @@ describe("HerdRoom", () => {
                 }),
             ],
         });
-        const { getByRole, socket } = renderRoom({ view, isHost: true });
+        const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /confirm scoring/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "herd:confirm_scoring",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -200,15 +192,12 @@ describe("HerdRoom", () => {
     });
 
     it("updates the UI when a new herd:state arrives", () => {
-        const { getByText, socket, queryByText } = renderRoom({
+        const { getByText, connection, queryByText } = renderRoom({
             view: makeView({ phase: "waiting", roundNumber: 0 }),
         });
         expect(queryByText(/ROUND 0/)).toBeNull();
 
-        socket.emit({
-            type: "herd:state",
-            data: makeView({ phase: "waiting", roundNumber: 4 }),
-        });
+        connection.setView(makeView({ phase: "waiting", roundNumber: 4 }));
 
         expect(getByText(/ROUND 4/)).toBeInTheDocument();
     });

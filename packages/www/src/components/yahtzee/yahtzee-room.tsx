@@ -22,12 +22,13 @@ import {
     UPPER_CATEGORIES,
     calculateScore,
 } from "~/game/yahtzee";
+import type { YahtzeeConnection } from "~/game/yahtzee/connection";
 
 interface YahtzeeRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: YahtzeeConnection;
     title: string;
     onEndGame: () => void;
     onReturnToLobby: () => void;
@@ -35,9 +36,7 @@ interface YahtzeeRoomProps {
 }
 
 export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
-    const [gameView, setGameView] = createSignal<YahtzeePlayerView | null>(
-        null,
-    );
+    const gameView = () => props.connection.view();
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
     const [announcementKey, setAnnouncementKey] = createSignal(0);
     const [selectedClaimCategory, setSelectedClaimCategory] =
@@ -67,76 +66,60 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
         );
     };
 
-    const handleMessage = (e: MessageEvent) => {
-        let data: any;
-        try {
-            data = JSON.parse(e.data);
-        } catch {
-            return;
-        }
-
-        if (data.type === "yahtzee:state") {
-            setGameView(data.data as YahtzeePlayerView);
-        }
-
-        if (data.type === "yahtzee:action") {
-            const d = data.data;
-            if (d.type === "rolled" && d.playerId !== props.playerId) {
-                showAnnouncement(`${playerName(d.playerId)} ROLLED`);
-            }
-            if (d.type === "scored") {
-                const catLabel =
-                    CATEGORY_LABELS[d.category as ScoringCategory] ??
-                    d.category;
-                showAnnouncement(
-                    `${playerName(d.playerId)}: ${catLabel} FOR ${d.points}`,
-                );
-            }
-            if (d.type === "claim_submitted") {
-                const catLabel =
-                    CATEGORY_LABELS[d.category as ScoringCategory] ??
-                    d.category;
-                showAnnouncement(
-                    `${playerName(d.playerId)} CLAIMS ${catLabel} FOR ${d.claimedPoints}`,
-                );
-            }
-            if (d.type === "claim_resolved") {
-                if (d.outcome === "caught_lying") {
-                    showAnnouncement(
-                        `${playerName(d.playerId)} GOT CAUGHT LYING`,
-                    );
-                } else if (d.outcome === "truthful_challenge") {
-                    showAnnouncement(
-                        `${playerName(d.playerId)} TOLD THE TRUTH`,
-                    );
-                } else {
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "yahtzee:action") {
+                const d = event.data as Record<string, any>;
+                if (d.type === "rolled" && d.playerId !== props.playerId) {
+                    showAnnouncement(`${playerName(d.playerId)} ROLLED`);
+                }
+                if (d.type === "scored") {
                     const catLabel =
                         CATEGORY_LABELS[d.category as ScoringCategory] ??
                         d.category;
                     showAnnouncement(
-                        `${playerName(d.playerId)} BANKS ${catLabel}`,
+                        `${playerName(d.playerId)}: ${catLabel} FOR ${d.points}`,
                     );
                 }
+                if (d.type === "claim_submitted") {
+                    const catLabel =
+                        CATEGORY_LABELS[d.category as ScoringCategory] ??
+                        d.category;
+                    showAnnouncement(
+                        `${playerName(d.playerId)} CLAIMS ${catLabel} FOR ${d.claimedPoints}`,
+                    );
+                }
+                if (d.type === "claim_resolved") {
+                    if (d.outcome === "caught_lying") {
+                        showAnnouncement(
+                            `${playerName(d.playerId)} GOT CAUGHT LYING`,
+                        );
+                    } else if (d.outcome === "truthful_challenge") {
+                        showAnnouncement(
+                            `${playerName(d.playerId)} TOLD THE TRUTH`,
+                        );
+                    } else {
+                        const catLabel =
+                            CATEGORY_LABELS[d.category as ScoringCategory] ??
+                            d.category;
+                        showAnnouncement(
+                            `${playerName(d.playerId)} BANKS ${catLabel}`,
+                        );
+                    }
+                }
             }
-        }
 
-        if (data.type === "yahtzee:game_over") {
-            const winners = data.data.winners as string[];
-            const names = winners.map((id: string) => playerName(id));
-            if (winners.length === 1) {
-                showAnnouncement(`${names[0]} WINS!`);
-            } else {
-                showAnnouncement(`TIE: ${names.join(" & ")}`);
+            if (event.type === "yahtzee:game_over") {
+                const winners = (event.data as { winners: string[] }).winners;
+                const names = winners.map((id: string) => playerName(id));
+                if (winners.length === 1) {
+                    showAnnouncement(`${names[0]} WINS!`);
+                } else {
+                    showAnnouncement(`TIE: ${names.join(" & ")}`);
+                }
             }
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() =>
-            props.ws.removeEventListener("message", handleMessage),
-        );
-    });
+        }),
+    );
 
     createEffect(() => {
         const view = gameView();
@@ -199,33 +182,40 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
         return cp?.name ?? "";
     });
 
-    const sendMsg = (type: string, data: Record<string, unknown> = {}) => {
+    const roll = () => {
         if (!props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
+        props.connection.send({ type: "yahtzee:roll", data: {} });
     };
-
-    const roll = () => sendMsg("yahtzee:roll");
-    const toggleHold = (i: number) =>
-        sendMsg("yahtzee:toggle_hold", { diceIndex: i });
-    const score = (category: ScoringCategory) =>
-        sendMsg("yahtzee:score", { category });
-    const submitClaim = () => {
-        const category = selectedClaimCategory();
-        if (!category) return;
-        sendMsg("yahtzee:claim", {
-            category,
-            claimedDice: claimedDice(),
+    const toggleHold = (i: number) => {
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "yahtzee:toggle_hold",
+            data: { diceIndex: i },
         });
     };
-    const acceptClaim = () => sendMsg("yahtzee:accept_claim");
-    const challengeClaim = () => sendMsg("yahtzee:challenge_claim");
+    const score = (category: ScoringCategory) => {
+        if (!props.playerId) return;
+        props.connection.send({
+            type: "yahtzee:score",
+            data: { category },
+        });
+    };
+    const submitClaim = () => {
+        const category = selectedClaimCategory();
+        if (!category || !props.playerId) return;
+        props.connection.send({
+            type: "yahtzee:claim",
+            data: { category, claimedDice: claimedDice() },
+        });
+    };
+    const acceptClaim = () => {
+        if (!props.playerId) return;
+        props.connection.send({ type: "yahtzee:accept_claim", data: {} });
+    };
+    const challengeClaim = () => {
+        if (!props.playerId) return;
+        props.connection.send({ type: "yahtzee:challenge_claim", data: {} });
+    };
 
     const cycleClaimDie = (index: number) => {
         setClaimedDice((current) => {

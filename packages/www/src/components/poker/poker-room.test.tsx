@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { PokerRoom } from "./poker-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    PokerClientOutgoing,
+    PokerSideEvent,
+} from "~/game/poker/connection";
 import {
     makeEvent,
     makePot,
@@ -11,10 +15,6 @@ import {
     SAMPLE_CARDS,
 } from "~/game/poker/test-helpers";
 import type { PokerPlayerView } from "~/game/poker";
-
-type PokerEnvelope =
-    | { type: "poker:state"; data: PokerPlayerView }
-    | { type: "poker:action_result"; data: { error?: string } };
 
 function renderRoom(
     options: {
@@ -34,30 +34,29 @@ function renderRoom(
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
 
-    const initialMessages: PokerEnvelope[] = [
-        { type: "poker:state", data: view },
-    ];
+    const connection = createFakeGameConnection<
+        PokerPlayerView,
+        PokerClientOutgoing,
+        PokerSideEvent
+    >({ initialView: view });
 
-    const { socket, ...rest } = renderWithWs<PokerEnvelope>(
-        (ws) => (
-            <PokerRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                title={title}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const result = render(() => (
+        <PokerRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            title={title}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("PokerRoom", () => {
-    it("renders the initial poker state from the first WS message", () => {
+    it("renders the initial poker state from the connection view", () => {
         const view = makeView({
             handNumber: 3,
             street: "flop",
@@ -108,46 +107,41 @@ describe("PokerRoom", () => {
             legalActions: ["fold", "call"],
             callAmount: 20,
         });
-        const { getByRole, socket } = renderRoom({ view, playerId: "p1" });
+        const { getByRole, connection } = renderRoom({ view, playerId: "p1" });
 
         fireEvent.click(getByRole("button", { name: /fold/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "poker:act",
-                playerId: "p1",
-                playerName: "",
                 data: { type: "fold" },
             },
         ]);
     });
 
-    it("renders updated state when a new poker:state message arrives", () => {
+    it("renders updated state when the connection view changes", () => {
         const initialView = makeView({
             handNumber: 1,
             street: "preflop",
         });
-        const { getByText, socket } = renderRoom({ view: initialView });
+        const { getByText, connection } = renderRoom({ view: initialView });
         expect(getByText("HAND 1")).toBeInTheDocument();
 
-        socket.emit({
-            type: "poker:state",
-            data: makeView({ handNumber: 2, street: "turn" }),
-        });
+        connection.setView(makeView({ handNumber: 2, street: "turn" }));
 
         expect(getByText("HAND 2")).toBeInTheDocument();
         expect(getByText("TURN")).toBeInTheDocument();
     });
 
-    it("displays an action error when poker:action_result has an error", () => {
+    it("displays an action error when a poker:action_result side event has an error", () => {
         const view = makeView({
             players: [makeSeat({ id: "p1", isActing: true })],
             actingPlayerId: "p1",
             legalActions: ["check"],
         });
-        const { getByText, socket } = renderRoom({ view, playerId: "p1" });
+        const { getByText, connection } = renderRoom({ view, playerId: "p1" });
 
-        socket.emit({
+        connection.emit({
             type: "poker:action_result",
             data: { error: "Invalid action: you must call first" },
         });

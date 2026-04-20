@@ -1,12 +1,7 @@
-import {
-    createSignal,
-    createEffect,
-    onCleanup,
-    For,
-    Show,
-} from "solid-js";
+import { createSignal, onCleanup, For, Show } from "solid-js";
 import type { Component } from "solid-js";
 import type { Player } from "~/game";
+import type { QuizConnection } from "~/game/quiz/connection";
 
 type PlayerAnswer = {
     player: Player;
@@ -65,44 +60,34 @@ export const SampleQuizRoom: Component<{
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: QuizConnection;
 }> = (props) => {
     const [playerAnswer, setPlayerAnswer] = createSignal<string | null>(null);
     const [playerAnswers, setPlayerAnswers] = createSignal<PlayerAnswer[]>([]);
 
-    const handleMessage = (e: MessageEvent) => {
-        const json = JSON.parse(e.data);
-        if (json.type === "player_answered") {
-            const players = json.data.players as Player[];
-            const answers = json.data.answers as Record<string, string>;
-            setPlayerAnswers(
-                players
-                    .filter((p: Player) => answers[p.id])
-                    .map((p: Player) => ({
-                        player: p,
-                        answer: answers[p.id],
-                    })),
-            );
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => {
-            props.ws.removeEventListener("message", handleMessage);
-        });
-    });
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "player_answered") {
+                const players = event.data.players;
+                const answers = event.data.answers;
+                setPlayerAnswers(
+                    players
+                        .filter((p) => answers[p.id])
+                        .map((p) => ({
+                            player: p,
+                            answer: answers[p.id]!,
+                        })),
+                );
+            }
+        }),
+    );
 
     const submitAnswer = (answer: string) => {
         setPlayerAnswer(answer);
-        props.ws.send(
-            JSON.stringify({
-                playerId: props.playerId,
-                playerName: "",
-                type: "answer",
-                data: { answer },
-            }),
-        );
+        props.connection.send({
+            type: "answer",
+            data: { answer },
+        });
     };
 
     return (

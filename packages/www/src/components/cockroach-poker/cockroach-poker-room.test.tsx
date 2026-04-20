@@ -1,17 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { CockroachPokerRoom } from "./cockroach-poker-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    CockroachPokerClientOutgoing,
+    CockroachPokerSideEvent,
+} from "~/game/cockroach-poker/connection";
 import {
     makeOfferChain,
-    makePlayerInfo,
     makeView,
 } from "~/game/cockroach-poker/test-helpers";
 import type { CockroachPokerPlayerView } from "~/game/cockroach-poker/views";
-
-type CockroachEnvelope =
-    | { type: "cockroach_poker:state"; data: CockroachPokerPlayerView }
-    | { type: "cockroach_poker:action"; data: Record<string, unknown> };
 
 function renderRoom(
     options: {
@@ -28,25 +27,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: CockroachEnvelope[] = [
-        { type: "cockroach_poker:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<CockroachEnvelope>(
-        (ws) => (
-            <CockroachPokerRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        CockroachPokerPlayerView,
+        CockroachPokerClientOutgoing,
+        CockroachPokerSideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <CockroachPokerRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("CockroachPokerRoom", () => {
@@ -76,7 +75,7 @@ describe("CockroachPokerRoom", () => {
             activePlayerId: "p1",
             myHand: ["bat", "fly", "cockroach"],
         });
-        const { getByRole, getAllByRole, socket } = renderRoom({ view });
+        const { getByRole, getAllByRole, connection } = renderRoom({ view });
 
         // "Bat" appears in both hand and claim row; hand card is first.
         fireEvent.click(getAllByRole("button", { name: /^bat$/i })[0]!);
@@ -85,11 +84,9 @@ describe("CockroachPokerRoom", () => {
         fireEvent.click(getByRole("button", { name: /^rat$/i }));
         fireEvent.click(getByRole("button", { name: /offer card/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "cockroach_poker:offer_card",
-                playerId: "p1",
-                playerName: "",
                 data: { targetId: "p2", cardIndex: 0, claim: "rat" },
             },
         ]);
@@ -107,18 +104,16 @@ describe("CockroachPokerRoom", () => {
                 currentClaim: "fly",
             }),
         });
-        const { getByRole, socket } = renderRoom({
+        const { getByRole, connection } = renderRoom({
             view,
             playerId: "p2",
         });
 
         fireEvent.click(getByRole("button", { name: /^true$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "cockroach_poker:call_true",
-                playerId: "p2",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -135,18 +130,16 @@ describe("CockroachPokerRoom", () => {
                 currentClaim: "fly",
             }),
         });
-        const { getByRole, socket } = renderRoom({
+        const { getByRole, connection } = renderRoom({
             view,
             playerId: "p2",
         });
 
         fireEvent.click(getByRole("button", { name: /^false$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "cockroach_poker:call_false",
-                playerId: "p2",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -165,7 +158,7 @@ describe("CockroachPokerRoom", () => {
                 mustAccept: false,
             }),
         });
-        const { getByRole, socket } = renderRoom({
+        const { getByRole, connection } = renderRoom({
             view,
             playerId: "p2",
         });
@@ -174,11 +167,9 @@ describe("CockroachPokerRoom", () => {
         fireEvent.click(getByRole("button", { name: /^spider$/i }));
         fireEvent.click(getByRole("button", { name: /peek & pass/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "cockroach_poker:peek_and_pass",
-                playerId: "p2",
-                playerName: "",
                 data: { targetId: "p3", newClaim: "spider" },
             },
         ]);
@@ -213,21 +204,20 @@ describe("CockroachPokerRoom", () => {
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
-    it("reactively updates UI on incoming cockroach_poker:state", () => {
-        const { getByText, socket } = renderRoom({
+    it("reactively updates UI on connection view change", () => {
+        const { getByText, connection } = renderRoom({
             view: makeView({ phase: "offering" }),
         });
         expect(getByText("OFFERING")).toBeInTheDocument();
 
-        socket.emit({
-            type: "cockroach_poker:state",
-            data: makeView({
+        connection.setView(
+            makeView({
                 phase: "awaiting_response",
                 isMyTurn: false,
                 activePlayerId: "p2",
                 offerChain: makeOfferChain(),
             }),
-        });
+        );
 
         expect(getByText("RESPONDING")).toBeInTheDocument();
     });

@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent } from "@solidjs/testing-library";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { FunFactsRoom } from "./fun-facts-room";
-import { renderWithWs } from "~/test/render-with-ws";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
+import type {
+    FunFactsClientOutgoing,
+    FunFactsSideEvent,
+} from "~/game/fun-facts/connection";
 import {
     makePlacedArrow,
     makePlayerInfo,
     makeView,
 } from "~/game/fun-facts/test-helpers";
 import type { FunFactsPlayerView } from "~/game/fun-facts/views";
-
-type FunFactsEnvelope =
-    | { type: "fun_facts:state"; data: FunFactsPlayerView }
-    | { type: "fun_facts:action"; data: Record<string, unknown> };
 
 function renderRoom(
     options: {
@@ -28,25 +28,25 @@ function renderRoom(
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
-    const initialMessages: FunFactsEnvelope[] = [
-        { type: "fun_facts:state", data: view },
-    ];
 
-    const { socket, ...rest } = renderWithWs<FunFactsEnvelope>(
-        (ws) => (
-            <FunFactsRoom
-                roomId="room1"
-                playerId={playerId}
-                isHost={isHost}
-                ws={ws}
-                onEndGame={onEndGame}
-                onReturnToLobby={onReturnToLobby}
-            />
-        ),
-        { initialMessages },
-    );
+    const connection = createFakeGameConnection<
+        FunFactsPlayerView,
+        FunFactsClientOutgoing,
+        FunFactsSideEvent
+    >({ initialView: view });
 
-    return { ...rest, socket, onEndGame, onReturnToLobby };
+    const result = render(() => (
+        <FunFactsRoom
+            roomId="room1"
+            playerId={playerId}
+            isHost={isHost}
+            connection={connection}
+            onEndGame={onEndGame}
+            onReturnToLobby={onReturnToLobby}
+        />
+    ));
+
+    return { ...result, connection, onEndGame, onReturnToLobby };
 }
 
 describe("FunFactsRoom", () => {
@@ -72,17 +72,15 @@ describe("FunFactsRoom", () => {
             isHost: true,
             roundNumber: 0,
         });
-        const { getByRole, socket } = renderRoom({ view, isHost: true });
+        const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(
             getByRole("button", { name: /start first question/i }),
         );
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "fun_facts:next_question",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -94,7 +92,7 @@ describe("FunFactsRoom", () => {
             isHost: false,
             currentQuestion: "How tall is Mt. Everest in meters?",
         });
-        const { getByRole, socket, container } = renderRoom({ view });
+        const { getByRole, connection, container } = renderRoom({ view });
 
         const input = container.querySelector(
             "input[type='number']",
@@ -102,11 +100,9 @@ describe("FunFactsRoom", () => {
         fireEvent.input(input, { target: { value: "8848" } });
         fireEvent.click(getByRole("button", { name: /^submit$/i }));
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "fun_facts:submit_answer",
-                playerId: "p1",
-                playerName: "",
                 data: { answer: 8848 },
             },
         ]);
@@ -120,17 +116,15 @@ describe("FunFactsRoom", () => {
             totalPlayers: 3,
             currentQuestion: "Q",
         });
-        const { getByRole, socket } = renderRoom({ view, isHost: true });
+        const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(
             getByRole("button", { name: /close answers/i }),
         );
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "fun_facts:close_answers",
-                playerId: "p1",
-                playerName: "",
                 data: {},
             },
         ]);
@@ -151,16 +145,14 @@ describe("FunFactsRoom", () => {
                 makePlacedArrow({ playerId: "p2", playerName: "Bob" }),
             ],
         });
-        const { getAllByRole, socket } = renderRoom({ view });
+        const { getAllByRole, connection } = renderRoom({ view });
 
         const slots = getAllByRole("button", { name: /place here/i });
         fireEvent.click(slots[1]!);
 
-        expect(socket.sentMessages).toEqual([
+        expect(connection.sentMessages).toEqual([
             {
                 type: "fun_facts:place_arrow",
-                playerId: "p1",
-                playerName: "",
                 data: { position: 1 },
             },
         ]);
@@ -202,15 +194,12 @@ describe("FunFactsRoom", () => {
     });
 
     it("reactively updates UI when a new fun_facts:state arrives", () => {
-        const { getAllByText, socket } = renderRoom({
+        const { getAllByText, connection } = renderRoom({
             view: makeView({ teamScore: 0 }),
         });
         expect(getAllByText("0").length).toBeGreaterThan(0);
 
-        socket.emit({
-            type: "fun_facts:state",
-            data: makeView({ teamScore: 9 }),
-        });
+        connection.setView(makeView({ teamScore: 9 }));
         expect(getAllByText("9").length).toBeGreaterThan(0);
     });
 });

@@ -14,12 +14,13 @@ import type {
     SpicyPlayerView,
     SpicyResult,
 } from "~/game/spicy";
+import type { SpicyConnection } from "~/game/spicy/connection";
 
 interface SpicyRoomProps {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
-    ws: WebSocket;
+    connection: SpicyConnection;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }
@@ -124,24 +125,12 @@ function describeEvent(
 }
 
 export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
-    const [view, setView] = createSignal<SpicyPlayerView | null>(null);
+    const view = () => props.connection.view();
     const [selectedCardId, setSelectedCardId] = createSignal<string | null>(null);
     const [declaredNumber, setDeclaredNumber] = createSignal<number>(1);
     const [declaredSpice, setDeclaredSpice] = createSignal<SpiceType>("chili");
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
     const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
-
-    const send = (type: string, data: Record<string, unknown> = {}) => {
-        if (!props.playerId) return;
-        props.ws.send(
-            JSON.stringify({
-                type,
-                playerId: props.playerId,
-                playerName: "",
-                data,
-            }),
-        );
-    };
 
     const playerName = (playerId: string) =>
         view()?.players.find((player) => player.id === playerId)?.name ?? "Unknown";
@@ -150,46 +139,29 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
         () => view()?.myHand.find((card) => card.id === selectedCardId()) ?? null,
     );
 
-    const handleMessage = (event: MessageEvent) => {
-        let data: unknown;
-        try {
-            data = JSON.parse(event.data);
-        } catch {
-            return;
-        }
-
-        if (!data || typeof data !== "object" || !("type" in data)) {
-            return;
-        }
-
-        const message = data as { type: string; data: any };
-        if (message.type === "spicy:state") {
-            setView(message.data as SpicyPlayerView);
-            return;
-        }
-
-        if (message.type === "spicy:action") {
-            const nextAnnouncement = describeEvent(
-                message.data as SpicyResult,
-                playerName,
-            );
-            if (nextAnnouncement) {
-                setAnnouncement(nextAnnouncement);
-                setTimeout(() => setAnnouncement(null), 3200);
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "spicy:action") {
+                const nextAnnouncement = describeEvent(
+                    event.data as unknown as SpicyResult,
+                    playerName,
+                );
+                if (nextAnnouncement) {
+                    setAnnouncement(nextAnnouncement);
+                    setTimeout(() => setAnnouncement(null), 3200);
+                }
+                return;
             }
-            return;
-        }
 
-        if (message.type === "spicy:error") {
-            setErrorMessage(message.data.message as string);
-            setTimeout(() => setErrorMessage(null), 3200);
-        }
-    };
-
-    createEffect(() => {
-        props.ws.addEventListener("message", handleMessage);
-        onCleanup(() => props.ws.removeEventListener("message", handleMessage));
-    });
+            if (event.type === "spicy:error") {
+                const data = event.data as { message?: string };
+                if (data.message) {
+                    setErrorMessage(data.message);
+                    setTimeout(() => setErrorMessage(null), 3200);
+                }
+            }
+        }),
+    );
 
     createEffect(() => {
         const currentView = view();
@@ -341,8 +313,9 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                     label="Challenge Number"
                                                     accent="#d5a621"
                                                     onClick={() =>
-                                                        send("spicy:challenge", {
-                                                            trait: "number",
+                                                        props.connection.send({
+                                                            type: "spicy:challenge",
+                                                            data: { trait: "number" },
                                                         })
                                                     }
                                                 />
@@ -351,8 +324,9 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                     label="Challenge Spice"
                                                     accent="#0a8f82"
                                                     onClick={() =>
-                                                        send("spicy:challenge", {
-                                                            trait: "spice",
+                                                        props.connection.send({
+                                                            type: "spicy:challenge",
+                                                            data: { trait: "spice" },
                                                         })
                                                     }
                                                 />
@@ -374,9 +348,10 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                     <button
                                                         type="button"
                                                         onClick={() =>
-                                                            send(
-                                                                "spicy:confirm_last_card",
-                                                            )
+                                                            props.connection.send({
+                                                                type: "spicy:confirm_last_card",
+                                                                data: {},
+                                                            })
                                                         }
                                                         class="border-2 border-[#2b1c18] bg-[#2b1c18] px-4 py-2 font-bebas text-[.9rem] tracking-[.16em] text-[#fff5e0] shadow-[3px_3px_0_#7a2e25] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#7a2e25]"
                                                     >
@@ -469,12 +444,15 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                     !selectedCard()
                                                 }
                                                 onClick={() =>
-                                                    send("spicy:play_card", {
-                                                        cardId: selectedCard()!.id,
-                                                        declaredNumber:
-                                                            declaredNumber(),
-                                                        declaredSpice:
-                                                            declaredSpice(),
+                                                    props.connection.send({
+                                                        type: "spicy:play_card",
+                                                        data: {
+                                                            cardId: selectedCard()!.id,
+                                                            declaredNumber:
+                                                                declaredNumber(),
+                                                            declaredSpice:
+                                                                declaredSpice(),
+                                                        },
                                                     })
                                                 }
                                                 class="border-2 border-[#fff5e0] bg-[#fff5e0] px-4 py-3 font-bebas text-[.95rem] tracking-[.16em] text-[#7a2e25] shadow-[4px_4px_0_#2b1c18] transition-all duration-[120ms] disabled:cursor-default disabled:opacity-40 disabled:shadow-none enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[6px_6px_0_#2b1c18]"
@@ -484,7 +462,12 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                             <button
                                                 type="button"
                                                 disabled={!currentView().canPass}
-                                                onClick={() => send("spicy:pass")}
+                                                onClick={() =>
+                                                    props.connection.send({
+                                                        type: "spicy:pass",
+                                                        data: {},
+                                                    })
+                                                }
                                                 class="border-2 border-[#fff5e0] bg-transparent px-4 py-3 font-bebas text-[.95rem] tracking-[.16em] text-[#fff5e0] transition-colors disabled:cursor-default disabled:opacity-40 enabled:hover:bg-[#fff5e0] enabled:hover:text-[#7a2e25]"
                                             >
                                                 PASS + DRAW

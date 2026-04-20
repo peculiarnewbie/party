@@ -3,10 +3,12 @@ import { YahtzeeRoom } from "~/components/yahtzee/yahtzee-room";
 import { buildFixtureTranscript } from "~/game/yahtzee/fixture-transcripts";
 import type { YahtzeeFixtureEnvelope } from "~/game/yahtzee/fixture-transcripts";
 import type { YahtzeeFixtureId } from "~/game/yahtzee/fixtures";
-import {
-    FakeFixtureWebSocket,
-    type FakeFixtureWebSocketState,
-} from "~/test/fake-fixture-websocket";
+import type {
+    YahtzeeClientOutgoing,
+    YahtzeeSideEvent,
+} from "~/game/yahtzee/connection";
+import type { YahtzeePlayerView } from "~/game/yahtzee/views";
+import { createFakeGameConnection } from "~/test/fake-game-connection";
 
 interface YahtzeeFixtureHarnessProps {
     fixtureId: YahtzeeFixtureId;
@@ -14,9 +16,10 @@ interface YahtzeeFixtureHarnessProps {
     step?: number;
 }
 
-interface FixtureWindowState extends FakeFixtureWebSocketState<YahtzeeFixtureEnvelope> {
+interface FixtureWindowState {
     fixtureId: YahtzeeFixtureId;
     playerId: string;
+    sentMessages: YahtzeeClientOutgoing[];
     hostActions: string[];
 }
 
@@ -31,27 +34,48 @@ export function YahtzeeFixtureHarness(props: YahtzeeFixtureHarnessProps) {
     const initialMessageCount = props.step
         ? Math.max(0, Math.min(props.step, transcript.initialMessages.length))
         : transcript.initialMessages.length;
-    const initialMessages = transcript.initialMessages.slice(0, initialMessageCount);
+    const initialMessages = transcript.initialMessages.slice(
+        0,
+        initialMessageCount,
+    );
+
     const fixtureState: FixtureWindowState = {
         fixtureId: props.fixtureId,
         playerId: props.playerId,
         sentMessages: [],
-        deliveredMessages: [],
         hostActions: [],
     };
-    const socket = new FakeFixtureWebSocket<YahtzeeFixtureEnvelope>({
-        initialMessages,
-        afterSend: transcript.afterSend,
-        state: fixtureState,
-        onStateChange: () => {
+
+    const initialView = findInitialView(initialMessages);
+
+    const connection = createFakeGameConnection<
+        YahtzeePlayerView,
+        YahtzeeClientOutgoing,
+        YahtzeeSideEvent
+    >({
+        initialView,
+        onSend: (message) => {
+            fixtureState.sentMessages.push(message);
             window.__YAHTZEE_FIXTURE__ = fixtureState;
+
+            const scripted = transcript.afterSend[message.type];
+            if (scripted) {
+                for (const envelope of scripted) {
+                    applyEnvelope(connection, envelope);
+                }
+            }
         },
     });
+
     const isHost = transcript.hostPlayerId === props.playerId;
 
     onMount(() => {
         window.__YAHTZEE_FIXTURE__ = fixtureState;
-        queueMicrotask(() => socket.start());
+        queueMicrotask(() => {
+            for (const envelope of initialMessages) {
+                applyEnvelope(connection, envelope);
+            }
+        });
     });
 
     return (
@@ -59,7 +83,7 @@ export function YahtzeeFixtureHarness(props: YahtzeeFixtureHarnessProps) {
             roomId={transcript.roomId}
             playerId={props.playerId}
             isHost={isHost}
-            ws={socket as unknown as WebSocket}
+            connection={connection}
             title={transcript.title}
             onEndGame={() => {
                 fixtureState.hostActions.push("end_game");
@@ -72,4 +96,32 @@ export function YahtzeeFixtureHarness(props: YahtzeeFixtureHarnessProps) {
             announcementDelayMs={0}
         />
     );
+}
+
+function findInitialView(
+    messages: readonly YahtzeeFixtureEnvelope[],
+): YahtzeePlayerView | null {
+    for (const message of messages) {
+        if (message.type === "yahtzee:state") {
+            return message.data as YahtzeePlayerView;
+        }
+    }
+    return null;
+}
+
+function applyEnvelope(
+    connection: ReturnType<
+        typeof createFakeGameConnection<
+            YahtzeePlayerView,
+            YahtzeeClientOutgoing,
+            YahtzeeSideEvent
+        >
+    >,
+    envelope: YahtzeeFixtureEnvelope,
+) {
+    if (envelope.type === "yahtzee:state") {
+        connection.setView(envelope.data as YahtzeePlayerView);
+        return;
+    }
+    connection.emit(envelope as YahtzeeSideEvent);
 }
