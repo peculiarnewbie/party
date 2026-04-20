@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@solidjs/testing-library";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render } from "@solidjs/testing-library";
 import { ActionControls } from "./action-controls";
 
 describe("ActionControls", () => {
@@ -17,17 +17,18 @@ describe("ActionControls", () => {
                 onAction={() => {}}
             />
         ));
+
         expect(
             getByText(/Spectators can follow the board/i),
         ).toBeInTheDocument();
         expect(queryByRole("button", { name: /fold/i })).toBeNull();
     });
 
-    it("fires onAction with 'fold' when Fold is clicked", () => {
+    it("fires onAction with fold when Fold is clicked", () => {
         const onAction = vi.fn();
         const { getByRole } = render(() => (
             <ActionControls
-                legalActions={["fold", "call"]}
+                legalActions={["fold", "call", "all_in"]}
                 callAmount={10}
                 minBetOrRaise={null}
                 maxBet={100}
@@ -38,37 +39,67 @@ describe("ActionControls", () => {
                 onAction={onAction}
             />
         ));
+
         fireEvent.click(getByRole("button", { name: /fold/i }));
+
         expect(onAction).toHaveBeenCalledWith("fold");
     });
 
-    it("disables actions not in legalActions", () => {
+    it("uses Check as the primary action when no bet is selected", () => {
         const onAction = vi.fn();
-        const { getByRole } = render(() => (
+        const { getByTestId } = render(() => (
             <ActionControls
-                legalActions={["call"]}
-                callAmount={10}
-                minBetOrRaise={null}
-                maxBet={100}
-                amount=""
+                legalActions={["fold", "check", "bet", "all_in"]}
+                callAmount={0}
+                minBetOrRaise={20}
+                maxBet={200}
+                amount="0"
                 setAmount={() => {}}
                 isSpectator={false}
                 isMyTurn={true}
                 onAction={onAction}
             />
         ));
-        expect(getByRole("button", { name: /fold/i })).toBeDisabled();
-        expect(getByRole("button", { name: /check/i })).toBeDisabled();
-        expect(getByRole("button", { name: /call/i })).not.toBeDisabled();
-        fireEvent.click(getByRole("button", { name: /fold/i }));
-        expect(onAction).not.toHaveBeenCalled();
+
+        expect(getByTestId("poker-primary-action-button")).toHaveTextContent(
+            "Check",
+        );
+
+        fireEvent.click(getByTestId("poker-primary-action-button"));
+
+        expect(onAction).toHaveBeenCalledWith("check");
     });
 
-    it("passes the typed amount to onAction when Bet is clicked", () => {
+    it("uses Call as the primary action until the raise size reaches the minimum", () => {
         const onAction = vi.fn();
-        const { getByRole } = render(() => (
+        const { getByTestId } = render(() => (
             <ActionControls
-                legalActions={["bet"]}
+                legalActions={["fold", "call", "raise", "all_in"]}
+                callAmount={20}
+                minBetOrRaise={60}
+                maxBet={300}
+                amount="40"
+                setAmount={() => {}}
+                isSpectator={false}
+                isMyTurn={true}
+                onAction={onAction}
+            />
+        ));
+
+        expect(getByTestId("poker-primary-action-button")).toHaveTextContent(
+            "Call 20",
+        );
+
+        fireEvent.click(getByTestId("poker-primary-action-button"));
+
+        expect(onAction).toHaveBeenCalledWith("call");
+    });
+
+    it("submits Bet when the selected amount reaches the betting threshold", () => {
+        const onAction = vi.fn();
+        const { getByTestId } = render(() => (
+            <ActionControls
+                legalActions={["fold", "check", "bet", "all_in"]}
                 callAmount={0}
                 minBetOrRaise={20}
                 maxBet={200}
@@ -79,15 +110,88 @@ describe("ActionControls", () => {
                 onAction={onAction}
             />
         ));
-        fireEvent.click(getByRole("button", { name: /bet/i }));
+
+        expect(getByTestId("poker-primary-action-button")).toHaveTextContent("Bet");
+
+        fireEvent.click(getByTestId("poker-primary-action-button"));
+
         expect(onAction).toHaveBeenCalledWith("bet", 50);
+    });
+
+    it("submits Raise when the selected amount reaches the raise minimum", () => {
+        const onAction = vi.fn();
+        const { getByTestId } = render(() => (
+            <ActionControls
+                legalActions={["fold", "call", "raise", "all_in"]}
+                callAmount={20}
+                minBetOrRaise={60}
+                maxBet={400}
+                amount="80"
+                setAmount={() => {}}
+                isSpectator={false}
+                isMyTurn={true}
+                onAction={onAction}
+            />
+        ));
+
+        expect(getByTestId("poker-primary-action-button")).toHaveTextContent(
+            "Raise",
+        );
+
+        fireEvent.click(getByTestId("poker-primary-action-button"));
+
+        expect(onAction).toHaveBeenCalledWith("raise", 80);
+    });
+
+    it("adjusts the amount with the quick sizing buttons", () => {
+        const setAmount = vi.fn();
+        const { getByTestId } = render(() => (
+            <ActionControls
+                legalActions={["fold", "check", "bet", "all_in"]}
+                callAmount={0}
+                minBetOrRaise={20}
+                maxBet={120}
+                amount="50"
+                setAmount={setAmount}
+                isSpectator={false}
+                isMyTurn={true}
+                onAction={() => {}}
+            />
+        ));
+
+        fireEvent.click(getByTestId("poker-adjust-10"));
+        fireEvent.click(getByTestId("poker-adjust--100"));
+
+        expect(setAmount).toHaveBeenNthCalledWith(1, "60");
+        expect(setAmount).toHaveBeenNthCalledWith(2, "0");
+    });
+
+    it("fires onAction with all_in when All-in is clicked", () => {
+        const onAction = vi.fn();
+        const { getByRole } = render(() => (
+            <ActionControls
+                legalActions={["fold", "call", "raise", "all_in"]}
+                callAmount={20}
+                minBetOrRaise={60}
+                maxBet={400}
+                amount="80"
+                setAmount={() => {}}
+                isSpectator={false}
+                isMyTurn={true}
+                onAction={onAction}
+            />
+        ));
+
+        fireEvent.click(getByRole("button", { name: /all-in/i }));
+
+        expect(onAction).toHaveBeenCalledWith("all_in");
     });
 
     it("shows YOUR MOVE only when it is the player's turn", () => {
         const notMyTurn = render(() => (
             <ActionControls
-                legalActions={["call"]}
-                callAmount={0}
+                legalActions={["call", "all_in"]}
+                callAmount={10}
                 minBetOrRaise={null}
                 maxBet={100}
                 amount=""
@@ -101,8 +205,8 @@ describe("ActionControls", () => {
 
         const myTurn = render(() => (
             <ActionControls
-                legalActions={["call"]}
-                callAmount={0}
+                legalActions={["call", "all_in"]}
+                callAmount={10}
                 minBetOrRaise={null}
                 maxBet={100}
                 amount=""

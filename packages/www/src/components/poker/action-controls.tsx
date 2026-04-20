@@ -1,5 +1,5 @@
 import type { Component } from "solid-js";
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
 import type { PokerActionType } from "~/game/poker/types";
 
 export const ActionControls: Component<{
@@ -14,6 +14,80 @@ export const ActionControls: Component<{
     onAction: (type: PokerActionType, amount?: number) => void;
 }> = (props) => {
     const hasAction = (type: PokerActionType) => props.legalActions.includes(type);
+    const parsedAmount = () => {
+        const value = Number(props.amount);
+        if (!Number.isFinite(value)) return 0;
+        return Math.max(0, Math.trunc(value));
+    };
+    const primaryAction = (): "check" | "call" | "bet" | "raise" | null => {
+        const amount = parsedAmount();
+
+        if (
+            hasAction("raise") &&
+            props.minBetOrRaise !== null &&
+            amount >= props.minBetOrRaise
+        ) {
+            return "raise";
+        }
+
+        if (
+            hasAction("bet") &&
+            props.minBetOrRaise !== null &&
+            amount >= props.minBetOrRaise
+        ) {
+            return "bet";
+        }
+
+        if (hasAction("call")) return "call";
+        if (hasAction("check")) return "check";
+        return null;
+    };
+    const primaryActionLabel = () => {
+        const action = primaryAction();
+        if (action === "call") {
+            return `Call ${props.callAmount}`;
+        }
+
+        if (action === "check") {
+            return "Check";
+        }
+
+        if (action === "bet") {
+            return "Bet";
+        }
+
+        if (action === "raise") {
+            return "Raise";
+        }
+
+        return "Act";
+    };
+    const canSubmitPrimaryAction = () => {
+        const action = primaryAction();
+        if (!action) return false;
+        if ((action === "bet" || action === "raise") && props.minBetOrRaise !== null) {
+            return parsedAmount() >= props.minBetOrRaise;
+        }
+        return true;
+    };
+    const adjustAmount = (delta: number) => {
+        const next = Math.max(0, Math.min(props.maxBet, parsedAmount() + delta));
+        props.setAmount(String(next));
+    };
+    const setAllInAmount = () => {
+        props.onAction("all_in");
+    };
+    const submitPrimaryAction = () => {
+        const action = primaryAction();
+        if (!action) return;
+
+        if (action === "bet" || action === "raise") {
+            submitSizedAction(action);
+            return;
+        }
+
+        props.onAction(action);
+    };
 
     const submitSizedAction = (type: "bet" | "raise") => {
         const value = Number(props.amount);
@@ -60,71 +134,56 @@ export const ActionControls: Component<{
                     </button>
                     <button
                         type="button"
-                        data-testid="poker-check-button"
-                        disabled={!hasAction("check")}
-                        onClick={() => props.onAction("check")}
+                        data-testid="poker-primary-action-button"
+                        disabled={!canSubmitPrimaryAction()}
+                        onClick={submitPrimaryAction}
                         class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
                     >
-                        Check
+                        {primaryActionLabel()}
                     </button>
-                    <button
-                        type="button"
-                        data-testid="poker-call-button"
-                        disabled={!hasAction("call")}
-                        onClick={() => props.onAction("call")}
-                        class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
-                    >
-                        Call {props.callAmount}
-                    </button>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center gap-2">
+                    <For each={[-10, -50, -100, 10, 50, 100]}>
+                        {(delta) => (
+                            <button
+                                type="button"
+                                data-testid={`poker-adjust-${delta}`}
+                                onClick={() => adjustAmount(delta)}
+                                class="font-bebas text-[.9rem] tracking-[.08em] border-2 border-[#1a1a1a] bg-[#c9c0b0] text-[#1a1a1a] px-3 py-2 cursor-pointer transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_#1a1a1a]"
+                            >
+                                {delta > 0 ? `+${delta}` : delta}
+                            </button>
+                        )}
+                    </For>
                     <button
                         type="button"
                         data-testid="poker-all-in-button"
                         disabled={!hasAction("all_in")}
-                        onClick={() => props.onAction("all_in")}
-                        class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#c0261a] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
+                        onClick={setAllInAmount}
+                        class="font-bebas text-[.9rem] tracking-[.08em] border-2 border-[#1a1a1a] bg-[#c0261a] text-[#ddd5c4] px-3 py-2 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
                     >
                         All-in
                     </button>
-                </div>
-
-                <div class="mt-4 flex flex-col gap-3">
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 ml-auto">
                         <input
                             type="number"
                             data-testid="poker-amount-input"
-                            min={props.minBetOrRaise ?? undefined}
+                            min={0}
                             max={props.maxBet || undefined}
                             value={props.amount}
                             onInput={(event) =>
                                 props.setAmount(event.currentTarget.value)
                             }
-                            class="flex-1 min-w-0 border-2 border-[#1a1a1a] bg-[#c9c0b0] px-4 py-3 font-bebas text-[1rem] tracking-[.08em] text-[#1a1a1a] outline-none transition-[border-color] duration-150 focus:border-[#1a1a1a] placeholder:text-[#9a9080]"
+                            class="w-28 min-w-0 border-2 border-[#1a1a1a] bg-[#c9c0b0] px-3 py-2 font-bebas text-[1rem] tracking-[.08em] text-[#1a1a1a] outline-none transition-[border-color] duration-150 focus:border-[#1a1a1a] placeholder:text-[#9a9080]"
                         />
-                        <div class="font-bebas text-[.65rem] tracking-[.18em] text-[#9a9080]">
-                            MIN {props.minBetOrRaise ?? 0}
-                            <br />
-                            MAX {props.maxBet}
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <button
-                            type="button"
-                            data-testid="poker-bet-button"
-                            disabled={!hasAction("bet")}
-                            onClick={() => submitSizedAction("bet")}
-                            class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#9a9080]"
-                        >
-                            Bet
-                        </button>
-                        <button
-                            type="button"
-                            data-testid="poker-raise-button"
-                            disabled={!hasAction("raise")}
-                            onClick={() => submitSizedAction("raise")}
-                            class="font-bebas text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#ddd5c4] px-4 py-3 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#9a9080]"
-                        >
-                            Raise
-                        </button>
+                        <Show when={props.minBetOrRaise !== null}>
+                            <div class="font-bebas text-[.65rem] tracking-[.14em] text-[#9a9080]">
+                                MIN {props.minBetOrRaise}
+                                <br />
+                                MAX {props.maxBet}
+                            </div>
+                        </Show>
                     </div>
                 </div>
             </Show>
