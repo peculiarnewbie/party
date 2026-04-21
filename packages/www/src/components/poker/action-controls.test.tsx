@@ -47,7 +47,7 @@ describe("ActionControls", () => {
         expect(onAction).toHaveBeenCalledWith("fold");
     });
 
-    it("uses Check as the primary action when no bet is selected", () => {
+    it("shows Check on the check/call button when check is legal", () => {
         const onAction = vi.fn();
         const { getByTestId } = render(() => (
             <ActionControls
@@ -64,16 +64,14 @@ describe("ActionControls", () => {
             />
         ));
 
-        expect(getByTestId("poker-primary-action-button")).toHaveTextContent(
-            "Check",
-        );
+        expect(getByTestId("poker-check-call-button")).toHaveTextContent("Check");
 
-        fireEvent.click(getByTestId("poker-primary-action-button"));
+        fireEvent.click(getByTestId("poker-check-call-button"));
 
         expect(onAction).toHaveBeenCalledWith("check");
     });
 
-    it("uses Call as the primary action until the raise size reaches the minimum", () => {
+    it("shows Call with the call amount and always submits call regardless of entered amount", () => {
         const onAction = vi.fn();
         const { getByTestId } = render(() => (
             <ActionControls
@@ -82,7 +80,7 @@ describe("ActionControls", () => {
                 minBetOrRaise={60}
                 maxBet={300}
                 stack={1000}
-                amount="40"
+                amount="80"
                 setAmount={() => {}}
                 isSpectator={false}
                 isMyTurn={true}
@@ -90,11 +88,9 @@ describe("ActionControls", () => {
             />
         ));
 
-        expect(getByTestId("poker-primary-action-button")).toHaveTextContent(
-            "Call 20",
-        );
+        expect(getByTestId("poker-check-call-button")).toHaveTextContent("Call 20");
 
-        fireEvent.click(getByTestId("poker-primary-action-button"));
+        fireEvent.click(getByTestId("poker-check-call-button"));
 
         expect(onAction).toHaveBeenCalledWith("call");
     });
@@ -116,9 +112,9 @@ describe("ActionControls", () => {
             />
         ));
 
-        expect(getByTestId("poker-primary-action-button")).toHaveTextContent("Bet");
+        expect(getByTestId("poker-bet-raise-button")).toHaveTextContent("Bet");
 
-        fireEvent.click(getByTestId("poker-primary-action-button"));
+        fireEvent.click(getByTestId("poker-bet-raise-button"));
 
         expect(onAction).toHaveBeenCalledWith("bet", 50);
     });
@@ -140,13 +136,31 @@ describe("ActionControls", () => {
             />
         ));
 
-        expect(getByTestId("poker-primary-action-button")).toHaveTextContent(
-            "Raise",
-        );
+        expect(getByTestId("poker-bet-raise-button")).toHaveTextContent("Raise");
 
-        fireEvent.click(getByTestId("poker-primary-action-button"));
+        fireEvent.click(getByTestId("poker-bet-raise-button"));
 
         expect(onAction).toHaveBeenCalledWith("raise", 80);
+    });
+
+    it("disables the bet/raise button until the amount reaches the minimum", () => {
+        const { getByTestId } = render(() => (
+            <ActionControls
+                legalActions={["fold", "call", "raise", "all_in"]}
+                callAmount={20}
+                minBetOrRaise={60}
+                maxBet={400}
+                stack={1000}
+                amount="40"
+                setAmount={() => {}}
+                isSpectator={false}
+                isMyTurn={true}
+                onAction={() => {}}
+            />
+        ));
+
+        expect(getByTestId("poker-check-call-button")).not.toBeDisabled();
+        expect(getByTestId("poker-bet-raise-button")).toBeDisabled();
     });
 
     it("adjusts the amount with the quick sizing buttons", () => {

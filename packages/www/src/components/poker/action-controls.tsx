@@ -20,56 +20,32 @@ export const ActionControls: Component<{
         if (!Number.isFinite(value)) return 0;
         return Math.max(0, Math.trunc(value));
     };
-    const primaryAction = (): "check" | "call" | "bet" | "raise" | null => {
-        const amount = parsedAmount();
-
-        if (
-            hasAction("raise") &&
-            props.minBetOrRaise !== null &&
-            amount >= props.minBetOrRaise
-        ) {
-            return "raise";
-        }
-
-        if (
-            hasAction("bet") &&
-            props.minBetOrRaise !== null &&
-            amount >= props.minBetOrRaise
-        ) {
-            return "bet";
-        }
-
+    const checkCallAction = (): "check" | "call" | null => {
         if (hasAction("call")) return "call";
         if (hasAction("check")) return "check";
         return null;
     };
-    const primaryActionLabel = () => {
-        const action = primaryAction();
-        if (action === "call") {
-            return `Call ${props.callAmount}`;
-        }
-
-        if (action === "check") {
-            return "Check";
-        }
-
-        if (action === "bet") {
-            return "Bet";
-        }
-
-        if (action === "raise") {
-            return "Raise";
-        }
-
-        return "Act";
+    const checkCallLabel = () => {
+        const action = checkCallAction();
+        if (action === "call") return `Call ${props.callAmount}`;
+        return "Check";
     };
-    const canSubmitPrimaryAction = () => {
-        const action = primaryAction();
+    const canSubmitCheckCall = () => checkCallAction() !== null;
+    const betRaiseAction = (): "bet" | "raise" | null => {
+        if (hasAction("raise")) return "raise";
+        if (hasAction("bet")) return "bet";
+        return null;
+    };
+    const betRaiseLabel = () => {
+        const action = betRaiseAction();
+        if (action === "raise") return "Raise";
+        return "Bet";
+    };
+    const canSubmitBetRaise = () => {
+        const action = betRaiseAction();
         if (!action) return false;
-        if ((action === "bet" || action === "raise") && props.minBetOrRaise !== null) {
-            return parsedAmount() >= props.minBetOrRaise;
-        }
-        return true;
+        if (props.minBetOrRaise === null) return false;
+        return parsedAmount() >= props.minBetOrRaise;
     };
     const adjustAmount = (delta: number) => {
         const next = Math.max(0, Math.min(props.maxBet, parsedAmount() + delta));
@@ -78,22 +54,17 @@ export const ActionControls: Component<{
     const setAllInAmount = () => {
         props.onAction("all_in");
     };
-    const submitPrimaryAction = () => {
-        const action = primaryAction();
+    const submitCheckCall = () => {
+        const action = checkCallAction();
         if (!action) return;
-
-        if (action === "bet" || action === "raise") {
-            submitSizedAction(action);
-            return;
-        }
-
         props.onAction(action);
     };
-
-    const submitSizedAction = (type: "bet" | "raise") => {
+    const submitBetRaise = () => {
+        const action = betRaiseAction();
+        if (!action) return;
         const value = Number(props.amount);
         if (!Number.isFinite(value)) return;
-        props.onAction(type, value);
+        props.onAction(action, value);
     };
 
     return (
@@ -136,7 +107,7 @@ export const ActionControls: Component<{
                     </Show>
                 </div>
 
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-3 gap-2">
                     <button
                         type="button"
                         data-testid="poker-fold-button"
@@ -148,12 +119,21 @@ export const ActionControls: Component<{
                     </button>
                     <button
                         type="button"
-                        data-testid="poker-primary-action-button"
-                        disabled={!canSubmitPrimaryAction()}
-                        onClick={submitPrimaryAction}
+                        data-testid="poker-check-call-button"
+                        disabled={!canSubmitCheckCall()}
+                        onClick={submitCheckCall}
+                        class="font-bebas text-[.9rem] lg:text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#c9c0b0] text-[#1a1a1a] px-3 py-2.5 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
+                    >
+                        {checkCallLabel()}
+                    </button>
+                    <button
+                        type="button"
+                        data-testid="poker-bet-raise-button"
+                        disabled={!canSubmitBetRaise()}
+                        onClick={submitBetRaise}
                         class="font-bebas text-[.9rem] lg:text-[1rem] tracking-[.1em] border-2 border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] px-3 py-2.5 cursor-pointer transition-all duration-[120ms] disabled:opacity-35 disabled:cursor-default enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[3px_3px_0_#1a1a1a]"
                     >
-                        {primaryActionLabel()}
+                        {betRaiseLabel()}
                     </button>
                 </div>
 
