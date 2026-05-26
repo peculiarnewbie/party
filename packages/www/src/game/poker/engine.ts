@@ -3,7 +3,7 @@ import type { Card } from "~/assets/card-deck/types";
 import type {
     PokerAction,
     PokerActionResult,
-    PokerEvent,
+    PokerEventBase,
     PokerHandValue,
     PokerPlayer,
     PokerPlayerStatus,
@@ -39,7 +39,7 @@ function defaultShuffle<T>(arr: T[]): T[] {
 
 function pushEvent(
     state: PokerState,
-    event: Omit<PokerEvent, "id">,
+    event: PokerEventBase,
 ) {
     state.eventSeq += 1;
     state.eventLog = [
@@ -505,7 +505,6 @@ function awardUncontestedPot(state: PokerState, winnerId: string) {
     winner.stack += total;
     pushEvent(state, {
         type: "pot_awarded",
-        playerId: winner.id,
         amount: total,
         street: state.street,
         message: `${winner.name} won ${total} chips uncontested`,
@@ -975,7 +974,6 @@ export function endGameByHost(state: PokerState) {
 
     pushEvent(state, {
         type: "game_ended",
-        street: state.street,
         message: "The host ended the poker game",
     });
 }

@@ -11,10 +11,11 @@ describe("EventLog", () => {
 
     it("renders event messages with their type in uppercase with spaces", () => {
         const events: PokerEvent[] = [
-            { id: 1, type: "hand_started", message: "Hand #1 dealt." },
+            { id: 1, type: "hand_started", street: "preflop", message: "Hand #1 dealt." },
             {
                 id: 2,
                 type: "player_action",
+                street: "preflop",
                 message: "Alice bets 20.",
                 playerId: "p1",
                 amount: 20,
@@ -29,9 +30,9 @@ describe("EventLog", () => {
 
     it("renders the most recent event first (reversed order)", () => {
         const events: PokerEvent[] = [
-            { id: 1, type: "hand_started", message: "First event" },
-            { id: 2, type: "board_dealt", message: "Second event" },
-            { id: 3, type: "pot_awarded", message: "Third event" },
+            { id: 1, type: "hand_started", street: "preflop", message: "First event" },
+            { id: 2, type: "board_dealt", street: "flop", message: "Second event" },
+            { id: 3, type: "pot_awarded", street: "showdown", message: "Third event" },
         ];
         const { container } = render(() => <EventLog events={events} />);
         const messages = Array.from(

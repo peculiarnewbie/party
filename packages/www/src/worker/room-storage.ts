@@ -1,6 +1,10 @@
 import { Effect, Schema } from "effect";
 
-import { RANKS, SUITS } from "~/assets/card-deck/types";
+import {
+    gameTypes,
+    gameParticipantSchema,
+    playerSchema,
+} from "~/game";
 import type {
     GameParticipant,
     GameParticipantStatus,
@@ -15,6 +19,7 @@ import type { GoFishState } from "~/game/go-fish";
 import type { HerdState } from "~/game/herd";
 import type { PerudoState } from "~/game/perudo";
 import type { PokerState } from "~/game/poker";
+import { pokerStateSchema } from "~/game/poker/schemas";
 import type { RpsState } from "~/game/rps";
 import type { SkullState } from "~/game/skull";
 import type { SpicyState } from "~/game/spicy";
@@ -95,25 +100,6 @@ export type PersistedGameSnapshot =
           state: SpicyState;
       };
 
-const gameTypes = [
-    "quiz",
-    "go_fish",
-    "poker",
-    "backwards_poker",
-    "blackjack",
-    "yahtzee",
-    "lying_yahtzee",
-    "perudo",
-    "rps",
-    "herd",
-    "fun_facts",
-    "cheese_thief",
-    "cockroach_poker",
-    "flip_7",
-    "skull",
-    "spicy",
-] as const;
-
 const scoringCategories = [
     "ones",
     "twos",
@@ -164,17 +150,6 @@ const heldDiceSchema = Schema.mutable(
         Schema.Boolean,
     ]),
 );
-
-const playerSchema = Schema.Struct({
-    id: Schema.mutableKey(Schema.String),
-    name: Schema.mutableKey(Schema.String),
-    score: Schema.optionalKey(Schema.mutableKey(Schema.Number)),
-});
-
-const gameParticipantSchema = Schema.Struct({
-    playerId: Schema.mutableKey(Schema.String),
-    status: Schema.mutableKey(participantStatusSchema),
-});
 
 const persistedParticipantRowSchema = Schema.Struct({
     player_id: Schema.mutableKey(Schema.String),
@@ -279,95 +254,6 @@ const yahtzeeStateSchema = Schema.Struct({
     ),
     pendingClaim: Schema.mutableKey(Schema.NullOr(lyingClaimSchema)),
     lastTurnReveal: Schema.mutableKey(Schema.NullOr(lyingTurnRevealSchema)),
-});
-
-const suitSchema = Schema.Literals(SUITS);
-const rankSchema = Schema.Literals(RANKS);
-const pokerStreetSchema = Schema.Literals([
-    "preflop",
-    "flop",
-    "turn",
-    "river",
-    "showdown",
-    "hand_over",
-    "tournament_over",
-] as const);
-const pokerPlayerStatusSchema = Schema.Literals([
-    "active",
-    "folded",
-    "all_in",
-    "busted",
-    "disconnected",
-] as const);
-const pokerEventTypeSchema = Schema.Literals([
-    "hand_started",
-    "blinds_posted",
-    "player_action",
-    "board_dealt",
-    "showdown",
-    "pot_awarded",
-    "player_disconnected",
-    "player_reconnected",
-    "game_ended",
-    "info",
-] as const);
-const cardSchema = Schema.Struct({
-    suit: Schema.mutableKey(suitSchema),
-    rank: Schema.mutableKey(rankSchema),
-});
-const pokerPlayerSchema = Schema.Struct({
-    id: Schema.mutableKey(Schema.String),
-    name: Schema.mutableKey(Schema.String),
-    stack: Schema.mutableKey(Schema.Number),
-    holeCards: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
-    status: Schema.mutableKey(pokerPlayerStatusSchema),
-    connected: Schema.mutableKey(Schema.Boolean),
-    committedThisStreet: Schema.mutableKey(Schema.Number),
-    committedThisHand: Schema.mutableKey(Schema.Number),
-    hasActedThisStreet: Schema.mutableKey(Schema.Boolean),
-    raiseLocked: Schema.mutableKey(Schema.Boolean),
-});
-const pokerSpectatorSchema = Schema.Struct({
-    id: Schema.mutableKey(Schema.String),
-    name: Schema.mutableKey(Schema.String),
-});
-const pokerPotSchema = Schema.Struct({
-    amount: Schema.mutableKey(Schema.Number),
-    eligiblePlayerIds: Schema.mutableKey(
-        Schema.mutable(Schema.Array(Schema.String)),
-    ),
-});
-const pokerEventSchema = Schema.Struct({
-    id: Schema.mutableKey(Schema.Number),
-    type: Schema.mutableKey(pokerEventTypeSchema),
-    message: Schema.mutableKey(Schema.String),
-    playerId: Schema.optionalKey(Schema.mutableKey(Schema.String)),
-    amount: Schema.optionalKey(Schema.mutableKey(Schema.Number)),
-    street: Schema.optionalKey(Schema.mutableKey(pokerStreetSchema)),
-});
-const pokerStateSchema = Schema.Struct({
-    players: Schema.mutableKey(Schema.mutable(Schema.Array(pokerPlayerSchema))),
-    spectators: Schema.mutableKey(
-        Schema.mutable(Schema.Array(pokerSpectatorSchema)),
-    ),
-    deck: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
-    board: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
-    dealerIndex: Schema.mutableKey(Schema.Number),
-    smallBlindIndex: Schema.mutableKey(Schema.Number),
-    bigBlindIndex: Schema.mutableKey(Schema.Number),
-    actingPlayerIndex: Schema.mutableKey(Schema.NullOr(Schema.Number)),
-    street: Schema.mutableKey(pokerStreetSchema),
-    pots: Schema.mutableKey(Schema.mutable(Schema.Array(pokerPotSchema))),
-    currentBet: Schema.mutableKey(Schema.Number),
-    minRaise: Schema.mutableKey(Schema.Number),
-    handNumber: Schema.mutableKey(Schema.Number),
-    lastAggressorIndex: Schema.mutableKey(Schema.NullOr(Schema.Number)),
-    endedByHost: Schema.mutableKey(Schema.Boolean),
-    winnerIds: Schema.mutableKey(
-        Schema.NullOr(Schema.mutable(Schema.Array(Schema.String))),
-    ),
-    eventLog: Schema.mutableKey(Schema.mutable(Schema.Array(pokerEventSchema))),
-    eventSeq: Schema.mutableKey(Schema.Number),
 });
 
 function createLooseSnapshotSchema<GameType extends PersistedGameSnapshot["gameType"]>(

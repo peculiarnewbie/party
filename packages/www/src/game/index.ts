@@ -159,15 +159,7 @@ export interface GameState {
     gameParticipants: GameParticipant[];
 }
 
-export interface RoomStatePayload {
-    players: Player[];
-    hostId: string | null;
-    phase: RoomPhase;
-    selectedGameType: GameType;
-    activeGameType: GameType | null;
-    gameSessionId: string | null;
-    gameParticipants: GameParticipant[];
-}
+export type RoomStatePayload = Omit<GameState, "answers">;
 
 export type RoomProcessResult =
     | { kind: "none" }
@@ -195,13 +187,13 @@ export type ServerMessage = {
     data: Record<string, unknown>;
 };
 
-const playerSchema = Schema.Struct({
+export const playerSchema = Schema.Struct({
     id: Schema.mutableKey(Schema.String),
     name: Schema.mutableKey(Schema.String),
     score: Schema.optionalKey(Schema.mutableKey(Schema.Number)),
 });
 
-const gameParticipantSchema = Schema.Struct({
+export const gameParticipantSchema = Schema.Struct({
     playerId: Schema.mutableKey(Schema.String),
     status: Schema.mutableKey(
         Schema.Literals(["active", "disconnected", "left_game"] as const),

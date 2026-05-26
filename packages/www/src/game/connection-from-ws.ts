@@ -1,10 +1,11 @@
 import { createSignal, onCleanup } from "solid-js";
 import type { GameConnection } from "./connection";
 
-export interface CreateGameConnectionOptions {
+export interface CreateGameConnectionOptions<TView> {
     stateType: string;
     prefix: string;
     envelope: () => { playerId: string | null; playerName: string };
+    decodeView?: (data: unknown) => TView | null;
 }
 
 export function createGameConnection<
@@ -13,7 +14,7 @@ export function createGameConnection<
     TEvent extends { type: string } = never,
 >(
     ws: WebSocket,
-    options: CreateGameConnectionOptions,
+    options: CreateGameConnectionOptions<TView>,
 ): GameConnection<TView, TOutgoing, TEvent> {
     const [view, setView] = createSignal<TView | null>(null);
     const handlers = new Set<(event: TEvent) => void>();
@@ -39,7 +40,11 @@ export function createGameConnection<
         if (!messageType.startsWith(options.prefix)) return;
 
         if (messageType === options.stateType) {
-            const data = (payload as unknown as { data: unknown }).data as TView;
+            const rawData = (payload as unknown as { data: unknown }).data;
+            const data = options.decodeView
+                ? options.decodeView(rawData)
+                : (rawData as TView);
+            if (data === null) return;
             setView(() => data);
             return;
         }
