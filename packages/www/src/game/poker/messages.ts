@@ -1,6 +1,7 @@
 import { Effect, Schema } from "effect";
 
 import {
+    decodeUnknownSync,
     decodeWithSchema,
     encodeJsonMessage,
     extractMessageType,
@@ -67,6 +68,32 @@ export function decodePokerServerMessage(
             messageType: extractMessageType(value),
         });
     });
+}
+
+export function decodePokerServerMessageOrNull(
+    raw: unknown,
+): PokerServerMessage | null {
+    try {
+        return decodeUnknownSync(pokerServerMessageSchema, raw);
+    } catch {
+        return null;
+    }
+}
+
+export type PokerSideMessage = Exclude<
+    PokerServerMessage,
+    { type: "poker:state" }
+>;
+
+export function decodePokerSideMessageOrNull(
+    raw: unknown,
+): PokerSideMessage | null {
+    const message = decodePokerServerMessageOrNull(raw);
+    if (!message || message.type === "poker:state") {
+        return null;
+    }
+
+    return message;
 }
 
 export function encodePokerServerMessage(message: PokerServerMessage): string {

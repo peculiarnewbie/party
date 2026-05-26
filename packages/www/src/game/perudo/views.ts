@@ -1,40 +1,7 @@
-import type {
-    PerudoState,
-    PerudoPhase,
-    Bid,
-    ChallengeResult,
-    FaceValue,
-} from "./types";
+import type { PerudoState, FaceValue } from "./types";
+import type { PerudoPlayerInfo, PerudoPlayerView } from "./schemas";
 
-export interface PerudoPlayerInfo {
-    id: string;
-    name: string;
-    diceCount: number;
-    eliminated: boolean;
-    isCurrentPlayer: boolean;
-    isStartingPlayer: boolean;
-    dice: FaceValue[] | null;
-}
-
-export interface PerudoPlayerView {
-    myId: string;
-    phase: PerudoPhase;
-    roundNumber: number;
-    currentBid: Bid | null;
-    bidHistory: Bid[];
-    palificoRound: boolean;
-    lastChallengeResult: ChallengeResult | null;
-    winners: string[] | null;
-    totalDiceInPlay: number;
-    revealTimerActive: boolean;
-    isMyTurn: boolean;
-    currentPlayerId: string;
-    players: PerudoPlayerInfo[];
-    canBid: boolean;
-    canChallenge: boolean;
-    mustBet: boolean;
-    nextHigherBid: { quantity: number; faceValue: FaceValue } | null;
-}
+export type { PerudoPlayerInfo, PerudoPlayerView };
 
 export function getPlayerView(
     state: PerudoState,

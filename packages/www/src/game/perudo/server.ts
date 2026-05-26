@@ -1,6 +1,7 @@
 import type { PerudoState } from "./types";
-import type { PerudoClientMessage } from "./messages";
+import type { PerudoClientMessage, PerudoServerMessage } from "./messages";
 import type { FaceValue } from "./types";
+import { encodePerudoServerMessage } from "./schemas";
 import {
     initGame,
     processAction,
@@ -11,6 +12,13 @@ import {
 } from "./engine";
 import { getPlayerView } from "./views";
 
+function sendServerMessage(
+    send: (message: string) => void,
+    message: PerudoServerMessage,
+) {
+    send(encodePerudoServerMessage(message));
+}
+
 export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
     sendStateToPlayer(
         playerId: string,
@@ -19,13 +27,10 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "perudo:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((message) => sendTo(playerId, message), {
+            type: "perudo:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -37,13 +42,10 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
         stateRef.current = state;
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "perudo:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((message) => sendTo(player.id, message), {
+                type: "perudo:state",
+                data: getPlayerView(state, player.id),
+            });
         }
     },
 
@@ -71,19 +73,16 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
         } else if (message.type === "perudo:start_round") {
             const result = startNewRound(state);
             broadcast(
-                JSON.stringify({
+                encodePerudoServerMessage({
                     type: "perudo:action",
                     data: result,
                 }),
             );
             for (const player of state.players) {
-                sendTo(
-                    player.id,
-                    JSON.stringify({
-                        type: "perudo:state",
-                        data: getPlayerView(state, player.id),
-                    }),
-                );
+                sendServerMessage((msg) => sendTo(player.id, msg), {
+                    type: "perudo:state",
+                    data: getPlayerView(state, player.id),
+                });
             }
             return;
         } else {
@@ -93,18 +92,15 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
         const result = processAction(state, action);
 
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "perudo:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "perudo:error",
+                data: { message: result.message },
+            });
             return;
         }
 
         broadcast(
-            JSON.stringify({
+            encodePerudoServerMessage({
                 type: "perudo:action",
                 data: result,
             }),
@@ -124,18 +120,15 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
         }
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "perudo:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((msg) => sendTo(player.id, msg), {
+                type: "perudo:state",
+                data: getPlayerView(state, player.id),
+            });
         }
 
         if (result.type === "game_over") {
             broadcast(
-                JSON.stringify({
+                encodePerudoServerMessage({
                     type: "perudo:game_over",
                     data: {
                         winners: result.winners,
@@ -156,17 +149,14 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
         if (result.type !== "game_over") return;
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "perudo:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((msg) => sendTo(player.id, msg), {
+                type: "perudo:state",
+                data: getPlayerView(state, player.id),
+            });
         }
 
         broadcast(
-            JSON.stringify({
+            encodePerudoServerMessage({
                 type: "perudo:game_over",
                 data: {
                     winners: result.winners,
@@ -186,13 +176,10 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
         removePerudoPlayer(state, playerId);
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "perudo:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((msg) => sendTo(player.id, msg), {
+                type: "perudo:state",
+                data: getPlayerView(state, player.id),
+            });
         }
     },
 
@@ -206,20 +193,17 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
         const result = finishReveal(state);
 
         broadcast(
-            JSON.stringify({
+            encodePerudoServerMessage({
                 type: "perudo:action",
                 data: result,
             }),
         );
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "perudo:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((msg) => sendTo(player.id, msg), {
+                type: "perudo:state",
+                data: getPlayerView(state, player.id),
+            });
         }
     },
 });

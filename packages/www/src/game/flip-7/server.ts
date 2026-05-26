@@ -1,25 +1,30 @@
+import type { Flip7ClientMessage, Flip7ServerMessage } from "./messages";
+import { encodeFlip7ServerMessage } from "./schemas";
 import {
     endGameByHost,
     initGame,
     processAction,
     removePlayer as removeFlip7Player,
 } from "./engine";
-import type { Flip7State } from "./types";
-import type { Flip7ClientMessage } from "./messages";
 import { getPlayerView } from "./views";
+import type { Flip7State } from "./types";
+
+function sendServerMessage(
+    send: (message: string) => void,
+    message: Flip7ServerMessage,
+) {
+    send(encodeFlip7ServerMessage(message));
+}
 
 function sendStateToAll(
     state: Flip7State,
     sendTo: (playerId: string, msg: string) => void,
 ) {
     for (const player of state.players) {
-        sendTo(
-            player.id,
-            JSON.stringify({
-                type: "flip_7:state",
-                data: getPlayerView(state, player.id),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(player.id, msg), {
+            type: "flip_7:state",
+            data: getPlayerView(state, player.id),
+        });
     }
 }
 
@@ -31,13 +36,10 @@ export const flip7Server = (stateRef: { current: Flip7State | null }) => ({
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "flip_7:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(playerId, msg), {
+            type: "flip_7:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -78,34 +80,27 @@ export const flip7Server = (stateRef: { current: Flip7State | null }) => ({
         const result = processAction(state, action);
 
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "flip_7:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "flip_7:error",
+                data: { message: result.message },
+            });
             return;
         }
 
-        broadcast(
-            JSON.stringify({
-                type: "flip_7:action",
-                data: result,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "flip_7:action",
+            data: result,
+        });
         sendStateToAll(state, sendTo);
 
         if (result.type === "game_over") {
-            broadcast(
-                JSON.stringify({
-                    type: "flip_7:game_over",
-                    data: {
-                        winners: result.winners,
-                        endedByHost: result.endedByHost,
-                    },
-                }),
-            );
+            sendServerMessage(broadcast, {
+                type: "flip_7:game_over",
+                data: {
+                    winners: result.winners,
+                    endedByHost: result.endedByHost,
+                },
+            });
         }
     },
 
@@ -120,15 +115,13 @@ export const flip7Server = (stateRef: { current: Flip7State | null }) => ({
         sendStateToAll(state, sendTo);
 
         if (result.type === "game_over") {
-            broadcast(
-                JSON.stringify({
-                    type: "flip_7:game_over",
-                    data: {
-                        winners: result.winners,
-                        endedByHost: result.endedByHost,
-                    },
-                }),
-            );
+            sendServerMessage(broadcast, {
+                type: "flip_7:game_over",
+                data: {
+                    winners: result.winners,
+                    endedByHost: result.endedByHost,
+                },
+            });
         }
     },
 
@@ -144,15 +137,13 @@ export const flip7Server = (stateRef: { current: Flip7State | null }) => ({
         sendStateToAll(state, sendTo);
 
         if (result?.type === "game_over") {
-            broadcast(
-                JSON.stringify({
-                    type: "flip_7:game_over",
-                    data: {
-                        winners: result.winners,
-                        endedByHost: result.endedByHost,
-                    },
-                }),
-            );
+            sendServerMessage(broadcast, {
+                type: "flip_7:game_over",
+                data: {
+                    winners: result.winners,
+                    endedByHost: result.endedByHost,
+                },
+            });
         }
     },
 });

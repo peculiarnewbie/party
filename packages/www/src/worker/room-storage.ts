@@ -19,7 +19,18 @@ import type { GoFishState } from "~/game/go-fish";
 import type { HerdState } from "~/game/herd";
 import type { PerudoState } from "~/game/perudo";
 import type { PokerState } from "~/game/poker";
+import { blackjackStateSchema } from "~/game/blackjack/schemas";
+import { cheeseThiefStateSchema } from "~/game/cheese-thief/schemas";
+import { cockroachPokerStateSchema } from "~/game/cockroach-poker/schemas";
+import { flip7StateSchema } from "~/game/flip-7/schemas";
+import { funFactsStateSchema } from "~/game/fun-facts/schemas";
+import { goFishStateSchema } from "~/game/go-fish/schemas";
+import { herdStateSchema } from "~/game/herd/schemas";
+import { perudoStateSchema } from "~/game/perudo/schemas";
 import { pokerStateSchema } from "~/game/poker/schemas";
+import { rpsStateSchema } from "~/game/rps/schemas";
+import { skullStateSchema } from "~/game/skull/schemas";
+import { spicyStateSchema } from "~/game/spicy/schemas";
 import type { RpsState } from "~/game/rps";
 import type { SkullState } from "~/game/skull";
 import type { SpicyState } from "~/game/spicy";
@@ -154,15 +165,6 @@ const partialRoomStateSchema = Schema.Struct({
     ),
 });
 
-function createLooseSnapshotSchema<GameType extends PersistedGameSnapshot["gameType"]>(
-    gameType: GameType,
-) {
-    return Schema.Struct({
-        gameType: Schema.mutableKey(Schema.Literal(gameType)),
-        state: Schema.mutableKey(Schema.Unknown),
-    });
-}
-
 function createTypedSnapshotSchema(
     gameType: PersistedGameSnapshot["gameType"],
     stateSchema: Schema.Top,
@@ -174,26 +176,63 @@ function createTypedSnapshotSchema(
 }
 
 const persistedGameSnapshotSchema = Schema.Union([
-    createLooseSnapshotSchema("go_fish"),
+    createTypedSnapshotSchema("go_fish", goFishStateSchema),
     createTypedSnapshotSchema("poker", pokerStateSchema),
     createTypedSnapshotSchema("backwards_poker", pokerStateSchema),
-    createLooseSnapshotSchema("blackjack"),
+    createTypedSnapshotSchema("blackjack", blackjackStateSchema),
     createTypedSnapshotSchema("yahtzee", yahtzeeStateSchema),
     createTypedSnapshotSchema("lying_yahtzee", yahtzeeStateSchema),
-    createLooseSnapshotSchema("perudo"),
-    createLooseSnapshotSchema("rps"),
-    createLooseSnapshotSchema("herd"),
-    createLooseSnapshotSchema("fun_facts"),
-    createLooseSnapshotSchema("cheese_thief"),
-    createLooseSnapshotSchema("cockroach_poker"),
-    createLooseSnapshotSchema("flip_7"),
-    createLooseSnapshotSchema("skull"),
-    createLooseSnapshotSchema("spicy"),
+    createTypedSnapshotSchema("perudo", perudoStateSchema),
+    createTypedSnapshotSchema("rps", rpsStateSchema),
+    createTypedSnapshotSchema("herd", herdStateSchema),
+    createTypedSnapshotSchema("fun_facts", funFactsStateSchema),
+    createTypedSnapshotSchema("cheese_thief", cheeseThiefStateSchema),
+    createTypedSnapshotSchema("cockroach_poker", cockroachPokerStateSchema),
+    createTypedSnapshotSchema("flip_7", flip7StateSchema),
+    createTypedSnapshotSchema("skull", skullStateSchema),
+    createTypedSnapshotSchema("spicy", spicyStateSchema),
 ]);
 const roomStateJsonSchema = Schema.fromJsonString(roomStateSchema);
 const persistedGameSnapshotJsonSchema = Schema.fromJsonString(
     persistedGameSnapshotSchema,
 );
+
+function getStateSchemaFor(
+    activeGameType: GameState["activeGameType"],
+): Schema.Top | null {
+    switch (activeGameType) {
+        case "go_fish":
+            return goFishStateSchema;
+        case "poker":
+        case "backwards_poker":
+            return pokerStateSchema;
+        case "blackjack":
+            return blackjackStateSchema;
+        case "yahtzee":
+        case "lying_yahtzee":
+            return yahtzeeStateSchema;
+        case "perudo":
+            return perudoStateSchema;
+        case "rps":
+            return rpsStateSchema;
+        case "herd":
+            return herdStateSchema;
+        case "fun_facts":
+            return funFactsStateSchema;
+        case "cheese_thief":
+            return cheeseThiefStateSchema;
+        case "cockroach_poker":
+            return cockroachPokerStateSchema;
+        case "flip_7":
+            return flip7StateSchema;
+        case "skull":
+            return skullStateSchema;
+        case "spicy":
+            return spicyStateSchema;
+        default:
+            return null;
+    }
+}
 
 function getSnapshotSchemaFor(
     activeGameType: GameState["activeGameType"],
@@ -202,23 +241,16 @@ function getSnapshotSchemaFor(
         return null;
     }
 
-    if (activeGameType === "poker" || activeGameType === "backwards_poker") {
-        return Schema.Union([
-            createTypedSnapshotSchema(activeGameType, pokerStateSchema),
-        ]);
-    }
-
-    if (activeGameType === "yahtzee" || activeGameType === "lying_yahtzee") {
-        return Schema.Union([
-            createTypedSnapshotSchema(activeGameType, yahtzeeStateSchema),
-        ]);
+    const stateSchema = getStateSchemaFor(activeGameType);
+    if (!stateSchema) {
+        return null;
     }
 
     return Schema.Union([
-        Schema.Struct({
-            gameType: Schema.mutableKey(Schema.Literal(activeGameType)),
-            state: Schema.mutableKey(Schema.Unknown),
-        }),
+        createTypedSnapshotSchema(
+            activeGameType as PersistedGameSnapshot["gameType"],
+            stateSchema,
+        ),
     ]);
 }
 

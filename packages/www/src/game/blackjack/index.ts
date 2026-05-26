@@ -41,5 +41,10 @@ export {
     decodeBlackjackClientMessage,
     encodeBlackjackServerMessage,
 } from "./messages";
-export { decodeBlackjackPlayerView } from "./schemas";
+export {
+    blackjackStateSchema,
+    decodeBlackjackPlayerView,
+    decodeBlackjackServerMessage,
+    decodeBlackjackSideMessage,
+} from "./schemas";
 export { blackjackServer } from "./server";

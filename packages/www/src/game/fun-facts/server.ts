@@ -1,5 +1,6 @@
 import type { FunFactsState } from "./types";
-import type { FunFactsClientMessage } from "./messages";
+import type { FunFactsClientMessage, FunFactsServerMessage } from "./messages";
+import { encodeFunFactsServerMessage } from "./schemas";
 import {
     initGame,
     processAction,
@@ -8,18 +9,22 @@ import {
 } from "./engine";
 import { getPlayerView } from "./views";
 
+function sendServerMessage(
+    send: (message: string) => void,
+    message: FunFactsServerMessage,
+) {
+    send(encodeFunFactsServerMessage(message));
+}
+
 function sendStateToAll(
     state: FunFactsState,
     sendTo: (playerId: string, msg: string) => void,
 ) {
     for (const player of state.players) {
-        sendTo(
-            player.id,
-            JSON.stringify({
-                type: "fun_facts:state",
-                data: getPlayerView(state, player.id),
-            }),
-        );
+        sendServerMessage((message) => sendTo(player.id, message), {
+            type: "fun_facts:state",
+            data: getPlayerView(state, player.id),
+        });
     }
 }
 
@@ -33,13 +38,10 @@ export const funFactsServer = (stateRef: {
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "fun_facts:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((message) => sendTo(playerId, message), {
+            type: "fun_facts:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -98,18 +100,15 @@ export const funFactsServer = (stateRef: {
         const result = processAction(state, action);
 
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "fun_facts:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "fun_facts:error",
+                data: { message: result.message },
+            });
             return;
         }
 
         broadcast(
-            JSON.stringify({
+            encodeFunFactsServerMessage({
                 type: "fun_facts:action",
                 data: result,
             }),
@@ -119,7 +118,7 @@ export const funFactsServer = (stateRef: {
 
         if (result.type === "game_over") {
             broadcast(
-                JSON.stringify({
+                encodeFunFactsServerMessage({
                     type: "fun_facts:game_over",
                     data: {
                         teamScore: result.teamScore,
@@ -143,7 +142,7 @@ export const funFactsServer = (stateRef: {
         sendStateToAll(state, sendTo);
 
         broadcast(
-            JSON.stringify({
+            encodeFunFactsServerMessage({
                 type: "fun_facts:game_over",
                 data: {
                     teamScore: result.teamScore,
@@ -167,7 +166,7 @@ export const funFactsServer = (stateRef: {
 
         if (result?.type === "game_over") {
             broadcast(
-                JSON.stringify({
+                encodeFunFactsServerMessage({
                     type: "fun_facts:game_over",
                     data: {
                         teamScore: result.teamScore,

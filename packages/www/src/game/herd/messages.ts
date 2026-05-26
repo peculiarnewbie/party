@@ -2,12 +2,7 @@ import { Schema } from "effect";
 
 import { decodeGameClientMessage } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
-import {
-    emptyDataSchema,
-    serverMessageWithData,
-    shortTextSchema,
-    unknownRecordSchema,
-} from "~/game/shared/wire-schemas";
+import { emptyDataSchema, shortTextSchema } from "~/game/shared/wire-schemas";
 
 export const herdClientMessageSchema = Schema.Union([
     Schema.Struct({
@@ -73,15 +68,13 @@ export const herdClientMessageSchema = Schema.Union([
     }),
 ]);
 
-export const herdServerMessageSchema = Schema.Union([
-    serverMessageWithData("herd:state", unknownRecordSchema),
-    serverMessageWithData("herd:action", unknownRecordSchema),
-    serverMessageWithData("herd:game_over", unknownRecordSchema),
-    serverMessageWithData("herd:error", unknownRecordSchema),
-]);
-
 export type HerdClientMessage = SchemaType<typeof herdClientMessageSchema>;
-export type HerdServerMessage = SchemaType<typeof herdServerMessageSchema>;
+
+export {
+    encodeHerdServerMessage,
+    herdServerMessageSchema,
+    type HerdServerMessage,
+} from "./schemas";
 
 export function decodeHerdClientMessage(raw: unknown) {
     return decodeGameClientMessage("herd", herdClientMessageSchema, raw);

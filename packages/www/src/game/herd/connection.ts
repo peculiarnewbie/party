@@ -1,8 +1,8 @@
 import type { GameConnection } from "../connection";
-import type { HerdClientMessage, HerdServerMessage } from "./messages";
-import type { HerdPlayerView } from "./views";
+import type { HerdClientMessage } from "./messages";
+import type { HerdPlayerView, HerdSideMessage } from "./schemas";
 
-export type HerdSideEvent = Exclude<HerdServerMessage, { type: "herd:state" }>;
+export type HerdSideEvent = HerdSideMessage;
 
 export type HerdClientOutgoing = Omit<
     HerdClientMessage,

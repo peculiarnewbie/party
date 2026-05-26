@@ -1,41 +1,11 @@
+import type { FunFactsState } from "./types";
 import type {
-    FunFactsState,
-    FunFactsPhase,
-    FunFactsRoundResult,
-} from "./types";
+    FunFactsPlayerInfo,
+    FunFactsPlayerView,
+    PlacedArrowView,
+} from "./schemas";
 
-export interface FunFactsPlayerInfo {
-    id: string;
-    name: string;
-}
-
-export interface PlacedArrowView {
-    playerId: string;
-    playerName: string;
-    answer: number | null;
-}
-
-export interface FunFactsPlayerView {
-    myId: string;
-    isHost: boolean;
-    phase: FunFactsPhase;
-    roundNumber: number;
-    totalRounds: number;
-    currentQuestion: string | null;
-    players: FunFactsPlayerInfo[];
-    myAnswer: number | null;
-    hasAnswered: boolean;
-    answeredCount: number;
-    totalPlayers: number;
-    placingOrder: FunFactsPlayerInfo[];
-    currentPlacerId: string | null;
-    isMyTurn: boolean;
-    placedArrows: PlacedArrowView[];
-    teamScore: number;
-    roundScores: number[];
-    lastRoundResult: FunFactsRoundResult | null;
-    maxScore: number;
-}
+export type { FunFactsPlayerInfo, PlacedArrowView, FunFactsPlayerView };
 
 function getPlayerName(state: FunFactsState, playerId: string): string {
     return (

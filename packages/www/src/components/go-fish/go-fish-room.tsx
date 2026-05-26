@@ -49,14 +49,14 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
     onCleanup(
         props.connection.subscribe((event) => {
             if (event.type === "go_fish:ask_result") {
-                const d = event.data as Record<string, any>;
-                if (d.error) return;
-                const askerName = d.askerName ?? "Someone";
+                const d = event.data;
+                if ("error" in d) return;
+                const askerName = d.askerName;
                 const targetPlayer = gameView()?.players.find(
                     (p) => p.id === d.targetId,
                 );
                 const targetName = targetPlayer?.name ?? "someone";
-                const rankLabel = RANK_LABEL[d.rank as Rank] ?? d.rank;
+                const rankLabel = RANK_LABEL[d.rank] ?? d.rank;
 
                 if (d.success) {
                     showAnnouncement(
@@ -69,10 +69,10 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
             }
 
             if (event.type === "go_fish:draw_result") {
-                const d = event.data as Record<string, any>;
-                if (d.error) return;
+                const d = event.data;
+                if ("error" in d) return;
                 if (d.drewAskedRank) {
-                    const name = d.playerName ?? "Someone";
+                    const name = d.playerName;
                     showAnnouncement(
                         `${name.toUpperCase()} DREW WHAT THEY ASKED FOR!`,
                         "success",
@@ -81,9 +81,9 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
             }
 
             if (event.type === "go_fish:book_made") {
-                const d = event.data as Record<string, any>;
-                const name = d.playerName ?? "Someone";
-                const rankLabel = RANK_LABEL[d.rank as Rank] ?? d.rank;
+                const d = event.data;
+                const name = d.playerName;
+                const rankLabel = RANK_LABEL[d.rank] ?? d.rank;
                 showAnnouncement(
                     `BOOK COMPLETE: ${name.toUpperCase()} GOT ALL ${rankLabel}s`,
                     "book",
@@ -91,8 +91,7 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
             }
 
             if (event.type === "go_fish:game_over") {
-                const d = event.data as Record<string, any>;
-                const winners = d.winners as string[];
+                const winners = event.data.winners ?? [];
                 const view = gameView();
                 if (view) {
                     const winnerNames = winners

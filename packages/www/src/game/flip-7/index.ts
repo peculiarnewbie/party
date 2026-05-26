@@ -11,11 +11,18 @@ export type {
     Flip7RoundScore,
     Flip7ShuffleMode,
     Flip7State,
+    Flip7Action,
 } from "./types";
 export {
     FLIP_7_ACTION_CARD_TYPES,
     FLIP_7_BONUS_MODIFIER_VALUES,
 } from "./types";
+export type {
+    Flip7CardView,
+    Flip7PlayerInfo,
+    Flip7PlayerView,
+    Flip7TargetChoiceView,
+} from "./schemas";
 export {
     createDeck,
     getRoundScore,
@@ -24,17 +31,18 @@ export {
     endGameByHost,
     removePlayer,
 } from "./engine";
+export { getPlayerView } from "./views";
 export type { Flip7ClientMessage, Flip7ServerMessage } from "./messages";
 export {
     decodeFlip7ClientMessage,
     flip7ClientMessageSchema,
     flip7ServerMessageSchema,
 } from "./messages";
-export type {
-    Flip7CardView,
-    Flip7PlayerInfo,
-    Flip7PlayerView,
-    Flip7TargetChoiceView,
-} from "./views";
-export { getPlayerView } from "./views";
+export {
+    flip7CardSchema,
+    flip7StateSchema,
+    decodeFlip7PlayerView,
+    decodeFlip7SideMessage,
+    encodeFlip7ServerMessage,
+} from "./schemas";
 export { flip7Server } from "./server";

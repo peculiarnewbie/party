@@ -2,11 +2,7 @@ import { Schema } from "effect";
 
 import { decodeGameClientMessage } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
-import {
-    emptyDataSchema,
-    serverMessageWithData,
-    unknownRecordSchema,
-} from "~/game/shared/wire-schemas";
+import { emptyDataSchema } from "~/game/shared/wire-schemas";
 
 export const flip7ClientMessageSchema = Schema.Union([
     Schema.Struct({
@@ -39,15 +35,13 @@ export const flip7ClientMessageSchema = Schema.Union([
     }),
 ]);
 
-export const flip7ServerMessageSchema = Schema.Union([
-    serverMessageWithData("flip_7:state", unknownRecordSchema),
-    serverMessageWithData("flip_7:action", unknownRecordSchema),
-    serverMessageWithData("flip_7:error", unknownRecordSchema),
-    serverMessageWithData("flip_7:game_over", unknownRecordSchema),
-]);
-
 export type Flip7ClientMessage = SchemaType<typeof flip7ClientMessageSchema>;
-export type Flip7ServerMessage = SchemaType<typeof flip7ServerMessageSchema>;
+
+export {
+    flip7ServerMessageSchema,
+    encodeFlip7ServerMessage,
+    type Flip7ServerMessage,
+} from "./schemas";
 
 export function decodeFlip7ClientMessage(raw: unknown) {
     return decodeGameClientMessage("flip_7", flip7ClientMessageSchema, raw);

@@ -1,44 +1,11 @@
+import type { HerdState, AnswerGroup } from "./types";
 import type {
-    HerdState,
-    HerdPhase,
-    AnswerGroup,
-    RoundResult,
-} from "./types";
+    AnswerGroupView,
+    HerdPlayerInfo,
+    HerdPlayerView,
+} from "./schemas";
 
-export interface HerdPlayerInfo {
-    id: string;
-    name: string;
-    score: number;
-    hasPinkCow: boolean;
-}
-
-export interface AnswerGroupView {
-    id: string;
-    canonicalAnswer: string;
-    count: number;
-    playerNames: string[];
-    playerIds: string[];
-}
-
-export interface HerdPlayerView {
-    myId: string;
-    isHost: boolean;
-    phase: HerdPhase;
-    roundNumber: number;
-    currentQuestion: string | null;
-    players: HerdPlayerInfo[];
-    pinkCowEnabled: boolean;
-    pinkCowHolderId: string | null;
-    winnerId: string | null;
-    winScore: number;
-    myAnswer: string | null;
-    hasAnswered: boolean;
-    answeredCount: number;
-    totalPlayers: number;
-    answerGroups: AnswerGroupView[];
-    lastRoundResult: RoundResult | null;
-    leaderboard: HerdPlayerInfo[];
-}
+export type { HerdPlayerInfo, AnswerGroupView, HerdPlayerView };
 
 function toPlayerInfo(state: HerdState, playerId: string): HerdPlayerInfo {
     const p = state.players.find((player) => player.id === playerId);

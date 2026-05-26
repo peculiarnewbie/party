@@ -178,7 +178,10 @@ export function processAction(
             return { type: "error", message: "Target not in game" };
         }
 
-        state.votes[action.playerId] = action.targetId;
+        state.votes = {
+            ...state.votes,
+            [action.playerId]: action.targetId,
+        };
 
         const votedCount = Object.keys(state.votes).length;
         const totalVoters = state.players.length;
@@ -266,8 +269,10 @@ export function removePlayer(
     if (idx < 0) return null;
 
     state.players.splice(idx, 1);
-    delete state.observations[playerId];
-    delete state.votes[playerId];
+    const { [playerId]: _obs, ...observations } = state.observations;
+    state.observations = observations;
+    const { [playerId]: _vote, ...votes } = state.votes;
+    state.votes = votes;
 
     state.followerIds = state.followerIds.filter((id) => id !== playerId);
 

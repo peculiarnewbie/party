@@ -2,15 +2,13 @@ import { Schema } from "effect";
 
 import { decodeGameClientMessage } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
+import { skullDiscTypes } from "./schemas";
 import {
     emptyDataSchema,
     nonNegativeIntSchema,
     positiveIntSchema,
-    serverMessageWithData,
-    unknownRecordSchema,
 } from "~/game/shared/wire-schemas";
 
-export const skullDiscTypes = ["flower", "skull"] as const;
 const discTypeSchema = Schema.Literals(skullDiscTypes);
 
 export const skullClientMessageSchema = Schema.Union([
@@ -82,15 +80,15 @@ export const skullClientMessageSchema = Schema.Union([
     }),
 ]);
 
-export const skullServerMessageSchema = Schema.Union([
-    serverMessageWithData("skull:state", unknownRecordSchema),
-    serverMessageWithData("skull:action", unknownRecordSchema),
-    serverMessageWithData("skull:error", unknownRecordSchema),
-    serverMessageWithData("skull:game_over", unknownRecordSchema),
-]);
-
 export type SkullClientMessage = SchemaType<typeof skullClientMessageSchema>;
-export type SkullServerMessage = SchemaType<typeof skullServerMessageSchema>;
+
+export {
+    decodeSkullPlayerView,
+    decodeSkullSideMessage,
+    encodeSkullServerMessage,
+    skullServerMessageSchema,
+    type SkullServerMessage,
+} from "./schemas";
 
 export function decodeSkullClientMessage(raw: unknown) {
     return decodeGameClientMessage("skull", skullClientMessageSchema, raw);

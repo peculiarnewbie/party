@@ -1,5 +1,8 @@
-import type { CockroachPokerState } from "./types";
-import type { CockroachPokerClientMessage } from "./messages";
+import type {
+    CockroachPokerClientMessage,
+    CockroachPokerServerMessage,
+} from "./messages";
+import { encodeCockroachPokerServerMessage } from "./schemas";
 import {
     initGame,
     processAction,
@@ -7,19 +10,24 @@ import {
     endGameByHost,
 } from "./engine";
 import { getPlayerView } from "./views";
+import type { CockroachPokerState } from "./types";
+
+function sendServerMessage(
+    send: (message: string) => void,
+    message: CockroachPokerServerMessage,
+) {
+    send(encodeCockroachPokerServerMessage(message));
+}
 
 function sendStateToAll(
     state: CockroachPokerState,
     sendTo: (playerId: string, msg: string) => void,
 ) {
     for (const player of state.players) {
-        sendTo(
-            player.id,
-            JSON.stringify({
-                type: "cockroach_poker:state",
-                data: getPlayerView(state, player.id),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(player.id, msg), {
+            type: "cockroach_poker:state",
+            data: getPlayerView(state, player.id),
+        });
     }
 }
 
@@ -33,13 +41,10 @@ export const cockroachPokerServer = (stateRef: {
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "cockroach_poker:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(playerId, msg), {
+            type: "cockroach_poker:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -94,22 +99,17 @@ export const cockroachPokerServer = (stateRef: {
         const result = processAction(state, action);
 
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "cockroach_poker:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "cockroach_poker:error",
+                data: { message: result.message },
+            });
             return;
         }
 
-        broadcast(
-            JSON.stringify({
-                type: "cockroach_poker:action",
-                data: result,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "cockroach_poker:action",
+            data: result,
+        });
 
         sendStateToAll(state, sendTo);
     },

@@ -2,11 +2,9 @@ import { Schema } from "effect";
 
 import { decodeGameClientMessage } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
-import { CHALLENGE_TRAITS, SPICE_TYPES } from "./types";
+import { CHALLENGE_TRAITS, SPICE_TYPES } from "./schemas";
 import {
     emptyDataSchema,
-    serverMessageWithData,
-    unknownRecordSchema,
 } from "~/game/shared/wire-schemas";
 
 const spiceTypeSchema = Schema.Literals(SPICE_TYPES);
@@ -55,15 +53,15 @@ export const spicyClientMessageSchema = Schema.Union([
     }),
 ]);
 
-export const spicyServerMessageSchema = Schema.Union([
-    serverMessageWithData("spicy:state", unknownRecordSchema),
-    serverMessageWithData("spicy:action", unknownRecordSchema),
-    serverMessageWithData("spicy:error", unknownRecordSchema),
-    serverMessageWithData("spicy:game_over", unknownRecordSchema),
-]);
-
 export type SpicyClientMessage = SchemaType<typeof spicyClientMessageSchema>;
-export type SpicyServerMessage = SchemaType<typeof spicyServerMessageSchema>;
+
+export {
+    decodeSpicyPlayerView,
+    decodeSpicySideMessage,
+    encodeSpicyServerMessage,
+    spicyServerMessageSchema,
+    type SpicyServerMessage,
+} from "./schemas";
 
 export function decodeSpicyClientMessage(raw: unknown) {
     return decodeGameClientMessage("spicy", spicyClientMessageSchema, raw);

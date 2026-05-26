@@ -16,4 +16,13 @@ export {
     type HerdServerMessage,
 } from "./messages";
 
+export {
+    decodeHerdPlayerView,
+    decodeHerdSideMessage,
+    encodeHerdServerMessage,
+    herdStateSchema,
+} from "./schemas";
+
+export type { HerdPlayerView, HerdPlayerInfo, AnswerGroupView } from "./schemas";
+export { getPlayerView } from "./views";
 export { herdServer } from "./server";

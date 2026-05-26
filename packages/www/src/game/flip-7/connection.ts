@@ -1,11 +1,8 @@
 import type { GameConnection } from "../connection";
-import type { Flip7ClientMessage, Flip7ServerMessage } from "./messages";
-import type { Flip7PlayerView } from "./views";
+import type { Flip7ClientMessage } from "./messages";
+import type { Flip7PlayerView, Flip7SideMessage } from "./schemas";
 
-export type Flip7SideEvent = Exclude<
-    Flip7ServerMessage,
-    { type: "flip_7:state" }
->;
+export type Flip7SideEvent = Flip7SideMessage;
 
 export type Flip7ClientOutgoing = Omit<
     Flip7ClientMessage,

@@ -1,8 +1,8 @@
 import type { GameConnection } from "../connection";
-import type { YahtzeeClientMessage, YahtzeeServerMessage } from "./messages";
+import type { YahtzeeClientMessage, YahtzeeSideMessage } from "./messages";
 import type { YahtzeePlayerView } from "./views";
 
-export type YahtzeeSideEvent = Exclude<YahtzeeServerMessage, { type: "yahtzee:state" }>;
+export type YahtzeeSideEvent = YahtzeeSideMessage;
 
 export type YahtzeeClientOutgoing = Omit<YahtzeeClientMessage, "playerId" | "playerName">;
 

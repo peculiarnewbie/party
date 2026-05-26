@@ -1,7 +1,15 @@
-import type { SpicyClientMessage } from "./messages";
+import type { SpicyClientMessage, SpicyServerMessage } from "./messages";
+import { encodeSpicyServerMessage } from "./schemas";
 import type { SpicyResult, SpicyState } from "./types";
 import { endGameByHost, initGame, processAction, removePlayer } from "./engine";
 import { getPlayerView } from "./views";
+
+function sendServerMessage(
+    send: (message: string) => void,
+    message: SpicyServerMessage,
+) {
+    send(encodeSpicyServerMessage(message));
+}
 
 function sendStateToAll(
     state: SpicyState,
@@ -9,13 +17,10 @@ function sendStateToAll(
     sendTo: (playerId: string, msg: string) => void,
 ) {
     for (const player of state.players) {
-        sendTo(
-            player.id,
-            JSON.stringify({
-                type: "spicy:state",
-                data: getPlayerView(state, player.id, lastPublicResult),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(player.id, msg), {
+            type: "spicy:state",
+            data: getPlayerView(state, player.id, lastPublicResult),
+        });
     }
 }
 
@@ -26,12 +31,10 @@ function broadcastEvents(
     let gameOverEvent: SpicyResult | null = null;
 
     for (const event of events) {
-        broadcast(
-            JSON.stringify({
-                type: "spicy:action",
-                data: event,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "spicy:action",
+            data: event,
+        });
         if (event.type === "game_over") {
             gameOverEvent = event;
         }
@@ -48,13 +51,10 @@ export const spicyServer = (stateRef: { current: SpicyState | null }) => ({
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "spicy:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(playerId, msg), {
+            type: "spicy:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -108,13 +108,10 @@ export const spicyServer = (stateRef: { current: SpicyState | null }) => ({
 
         const result = processAction(state, action);
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "spicy:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "spicy:error",
+                data: { message: result.message },
+            });
             return;
         }
 
@@ -124,12 +121,10 @@ export const spicyServer = (stateRef: { current: SpicyState | null }) => ({
         sendStateToAll(state, lastPublicResult, sendTo);
 
         if (gameOverEvent?.type === "game_over") {
-            broadcast(
-                JSON.stringify({
-                    type: "spicy:game_over",
-                    data: gameOverEvent,
-                }),
-            );
+            sendServerMessage(broadcast, {
+                type: "spicy:game_over",
+                data: gameOverEvent,
+            });
         }
     },
 
@@ -141,19 +136,15 @@ export const spicyServer = (stateRef: { current: SpicyState | null }) => ({
         if (!state) return;
 
         const result = endGameByHost(state);
-        broadcast(
-            JSON.stringify({
-                type: "spicy:action",
-                data: result,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "spicy:action",
+            data: result,
+        });
         sendStateToAll(state, result, sendTo);
-        broadcast(
-            JSON.stringify({
-                type: "spicy:game_over",
-                data: result,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "spicy:game_over",
+            data: result,
+        });
     },
 
     removePlayer(
@@ -168,12 +159,10 @@ export const spicyServer = (stateRef: { current: SpicyState | null }) => ({
         sendStateToAll(state, result, sendTo);
 
         if (result?.type === "game_over") {
-            broadcast(
-                JSON.stringify({
-                    type: "spicy:game_over",
-                    data: result,
-                }),
-            );
+            sendServerMessage(broadcast, {
+                type: "spicy:game_over",
+                data: result,
+            });
         }
     },
 });

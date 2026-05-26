@@ -1,13 +1,20 @@
-import type { RpsState } from "./types";
-import type { RpsClientMessage } from "./messages";
-import type { RpsChoice, BestOf } from "./types";
+import type { RpsClientMessage, RpsServerMessage } from "./messages";
+import { encodeRpsServerMessage } from "./schemas";
+import type { BestOf, RpsState } from "./types";
 import {
+    endGameByHost,
     initGame,
     processAction,
     removePlayer as removeRpsPlayer,
-    endGameByHost,
 } from "./engine";
 import { getPlayerView } from "./views";
+
+function sendServerMessage(
+    send: (message: string) => void,
+    message: RpsServerMessage,
+) {
+    send(encodeRpsServerMessage(message));
+}
 
 export const rpsServer = (stateRef: { current: RpsState | null }) => ({
     sendStateToPlayer(
@@ -17,13 +24,10 @@ export const rpsServer = (stateRef: { current: RpsState | null }) => ({
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "rps:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((message) => sendTo(playerId, message), {
+            type: "rps:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -36,13 +40,10 @@ export const rpsServer = (stateRef: { current: RpsState | null }) => ({
         stateRef.current = state;
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "rps:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((message) => sendTo(player.id, message), {
+                type: "rps:state",
+                data: getPlayerView(state, player.id),
+            });
         }
     },
 
@@ -59,7 +60,7 @@ export const rpsServer = (stateRef: { current: RpsState | null }) => ({
             action = {
                 type: "throw" as const,
                 playerId: message.playerId,
-                choice: message.data.choice as RpsChoice,
+                choice: message.data.choice,
             };
         } else if (message.type === "rps:next_round") {
             action = {
@@ -69,7 +70,7 @@ export const rpsServer = (stateRef: { current: RpsState | null }) => ({
         } else if (message.type === "rps:set_best_of") {
             action = {
                 type: "set_best_of" as const,
-                bestOf: message.data.bestOf as BestOf,
+                bestOf: message.data.bestOf,
             };
         } else {
             return;
@@ -78,40 +79,30 @@ export const rpsServer = (stateRef: { current: RpsState | null }) => ({
         const result = processAction(state, action);
 
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "rps:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "rps:error",
+                data: { message: result.message },
+            });
             return;
         }
 
-        broadcast(
-            JSON.stringify({
-                type: "rps:action",
-                data: result,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "rps:action",
+            data: result,
+        });
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "rps:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((msg) => sendTo(player.id, msg), {
+                type: "rps:state",
+                data: getPlayerView(state, player.id),
+            });
         }
 
         if (result.type === "tournament_over") {
-            broadcast(
-                JSON.stringify({
-                    type: "rps:game_over",
-                    data: { winnerId: result.winnerId },
-                }),
-            );
+            sendServerMessage(broadcast, {
+                type: "rps:game_over",
+                data: { winnerId: result.winnerId },
+            });
         }
     },
 
@@ -126,21 +117,16 @@ export const rpsServer = (stateRef: { current: RpsState | null }) => ({
         if (result.type !== "tournament_over") return;
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "rps:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((msg) => sendTo(player.id, msg), {
+                type: "rps:state",
+                data: getPlayerView(state, player.id),
+            });
         }
 
-        broadcast(
-            JSON.stringify({
-                type: "rps:game_over",
-                data: { winnerId: result.winnerId },
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "rps:game_over",
+            data: { winnerId: result.winnerId },
+        });
     },
 
     removePlayer(
@@ -154,22 +140,17 @@ export const rpsServer = (stateRef: { current: RpsState | null }) => ({
         const result = removeRpsPlayer(state, playerId);
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "rps:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((msg) => sendTo(player.id, msg), {
+                type: "rps:state",
+                data: getPlayerView(state, player.id),
+            });
         }
 
         if (result?.type === "tournament_over") {
-            broadcast(
-                JSON.stringify({
-                    type: "rps:game_over",
-                    data: { winnerId: result.winnerId },
-                }),
-            );
+            sendServerMessage(broadcast, {
+                type: "rps:game_over",
+                data: { winnerId: result.winnerId },
+            });
         }
     },
 });

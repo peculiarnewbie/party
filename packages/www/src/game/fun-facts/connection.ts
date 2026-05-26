@@ -1,14 +1,8 @@
 import type { GameConnection } from "../connection";
-import type {
-    FunFactsClientMessage,
-    FunFactsServerMessage,
-} from "./messages";
-import type { FunFactsPlayerView } from "./views";
+import type { FunFactsClientMessage } from "./messages";
+import type { FunFactsPlayerView, FunFactsSideMessage } from "./schemas";
 
-export type FunFactsSideEvent = Exclude<
-    FunFactsServerMessage,
-    { type: "fun_facts:state" }
->;
+export type FunFactsSideEvent = FunFactsSideMessage;
 
 export type FunFactsClientOutgoing = Omit<
     FunFactsClientMessage,

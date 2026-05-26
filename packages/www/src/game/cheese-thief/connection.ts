@@ -1,14 +1,9 @@
 import type { GameConnection } from "../connection";
-import type {
-    CheeseThiefClientMessage,
-    CheeseThiefServerMessage,
-} from "./messages";
-import type { CheeseThiefPlayerView } from "./views";
+import type { CheeseThiefClientMessage } from "./messages";
+import type { CheeseThiefSideMessage } from "./schemas";
+import type { CheeseThiefPlayerView } from "./schemas";
 
-export type CheeseThiefSideEvent = Exclude<
-    CheeseThiefServerMessage,
-    { type: "cheese_thief:state" }
->;
+export type CheeseThiefSideEvent = CheeseThiefSideMessage;
 
 export type CheeseThiefClientOutgoing = Omit<
     CheeseThiefClientMessage,

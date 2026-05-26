@@ -48,6 +48,29 @@ export const goFishResultSchema = Schema.Union([
     }),
 ]);
 
+export const goFishPlayerStateSchema = Schema.Struct({
+    id: Schema.mutableKey(Schema.String),
+    name: Schema.mutableKey(Schema.String),
+    hand: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    books: Schema.mutableKey(Schema.mutable(Schema.Array(rankSchema))),
+});
+
+export const goFishStateSchema = Schema.Struct({
+    players: Schema.mutableKey(
+        Schema.mutable(Schema.Array(goFishPlayerStateSchema)),
+    ),
+    drawPile: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    currentPlayerIndex: Schema.mutableKey(Schema.Number),
+    turnPhase: Schema.mutableKey(turnPhaseSchema),
+    lastAction: Schema.mutableKey(Schema.NullOr(goFishActionSchema)),
+    lastResult: Schema.mutableKey(Schema.NullOr(goFishResultSchema)),
+    lastAskedRank: Schema.mutableKey(Schema.NullOr(rankSchema)),
+    gameOver: Schema.mutableKey(Schema.Boolean),
+    winner: Schema.mutableKey(
+        Schema.NullOr(Schema.mutable(Schema.Array(Schema.String))),
+    ),
+});
+
 export const goFishPlayerViewSchema = Schema.Struct({
     myHand: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
     drawPileCount: Schema.mutableKey(Schema.Number),
@@ -147,6 +170,8 @@ export const goFishServerMessageSchema = Schema.Union([
 export type TurnPhase = SchemaType<typeof turnPhaseSchema>;
 export type GoFishAction = SchemaType<typeof goFishActionSchema>;
 export type GoFishResult = SchemaType<typeof goFishResultSchema>;
+export type GoFishPlayer = SchemaType<typeof goFishPlayerStateSchema>;
+export type GoFishState = SchemaType<typeof goFishStateSchema>;
 export type GoFishPlayerView = SchemaType<typeof goFishPlayerViewSchema>;
 export type GoFishServerMessage = SchemaType<typeof goFishServerMessageSchema>;
 
@@ -156,6 +181,32 @@ export function decodeGoFishPlayerView(raw: unknown): GoFishPlayerView | null {
     } catch {
         return null;
     }
+}
+
+export function decodeGoFishServerMessage(
+    raw: unknown,
+): GoFishServerMessage | null {
+    try {
+        return decodeUnknownSync(goFishServerMessageSchema, raw);
+    } catch {
+        return null;
+    }
+}
+
+export type GoFishSideMessage = Exclude<
+    GoFishServerMessage,
+    { type: "go_fish:state" }
+>;
+
+export function decodeGoFishSideMessage(
+    raw: unknown,
+): GoFishSideMessage | null {
+    const message = decodeGoFishServerMessage(raw);
+    if (!message || message.type === "go_fish:state") {
+        return null;
+    }
+
+    return message;
 }
 
 export function encodeGoFishServerMessage(message: GoFishServerMessage): string {

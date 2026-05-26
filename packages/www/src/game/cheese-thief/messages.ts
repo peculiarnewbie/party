@@ -2,11 +2,7 @@ import { Schema } from "effect";
 
 import { decodeGameClientMessage } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
-import {
-    emptyDataSchema,
-    serverMessageWithData,
-    unknownRecordSchema,
-} from "~/game/shared/wire-schemas";
+import { emptyDataSchema } from "~/game/shared/wire-schemas";
 
 export const cheeseThiefClientMessageSchema = Schema.Union([
     Schema.Struct({
@@ -45,18 +41,15 @@ export const cheeseThiefClientMessageSchema = Schema.Union([
     }),
 ]);
 
-export const cheeseThiefServerMessageSchema = Schema.Union([
-    serverMessageWithData("cheese_thief:state", unknownRecordSchema),
-    serverMessageWithData("cheese_thief:action", unknownRecordSchema),
-    serverMessageWithData("cheese_thief:error", unknownRecordSchema),
-]);
-
 export type CheeseThiefClientMessage = SchemaType<
     typeof cheeseThiefClientMessageSchema
 >;
-export type CheeseThiefServerMessage = SchemaType<
-    typeof cheeseThiefServerMessageSchema
->;
+
+export {
+    cheeseThiefServerMessageSchema,
+    encodeCheeseThiefServerMessage,
+    type CheeseThiefServerMessage,
+} from "./schemas";
 
 export function decodeCheeseThiefClientMessage(raw: unknown) {
     return decodeGameClientMessage(

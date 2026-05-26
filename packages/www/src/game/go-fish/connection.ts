@@ -1,8 +1,9 @@
 import type { GameConnection } from "../connection";
-import type { GoFishClientMessage, GoFishServerMessage } from "./messages";
+import type { GoFishClientMessage } from "./messages";
 import type { GoFishPlayerView } from "./views";
+import type { GoFishSideMessage } from "./schemas";
 
-export type GoFishSideEvent = Exclude<GoFishServerMessage, { type: "go_fish:state" }>;
+export type GoFishSideEvent = GoFishSideMessage;
 
 export type GoFishClientOutgoing = Omit<GoFishClientMessage, "playerId" | "playerName">;
 

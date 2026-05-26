@@ -1,31 +1,10 @@
-import type { CheeseThiefState, CheeseThiefPhase, VoteResult } from "./types";
+import type { CheeseThiefState } from "./types";
+import type {
+    CheeseThiefPlayerInfo,
+    CheeseThiefPlayerView,
+} from "./schemas";
 
-export interface CheeseThiefPlayerInfo {
-    id: string;
-    name: string;
-    score: number;
-}
-
-export interface CheeseThiefPlayerView {
-    myId: string;
-    isHost: boolean;
-    phase: CheeseThiefPhase;
-    round: number;
-    players: CheeseThiefPlayerInfo[];
-    myRole: "thief" | "sleepyhead";
-    myDieValue: number;
-    isFollower: boolean;
-    observedPlayerNames: string[];
-    observedPlayerIds: string[];
-    myVote: string | null;
-    votedCount: number;
-    totalVoters: number;
-    hasVoted: boolean;
-    voteResult: VoteResult | null;
-    thiefName: string | null;
-    followerNames: string[];
-    leaderboard: CheeseThiefPlayerInfo[];
-}
+export type { CheeseThiefPlayerInfo, CheeseThiefPlayerView };
 
 export function getPlayerView(
     state: CheeseThiefState,

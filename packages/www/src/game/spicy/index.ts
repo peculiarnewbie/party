@@ -9,12 +9,17 @@ export type {
     SpicyResult,
     SpicyStackEntry,
     SpicyState,
+    SpicyAction,
+    SpicyEngineResult,
+    DrawContext,
+    DrawPileCard,
+    WorldsEndCard,
 } from "./types";
 export type {
     SpicyPlayerInfo,
     SpicyPlayerView,
     SpicyStackTopView,
-} from "./views";
+} from "./schemas";
 
 export {
     CHALLENGE_TRAITS,
@@ -29,6 +34,9 @@ export {
     type SpicyClientMessage,
     spicyServerMessageSchema,
     type SpicyServerMessage,
+    decodeSpicyPlayerView,
+    decodeSpicySideMessage,
+    encodeSpicyServerMessage,
 } from "./messages";
 
 export { spicyServer } from "./server";

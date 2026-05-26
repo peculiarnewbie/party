@@ -1,5 +1,6 @@
 import type { HerdState } from "./types";
-import type { HerdClientMessage } from "./messages";
+import type { HerdClientMessage, HerdServerMessage } from "./messages";
+import { encodeHerdServerMessage } from "./schemas";
 import {
     initGame,
     processAction,
@@ -8,26 +9,27 @@ import {
 } from "./engine";
 import { getPlayerView } from "./views";
 
+function sendServerMessage(
+    send: (message: string) => void,
+    message: HerdServerMessage,
+) {
+    send(encodeHerdServerMessage(message));
+}
+
 function sendStateToAll(
     state: HerdState,
     sendTo: (playerId: string, msg: string) => void,
 ) {
     for (const player of state.players) {
-        sendTo(
-            player.id,
-            JSON.stringify({
-                type: "herd:state",
-                data: getPlayerView(state, player.id),
-            }),
-        );
-    }
-    sendTo(
-        state.hostId,
-        JSON.stringify({
+        sendServerMessage((message) => sendTo(player.id, message), {
             type: "herd:state",
-            data: getPlayerView(state, state.hostId),
-        }),
-    );
+            data: getPlayerView(state, player.id),
+        });
+    }
+    sendServerMessage((message) => sendTo(state.hostId, message), {
+        type: "herd:state",
+        data: getPlayerView(state, state.hostId),
+    });
 }
 
 export const herdServer = (stateRef: { current: HerdState | null }) => ({
@@ -38,13 +40,10 @@ export const herdServer = (stateRef: { current: HerdState | null }) => ({
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "herd:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((message) => sendTo(playerId, message), {
+            type: "herd:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -115,18 +114,15 @@ export const herdServer = (stateRef: { current: HerdState | null }) => ({
         const result = processAction(state, action);
 
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "herd:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "herd:error",
+                data: { message: result.message },
+            });
             return;
         }
 
         broadcast(
-            JSON.stringify({
+            encodeHerdServerMessage({
                 type: "herd:action",
                 data: result,
             }),
@@ -136,7 +132,7 @@ export const herdServer = (stateRef: { current: HerdState | null }) => ({
 
         if (result.type === "game_over") {
             broadcast(
-                JSON.stringify({
+                encodeHerdServerMessage({
                     type: "herd:game_over",
                     data: { winnerId: result.winnerId },
                 }),
@@ -157,7 +153,7 @@ export const herdServer = (stateRef: { current: HerdState | null }) => ({
         sendStateToAll(state, sendTo);
 
         broadcast(
-            JSON.stringify({
+            encodeHerdServerMessage({
                 type: "herd:game_over",
                 data: { winnerId: result.winnerId },
             }),
@@ -178,7 +174,7 @@ export const herdServer = (stateRef: { current: HerdState | null }) => ({
 
         if (result?.type === "game_over") {
             broadcast(
-                JSON.stringify({
+                encodeHerdServerMessage({
                     type: "herd:game_over",
                     data: { winnerId: result.winnerId },
                 }),

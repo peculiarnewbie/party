@@ -2,15 +2,13 @@ import { Schema } from "effect";
 
 import { decodeGameClientMessage } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
-import {
-    emptyDataSchema,
-    positiveIntSchema,
-    serverMessageWithData,
-    unknownRecordSchema,
-} from "~/game/shared/wire-schemas";
+import { emptyDataSchema, positiveIntSchema } from "~/game/shared/wire-schemas";
 
-export const perudoFaceValues = [1, 2, 3, 4, 5, 6] as const;
+import { perudoFaceValues } from "./schemas";
+
 const faceValueSchema = Schema.Literals(perudoFaceValues);
+
+export { perudoFaceValues };
 
 export const perudoClientMessageSchema = Schema.Union([
     Schema.Struct({
@@ -38,15 +36,13 @@ export const perudoClientMessageSchema = Schema.Union([
     }),
 ]);
 
-export const perudoServerMessageSchema = Schema.Union([
-    serverMessageWithData("perudo:state", unknownRecordSchema),
-    serverMessageWithData("perudo:action", unknownRecordSchema),
-    serverMessageWithData("perudo:game_over", unknownRecordSchema),
-    serverMessageWithData("perudo:error", unknownRecordSchema),
-]);
-
 export type PerudoClientMessage = SchemaType<typeof perudoClientMessageSchema>;
-export type PerudoServerMessage = SchemaType<typeof perudoServerMessageSchema>;
+
+export {
+    encodePerudoServerMessage,
+    perudoServerMessageSchema,
+    type PerudoServerMessage,
+} from "./schemas";
 
 export function decodePerudoClientMessage(raw: unknown) {
     return decodeGameClientMessage("perudo", perudoClientMessageSchema, raw);

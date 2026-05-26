@@ -7,6 +7,7 @@ import {
     RoomMessageDecodeError,
 } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
+import { emptyDataSchema } from "~/game/shared/wire-schemas";
 
 export const gameTypes = [
     "quiz",
@@ -128,6 +129,26 @@ export function isPokerGameType(
     return gameType === "poker" || gameType === "backwards_poker";
 }
 
+export const gameWirePrefixes = [
+    "go_fish:",
+    "poker:",
+    "blackjack:",
+    "yahtzee:",
+    "perudo:",
+    "rps:",
+    "herd:",
+    "fun_facts:",
+    "cheese_thief:",
+    "cockroach_poker:",
+    "flip_7:",
+    "skull:",
+    "spicy:",
+] as const;
+
+export function isGameWireMessageType(type: string): boolean {
+    return gameWirePrefixes.some((prefix) => type.startsWith(prefix));
+}
+
 export type RoomPhase = SchemaType<typeof roomPhaseSchema>;
 
 export const messageTypes = [
@@ -196,12 +217,88 @@ export type RoomProcessResult =
     | { kind: "return_to_lobby" }
     | { kind: "leave_game"; gameType: GameType; playerId: string };
 
-export const clientMessageSchema = Schema.Struct({
-    playerId: Schema.mutableKey(Schema.String),
-    playerName: Schema.mutableKey(Schema.String),
-    type: Schema.mutableKey(Schema.Literals(messageTypes)),
-    data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+const selectGameClientDataSchema = Schema.Struct({
+    gameType: Schema.mutableKey(gameTypeSchema),
 });
+
+const answerClientDataSchema = Schema.Struct({
+    answer: Schema.mutableKey(Schema.String),
+});
+
+export const clientMessageSchema = Schema.Union([
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("identify")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("join")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("leave")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("leave_game")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("resume_room")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("restart_room")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("select_game")),
+        data: Schema.mutableKey(selectGameClientDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("start")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("end")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("return_to_lobby")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("info")),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        type: Schema.mutableKey(Schema.Literal("answer")),
+        data: Schema.mutableKey(answerClientDataSchema),
+    }),
+]);
 
 const playerListPayloadSchema = Schema.Struct({
     players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
@@ -396,12 +493,7 @@ export const server = (state: GameState) => {
                 return { kind: "none" };
             }
 
-            const gameType = parsed.data.gameType;
-            if (!gameTypes.includes(gameType as GameType)) {
-                return { kind: "none" };
-            }
-
-            state.selectedGameType = gameType as GameType;
+            state.selectedGameType = parsed.data.gameType;
             broadcastServerMessage(broadcast, {
                 type: "game_selected",
                 data: { gameType: state.selectedGameType },
@@ -482,8 +574,7 @@ export const server = (state: GameState) => {
         }
 
         if (type === "answer") {
-            const answer = parsed.data.answer as string;
-            s.saveAnswer(playerId, answer);
+            s.saveAnswer(playerId, parsed.data.answer);
             broadcastServerMessage(broadcast, {
                 type: "player_answered",
                 data: {

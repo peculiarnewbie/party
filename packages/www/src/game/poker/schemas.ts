@@ -250,6 +250,8 @@ export type PokerAction = SchemaType<typeof pokerActionSchema>;
 export type PokerPot = SchemaType<typeof pokerPotSchema>;
 export type PokerSpectator = SchemaType<typeof pokerSpectatorSchema>;
 export type PokerEvent = SchemaType<typeof pokerEventSchema>;
+type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
+export type PokerEventInput = DistributiveOmit<PokerEvent, "id">;
 export type PokerPlayerPublicView = SchemaType<
     typeof pokerPlayerPublicViewSchema
 >;

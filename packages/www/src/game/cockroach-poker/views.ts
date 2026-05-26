@@ -1,41 +1,15 @@
+import type { CockroachPokerState } from "./types";
 import type {
-    CockroachPokerState,
-    CockroachPokerPhase,
-    CockroachPokerResult,
-    CreatureType,
-} from "./types";
+    CockroachPokerPlayerInfo,
+    CockroachPokerPlayerView,
+    OfferChainView,
+} from "./schemas";
 
-export interface CockroachPokerPlayerInfo {
-    id: string;
-    name: string;
-    handCount: number;
-    faceUpCards: CreatureType[];
-}
-
-export interface OfferChainView {
-    originalOffererId: string;
-    currentOffererId: string;
-    currentReceiverId: string;
-    currentClaim: CreatureType;
-    seenByPlayerIds: string[];
-    peekedCard: CreatureType | null;
-    mustAccept: boolean;
-}
-
-export interface CockroachPokerPlayerView {
-    myId: string;
-    phase: CockroachPokerPhase;
-    activePlayerId: string;
-    isMyTurn: boolean;
-    players: CockroachPokerPlayerInfo[];
-    myHand: CreatureType[];
-    offerChain: OfferChainView | null;
-    loserId: string | null;
-    loseReason: "four_of_a_kind" | "empty_hand" | null;
-    lastResult: CockroachPokerResult | null;
-    validPassTargets: string[];
-    validOfferTargets: string[];
-}
+export type {
+    CockroachPokerPlayerInfo,
+    CockroachPokerPlayerView,
+    OfferChainView,
+};
 
 export function getPlayerView(
     state: CockroachPokerState,
@@ -43,7 +17,7 @@ export function getPlayerView(
 ): CockroachPokerPlayerView {
     const me = state.players.find((p) => p.id === playerId);
 
-    const players: CockroachPokerPlayerInfo[] = state.players.map((p) => ({
+    const players = state.players.map((p) => ({
         id: p.id,
         name: p.name,
         handCount: p.hand.length,
@@ -52,7 +26,7 @@ export function getPlayerView(
 
     const myHand = me ? [...me.hand] : [];
 
-    let offerChain: OfferChainView | null = null;
+    let offerChain: CockroachPokerPlayerView["offerChain"] = null;
     let validPassTargets: string[] = [];
 
     if (state.offerChain) {

@@ -23,6 +23,9 @@ export {
 } from "./messages";
 export {
     decodeGoFishPlayerView,
+    decodeGoFishServerMessage,
+    decodeGoFishSideMessage,
+    goFishStateSchema,
     encodeGoFishServerMessage,
     goFishServerMessageSchema,
 } from "./schemas";

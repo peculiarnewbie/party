@@ -99,7 +99,10 @@ export function processAction(
             return { type: "error", message: "Player not in game" };
         }
 
-        state.answers[action.playerId] = action.answer;
+        state.answers = {
+            ...state.answers,
+            [action.playerId]: action.answer,
+        };
 
         const answeredCount = Object.keys(state.answers).length;
         return {
@@ -250,7 +253,8 @@ export function removePlayer(
     if (playerIndex < 0) return null;
 
     state.players.splice(playerIndex, 1);
-    delete state.answers[playerId];
+    const { [playerId]: _removedAnswer, ...remainingAnswers } = state.answers;
+    state.answers = remainingAnswers;
 
     state.placingOrder = state.placingOrder.filter((id) => id !== playerId);
     state.placedArrows = state.placedArrows.filter((id) => id !== playerId);

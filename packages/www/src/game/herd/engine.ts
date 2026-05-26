@@ -165,7 +165,10 @@ export function processAction(
             return { type: "error", message: "Answer cannot be empty" };
         }
 
-        state.answers[action.playerId] = action.answer.trim();
+        state.answers = {
+            ...state.answers,
+            [action.playerId]: action.answer.trim(),
+        };
 
         const answeredCount = Object.keys(state.answers).length;
         return {
@@ -218,7 +221,10 @@ export function processAction(
         }
 
         group1.playerIds.push(...group2.playerIds);
-        Object.assign(group1.originalAnswers, group2.originalAnswers);
+        group1.originalAnswers = {
+            ...group1.originalAnswers,
+            ...group2.originalAnswers,
+        };
 
         state.answerGroups = state.answerGroups.filter(
             (g) => g.id !== group2.id,
@@ -354,11 +360,14 @@ export function removePlayer(
 
     state.players.splice(playerIndex, 1);
 
-    delete state.answers[playerId];
+    const { [playerId]: _removedAnswer, ...remainingAnswers } = state.answers;
+    state.answers = remainingAnswers;
 
     for (const group of state.answerGroups) {
         group.playerIds = group.playerIds.filter((id) => id !== playerId);
-        delete group.originalAnswers[playerId];
+        const { [playerId]: _removedOriginal, ...remainingOriginals } =
+            group.originalAnswers;
+        group.originalAnswers = remainingOriginals;
     }
     state.answerGroups = state.answerGroups.filter(
         (g) => g.playerIds.length > 0,

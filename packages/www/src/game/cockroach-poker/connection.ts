@@ -1,14 +1,11 @@
 import type { GameConnection } from "../connection";
+import type { CockroachPokerClientMessage } from "./messages";
 import type {
-    CockroachPokerClientMessage,
-    CockroachPokerServerMessage,
-} from "./messages";
-import type { CockroachPokerPlayerView } from "./views";
+    CockroachPokerPlayerView,
+    CockroachPokerSideMessage,
+} from "./schemas";
 
-export type CockroachPokerSideEvent = Exclude<
-    CockroachPokerServerMessage,
-    { type: "cockroach_poker:state" }
->;
+export type CockroachPokerSideEvent = CockroachPokerSideMessage;
 
 export type CockroachPokerClientOutgoing = Omit<
     CockroachPokerClientMessage,

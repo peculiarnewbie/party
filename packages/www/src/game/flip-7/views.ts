@@ -1,55 +1,21 @@
 import type {
     Flip7Card,
     Flip7PendingChoice,
-    Flip7Phase,
-    Flip7PlayerStatus,
-    Flip7RoundResult,
     Flip7State,
 } from "./types";
+import type {
+    Flip7CardView,
+    Flip7PlayerInfo,
+    Flip7PlayerView,
+    Flip7TargetChoiceView,
+} from "./schemas";
 
-export interface Flip7CardView {
-    kind: "number" | "bonus" | "multiplier" | "action";
-    label: string;
-    value: number | null;
-}
-
-export interface Flip7PlayerInfo {
-    id: string;
-    name: string;
-    totalScore: number;
-    status: Flip7PlayerStatus;
-    roundScore: number;
-    uniqueNumberCount: number;
-    hasSecondChance: boolean;
-    cards: Flip7CardView[];
-}
-
-export interface Flip7TargetChoiceView {
-    chooserPlayerId: string;
-    card: Flip7PendingChoice["card"];
-    validTargetIds: string[];
-}
-
-export interface Flip7PlayerView {
-    myId: string;
-    hostId: string;
-    phase: Flip7Phase;
-    roundNumber: number;
-    targetScore: number;
-    dealerId: string | null;
-    currentPlayerId: string | null;
-    deckCount: number;
-    discardCount: number;
-    players: Flip7PlayerInfo[];
-    targetChoice: Flip7TargetChoiceView | null;
-    canHit: boolean;
-    canStay: boolean;
-    requiresMyTargetChoice: boolean;
-    validTargetIds: string[];
-    lastRoundResult: Flip7RoundResult | null;
-    winners: string[] | null;
-    endedByHost: boolean;
-}
+export type {
+    Flip7CardView,
+    Flip7PlayerInfo,
+    Flip7PlayerView,
+    Flip7TargetChoiceView,
+};
 
 function toCardView(card: Flip7Card): Flip7CardView {
     if (card.type === "number") {
@@ -112,7 +78,10 @@ function uniqueNumberCount(cards: Flip7Card[]) {
     ).size;
 }
 
-function roundScore(cards: Flip7Card[], status: Flip7PlayerStatus) {
+function roundScore(
+    cards: Flip7Card[],
+    status: Flip7PlayerView["players"][number]["status"],
+) {
     if (status === "busted") {
         return 0;
     }

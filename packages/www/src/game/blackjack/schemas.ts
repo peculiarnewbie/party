@@ -76,6 +76,48 @@ export const roundResultSchema = Schema.Struct({
     netChips: Schema.mutableKey(Schema.Number),
 });
 
+export const blackjackHandStateSchema = Schema.Struct({
+    cards: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    bet: Schema.mutableKey(Schema.Number),
+    doubled: Schema.mutableKey(Schema.Boolean),
+    stood: Schema.mutableKey(Schema.Boolean),
+    busted: Schema.mutableKey(Schema.Boolean),
+    isBlackjack: Schema.mutableKey(Schema.Boolean),
+    fromSplit: Schema.mutableKey(Schema.Boolean),
+});
+
+export const blackjackPlayerStateSchema = Schema.Struct({
+    id: Schema.mutableKey(Schema.String),
+    name: Schema.mutableKey(Schema.String),
+    chips: Schema.mutableKey(Schema.Number),
+    hands: Schema.mutableKey(
+        Schema.mutable(Schema.Array(blackjackHandStateSchema)),
+    ),
+    currentHandIndex: Schema.mutableKey(Schema.Number),
+    bet: Schema.mutableKey(Schema.Number),
+    insuranceBet: Schema.mutableKey(Schema.Number),
+    insuranceDecided: Schema.mutableKey(Schema.Boolean),
+    done: Schema.mutableKey(Schema.Boolean),
+});
+
+export const blackjackStateSchema = Schema.Struct({
+    players: Schema.mutableKey(
+        Schema.mutable(Schema.Array(blackjackPlayerStateSchema)),
+    ),
+    shoe: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    burnPile: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    dealerHand: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    dealerRevealed: Schema.mutableKey(Schema.Boolean),
+    currentPlayerIndex: Schema.mutableKey(Schema.Number),
+    phase: Schema.mutableKey(blackjackPhaseSchema),
+    roundNumber: Schema.mutableKey(Schema.Number),
+    deckCount: Schema.mutableKey(Schema.Number),
+    cutCardPosition: Schema.mutableKey(Schema.Number),
+    results: Schema.mutableKey(
+        Schema.NullOr(Schema.mutable(Schema.Array(roundResultSchema))),
+    ),
+});
+
 export const blackjackPlayerViewSchema = Schema.Struct({
     phase: Schema.mutableKey(blackjackPhaseSchema),
     roundNumber: Schema.mutableKey(Schema.Number),
@@ -171,6 +213,9 @@ export const blackjackServerMessageSchema = Schema.Union([
 export type BlackjackPhase = SchemaType<typeof blackjackPhaseSchema>;
 export type HandResult = SchemaType<typeof handResultSchema>;
 export type RoundResult = SchemaType<typeof roundResultSchema>;
+export type BlackjackHand = SchemaType<typeof blackjackHandStateSchema>;
+export type BlackjackPlayer = SchemaType<typeof blackjackPlayerStateSchema>;
+export type BlackjackState = SchemaType<typeof blackjackStateSchema>;
 export type PlayerHandView = SchemaType<typeof playerHandViewSchema>;
 export type PlayerInfoView = SchemaType<typeof playerInfoViewSchema>;
 export type DealerView = SchemaType<typeof dealerViewSchema>;
@@ -187,6 +232,32 @@ export function decodeBlackjackPlayerView(
     } catch {
         return null;
     }
+}
+
+export function decodeBlackjackServerMessage(
+    raw: unknown,
+): BlackjackServerMessage | null {
+    try {
+        return decodeUnknownSync(blackjackServerMessageSchema, raw);
+    } catch {
+        return null;
+    }
+}
+
+export type BlackjackSideMessage = Exclude<
+    BlackjackServerMessage,
+    { type: "blackjack:state" }
+>;
+
+export function decodeBlackjackSideMessage(
+    raw: unknown,
+): BlackjackSideMessage | null {
+    const message = decodeBlackjackServerMessage(raw);
+    if (!message || message.type === "blackjack:state") {
+        return null;
+    }
+
+    return message;
 }
 
 export function encodeBlackjackServerMessage(

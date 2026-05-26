@@ -2,14 +2,11 @@ import { Schema } from "effect";
 
 import { decodeGameClientMessage } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
-import {
-    emptyDataSchema,
-    serverMessageWithData,
-    unknownRecordSchema,
-} from "~/game/shared/wire-schemas";
+import { emptyDataSchema } from "~/game/shared/wire-schemas";
 
-export const rpsChoices = ["rock", "paper", "scissors"] as const;
-export const rpsBestOfValues = [1, 3, 5] as const;
+import { rpsBestOfValues, rpsChoices } from "./schemas";
+
+export { rpsChoices, rpsBestOfValues } from "./schemas";
 
 export const rpsClientMessageSchema = Schema.Union([
     Schema.Struct({
@@ -40,15 +37,15 @@ export const rpsClientMessageSchema = Schema.Union([
     }),
 ]);
 
-export const rpsServerMessageSchema = Schema.Union([
-    serverMessageWithData("rps:state", unknownRecordSchema),
-    serverMessageWithData("rps:action", unknownRecordSchema),
-    serverMessageWithData("rps:game_over", unknownRecordSchema),
-    serverMessageWithData("rps:error", unknownRecordSchema),
-]);
-
 export type RpsClientMessage = SchemaType<typeof rpsClientMessageSchema>;
-export type RpsServerMessage = SchemaType<typeof rpsServerMessageSchema>;
+
+export {
+    decodeRpsPlayerView,
+    decodeRpsSideMessage,
+    encodeRpsServerMessage,
+    rpsServerMessageSchema,
+    type RpsServerMessage,
+} from "./schemas";
 
 export function decodeRpsClientMessage(raw: unknown) {
     return decodeGameClientMessage("rps", rpsClientMessageSchema, raw);

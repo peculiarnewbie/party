@@ -1,4 +1,5 @@
-import type { SkullClientMessage } from "./messages";
+import type { SkullClientMessage, SkullServerMessage } from "./messages";
+import { encodeSkullServerMessage } from "./schemas";
 import type { SkullEngineResult, SkullResult, SkullState } from "./types";
 import {
     endGameByHost,
@@ -8,19 +9,23 @@ import {
 } from "./engine";
 import { getPlayerView } from "./views";
 
+function sendServerMessage(
+    send: (message: string) => void,
+    message: SkullServerMessage,
+) {
+    send(encodeSkullServerMessage(message));
+}
+
 function sendStateToAll(
     state: SkullState,
     lastPublicResult: SkullResult | null,
     sendTo: (playerId: string, msg: string) => void,
 ) {
     for (const player of state.players) {
-        sendTo(
-            player.id,
-            JSON.stringify({
-                type: "skull:state",
-                data: getPlayerView(state, player.id, lastPublicResult),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(player.id, msg), {
+            type: "skull:state",
+            data: getPlayerView(state, player.id, lastPublicResult),
+        });
     }
 }
 
@@ -34,12 +39,10 @@ function broadcastEvents(
 
     let gameOverEvent: SkullResult | null = null;
     for (const event of result.events) {
-        broadcast(
-            JSON.stringify({
-                type: "skull:action",
-                data: event,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "skull:action",
+            data: event,
+        });
         if (event.type === "game_over") {
             gameOverEvent = event;
         }
@@ -56,13 +59,10 @@ export const skullServer = (stateRef: { current: SkullState | null }) => ({
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "skull:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(playerId, msg), {
+            type: "skull:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -133,13 +133,10 @@ export const skullServer = (stateRef: { current: SkullState | null }) => ({
 
         const result = processAction(state, action);
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "skull:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "skull:error",
+                data: { message: result.message },
+            });
             return;
         }
 
@@ -149,12 +146,10 @@ export const skullServer = (stateRef: { current: SkullState | null }) => ({
         sendStateToAll(state, lastPublicResult, sendTo);
 
         if (gameOverEvent?.type === "game_over") {
-            broadcast(
-                JSON.stringify({
-                    type: "skull:game_over",
-                    data: gameOverEvent,
-                }),
-            );
+            sendServerMessage(broadcast, {
+                type: "skull:game_over",
+                data: gameOverEvent,
+            });
         }
     },
 
@@ -166,19 +161,15 @@ export const skullServer = (stateRef: { current: SkullState | null }) => ({
         if (!state) return;
 
         const result = endGameByHost(state);
-        broadcast(
-            JSON.stringify({
-                type: "skull:action",
-                data: result,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "skull:action",
+            data: result,
+        });
         sendStateToAll(state, result, sendTo);
-        broadcast(
-            JSON.stringify({
-                type: "skull:game_over",
-                data: result,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "skull:game_over",
+            data: result,
+        });
     },
 
     removePlayer(
@@ -193,12 +184,10 @@ export const skullServer = (stateRef: { current: SkullState | null }) => ({
         sendStateToAll(state, result, sendTo);
 
         if (result?.type === "game_over") {
-            broadcast(
-                JSON.stringify({
-                    type: "skull:game_over",
-                    data: result,
-                }),
-            );
+            sendServerMessage(broadcast, {
+                type: "skull:game_over",
+                data: result,
+            });
         }
     },
 });

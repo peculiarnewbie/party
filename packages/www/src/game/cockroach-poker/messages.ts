@@ -2,12 +2,10 @@ import { Schema } from "effect";
 
 import { decodeGameClientMessage } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
-import { CREATURE_TYPES } from "./types";
+import { CREATURE_TYPES } from "./schemas";
 import {
     emptyDataSchema,
     nonNegativeIntSchema,
-    serverMessageWithData,
-    unknownRecordSchema,
 } from "~/game/shared/wire-schemas";
 
 const creatureTypeSchema = Schema.Literals(CREATURE_TYPES);
@@ -50,18 +48,15 @@ export const cockroachPokerClientMessageSchema = Schema.Union([
     }),
 ]);
 
-export const cockroachPokerServerMessageSchema = Schema.Union([
-    serverMessageWithData("cockroach_poker:state", unknownRecordSchema),
-    serverMessageWithData("cockroach_poker:action", unknownRecordSchema),
-    serverMessageWithData("cockroach_poker:error", unknownRecordSchema),
-]);
-
 export type CockroachPokerClientMessage = SchemaType<
     typeof cockroachPokerClientMessageSchema
 >;
-export type CockroachPokerServerMessage = SchemaType<
-    typeof cockroachPokerServerMessageSchema
->;
+
+export {
+    cockroachPokerServerMessageSchema,
+    encodeCockroachPokerServerMessage,
+    type CockroachPokerServerMessage,
+} from "./schemas";
 
 export function decodeCockroachPokerClientMessage(raw: unknown) {
     return decodeGameClientMessage(

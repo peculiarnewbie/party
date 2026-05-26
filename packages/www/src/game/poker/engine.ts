@@ -4,7 +4,7 @@ import type {
     PokerAction,
     PokerActionResult,
     PokerEvent,
-    PokerEventBase,
+    PokerEventInput,
     PokerHandValue,
     PokerPlayer,
     PokerPlayerStatus,
@@ -40,7 +40,7 @@ function defaultShuffle<T>(arr: T[]): T[] {
 
 function pushEvent(
     state: PokerState,
-    event: PokerEventBase,
+    event: PokerEventInput,
 ) {
     state.eventSeq += 1;
     state.eventLog = [

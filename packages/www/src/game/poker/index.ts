@@ -3,7 +3,7 @@ export type {
     PokerActionType,
     PokerActionResult,
     PokerEvent,
-    PokerEventBase,
+    PokerEventInput,
     PokerHandValue,
     PokerPlayer,
     PokerPlayerStatus,
@@ -39,6 +39,8 @@ export type {
 export {
     decodePokerClientMessage,
     decodePokerServerMessage,
+    decodePokerServerMessageOrNull,
+    decodePokerSideMessageOrNull,
     encodePokerServerMessage,
     pokerClientMessageSchema,
     pokerServerMessageSchema,

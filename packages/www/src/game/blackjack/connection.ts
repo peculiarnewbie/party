@@ -1,14 +1,9 @@
 import type { GameConnection } from "../connection";
-import type {
-    BlackjackClientMessage,
-    BlackjackServerMessage,
-} from "./messages";
+import type { BlackjackClientMessage } from "./messages";
+import type { BlackjackSideMessage } from "./schemas";
 import type { BlackjackPlayerView } from "./views";
 
-export type BlackjackSideEvent = Exclude<
-    BlackjackServerMessage,
-    { type: "blackjack:state" }
->;
+export type BlackjackSideEvent = BlackjackSideMessage;
 
 export type BlackjackClientOutgoing = Omit<
     BlackjackClientMessage,

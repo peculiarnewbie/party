@@ -26,7 +26,7 @@ export {
     rollDice,
 } from "./engine";
 export type { RollFn } from "./engine";
-export type { PerudoPlayerView, PerudoPlayerInfo } from "./views";
+export type { PerudoPlayerView, PerudoPlayerInfo } from "./schemas";
 export { getPlayerView } from "./views";
 export type { PerudoClientMessage, PerudoServerMessage } from "./messages";
 export {
@@ -34,4 +34,10 @@ export {
     perudoClientMessageSchema,
     perudoServerMessageSchema,
 } from "./messages";
+export {
+    decodePerudoPlayerView,
+    decodePerudoSideMessage,
+    encodePerudoServerMessage,
+    perudoStateSchema,
+} from "./schemas";
 export { perudoServer } from "./server";

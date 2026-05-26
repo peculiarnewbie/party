@@ -1,52 +1,12 @@
+import type { SpicyResult, SpicyState } from "./types";
 import type {
-    SpiceType,
-    SpicyCard,
-    SpicyEndReason,
-    SpicyFinalScore,
-    SpicyResult,
-    SpicyState,
-} from "./types";
+    SpicyPlayerInfo,
+    SpicyPlayerView,
+    SpicyStackTopView,
+} from "./schemas";
 import { getAllowedDeclarations } from "./engine";
 
-export interface SpicyPlayerInfo {
-    id: string;
-    name: string;
-    handCount: number;
-    wonCardCount: number;
-    trophies: number;
-    isCurrentPlayer: boolean;
-    isPendingLastCard: boolean;
-}
-
-export interface SpicyStackTopView {
-    ownerId: string;
-    declaredNumber: number;
-    declaredSpice: SpiceType;
-    stackSize: number;
-}
-
-export interface SpicyPlayerView {
-    myId: string;
-    phase: SpicyState["phase"];
-    currentPlayerId: string;
-    pendingLastCardPlayerId: string | null;
-    safePassPlayerIds: string[];
-    trophiesRemaining: number;
-    players: SpicyPlayerInfo[];
-    myHand: SpicyCard[];
-    stackTop: SpicyStackTopView | null;
-    isMyTurn: boolean;
-    canPlayCard: boolean;
-    canPass: boolean;
-    canChallenge: boolean;
-    canConfirmLastCard: boolean;
-    allowedDeclarationNumbers: number[];
-    allowedDeclarationSpices: SpiceType[];
-    winners: string[] | null;
-    endReason: SpicyEndReason | null;
-    finalScores: SpicyFinalScore[] | null;
-    lastPublicResult: SpicyResult | null;
-}
+export type { SpicyPlayerInfo, SpicyPlayerView, SpicyStackTopView };
 
 export function getPlayerView(
     state: SpicyState,

@@ -1,5 +1,5 @@
-import type { CheeseThiefState } from "./types";
-import type { CheeseThiefClientMessage } from "./messages";
+import type { CheeseThiefClientMessage, CheeseThiefServerMessage } from "./messages";
+import { encodeCheeseThiefServerMessage } from "./schemas";
 import {
     initGame,
     processAction,
@@ -7,27 +7,29 @@ import {
     endGameByHost,
 } from "./engine";
 import { getPlayerView } from "./views";
+import type { CheeseThiefState } from "./types";
+
+function sendServerMessage(
+    send: (message: string) => void,
+    message: CheeseThiefServerMessage,
+) {
+    send(encodeCheeseThiefServerMessage(message));
+}
 
 function sendStateToAll(
     state: CheeseThiefState,
     sendTo: (playerId: string, msg: string) => void,
 ) {
     for (const player of state.players) {
-        sendTo(
-            player.id,
-            JSON.stringify({
-                type: "cheese_thief:state",
-                data: getPlayerView(state, player.id),
-            }),
-        );
-    }
-    sendTo(
-        state.hostId,
-        JSON.stringify({
+        sendServerMessage((msg) => sendTo(player.id, msg), {
             type: "cheese_thief:state",
-            data: getPlayerView(state, state.hostId),
-        }),
-    );
+            data: getPlayerView(state, player.id),
+        });
+    }
+    sendServerMessage((msg) => sendTo(state.hostId, msg), {
+        type: "cheese_thief:state",
+        data: getPlayerView(state, state.hostId),
+    });
 }
 
 export const cheeseThiefServer = (stateRef: {
@@ -40,13 +42,10 @@ export const cheeseThiefServer = (stateRef: {
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "cheese_thief:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(playerId, msg), {
+            type: "cheese_thief:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -103,22 +102,17 @@ export const cheeseThiefServer = (stateRef: {
         const result = processAction(state, action);
 
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "cheese_thief:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "cheese_thief:error",
+                data: { message: result.message },
+            });
             return;
         }
 
-        broadcast(
-            JSON.stringify({
-                type: "cheese_thief:action",
-                data: result,
-            }),
-        );
+        sendServerMessage(broadcast, {
+            type: "cheese_thief:action",
+            data: result,
+        });
 
         sendStateToAll(state, sendTo);
     },

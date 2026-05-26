@@ -159,6 +159,36 @@ describe("Game Logic", () => {
             });
         });
 
+        it("rejects select_game with an unknown game type", async () => {
+            await expect(
+                Effect.runPromise(
+                    decodeClientMessage({
+                        playerId: "host",
+                        playerName: "Host",
+                        type: "select_game",
+                        data: { gameType: "not_a_game" },
+                    }),
+                ),
+            ).rejects.toMatchObject({
+                _tag: "RoomMessageDecodeError",
+            });
+        });
+
+        it("rejects answer messages without answer data", async () => {
+            await expect(
+                Effect.runPromise(
+                    decodeClientMessage({
+                        playerId: "host",
+                        playerName: "Host",
+                        type: "answer",
+                        data: {},
+                    }),
+                ),
+            ).rejects.toMatchObject({
+                _tag: "RoomMessageDecodeError",
+            });
+        });
+
         it("encodes shared server messages with the current wire shape", () => {
             const encoded = encodeServerMessage({
                 type: "room_state",

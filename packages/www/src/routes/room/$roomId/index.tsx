@@ -15,8 +15,46 @@ import { GoFishRoom } from "~/components/go-fish/go-fish-room";
 import { PokerRoom } from "~/components/poker/poker-room";
 import { createGameConnection } from "~/game/connection-from-ws";
 import type { PokerConnection } from "~/game/poker/connection";
-import { decodePokerPlayerView } from "~/game/poker";
-import { decodeYahtzeePlayerView } from "~/game/yahtzee";
+import {
+    decodePokerPlayerView,
+    decodePokerSideMessageOrNull,
+} from "~/game/poker";
+import {
+    decodeGoFishPlayerView,
+    decodeGoFishSideMessage,
+} from "~/game/go-fish";
+import {
+    decodeBlackjackPlayerView,
+    decodeBlackjackSideMessage,
+} from "~/game/blackjack";
+import {
+    decodeYahtzeePlayerView,
+    decodeYahtzeeSideMessage,
+} from "~/game/yahtzee";
+import {
+    decodePerudoPlayerView,
+    decodePerudoSideMessage,
+} from "~/game/perudo";
+import { decodeRpsPlayerView, decodeRpsSideMessage } from "~/game/rps";
+import { decodeHerdPlayerView, decodeHerdSideMessage } from "~/game/herd";
+import {
+    decodeFunFactsPlayerView,
+    decodeFunFactsSideMessage,
+} from "~/game/fun-facts";
+import {
+    decodeCheeseThiefPlayerView,
+    decodeCheeseThiefSideMessage,
+} from "~/game/cheese-thief";
+import {
+    decodeCockroachPokerPlayerView,
+    decodeCockroachPokerSideMessage,
+} from "~/game/cockroach-poker";
+import {
+    decodeFlip7PlayerView,
+    decodeFlip7SideMessage,
+} from "~/game/flip-7";
+import { decodeSkullPlayerView, decodeSkullSideMessage } from "~/game/skull";
+import { decodeSpicyPlayerView, decodeSpicySideMessage } from "~/game/spicy";
 import type { YahtzeeConnection } from "~/game/yahtzee/connection";
 import type { GoFishConnection } from "~/game/go-fish/connection";
 import type { BlackjackConnection } from "~/game/blackjack/connection";
@@ -48,6 +86,7 @@ import {
     type MessageType,
     type Player,
     type RoomPhase,
+    isGameWireMessageType,
     isPokerGameType,
     serverMessageSchema,
 } from "~/game";
@@ -170,19 +209,7 @@ function RouteComponent() {
 
             if (
                 typeof json.type === "string" &&
-                (json.type.startsWith("go_fish:") ||
-                    json.type.startsWith("poker:") ||
-                    json.type.startsWith("blackjack:") ||
-                    json.type.startsWith("yahtzee:") ||
-                    json.type.startsWith("perudo:") ||
-                    json.type.startsWith("rps:") ||
-                    json.type.startsWith("herd:") ||
-                    json.type.startsWith("fun_facts:") ||
-                    json.type.startsWith("cheese_thief:") ||
-                    json.type.startsWith("cockroach_poker:") ||
-                    json.type.startsWith("flip_7:") ||
-                    json.type.startsWith("skull:") ||
-                    json.type.startsWith("spicy:"))
+                isGameWireMessageType(json.type)
             ) {
                 return;
             }
@@ -332,6 +359,8 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeGoFishPlayerView,
+                                    decodeServerMessage: decodeGoFishSideMessage,
                                 },
                             );
                             return (
@@ -366,6 +395,8 @@ function RouteComponent() {
                                         playerName: name(),
                                     }),
                                     decodeView: decodePokerPlayerView,
+                                    decodeServerMessage:
+                                        decodePokerSideMessageOrNull,
                                 },
                             );
                             return (
@@ -410,6 +441,9 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeBlackjackPlayerView,
+                                    decodeServerMessage:
+                                        decodeBlackjackSideMessage,
                                 });
                             return (
                                 <BlackjackRoom
@@ -450,6 +484,7 @@ function RouteComponent() {
                                         playerName: name(),
                                     }),
                                     decodeView: decodeYahtzeePlayerView,
+                                    decodeServerMessage: decodeYahtzeeSideMessage,
                                 },
                             );
                             return (
@@ -492,6 +527,7 @@ function RouteComponent() {
                                         playerName: name(),
                                     }),
                                     decodeView: decodeYahtzeePlayerView,
+                                    decodeServerMessage: decodeYahtzeeSideMessage,
                                 },
                             );
                             return (
@@ -533,6 +569,8 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodePerudoPlayerView,
+                                    decodeServerMessage: decodePerudoSideMessage,
                                 },
                             );
                             return (
@@ -572,6 +610,8 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeRpsPlayerView,
+                                    decodeServerMessage: decodeRpsSideMessage,
                                 },
                             );
                             return (
@@ -611,6 +651,8 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeHerdPlayerView,
+                                    decodeServerMessage: decodeHerdSideMessage,
                                 },
                             );
                             return (
@@ -650,6 +692,8 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeFunFactsPlayerView,
+                                    decodeServerMessage: decodeFunFactsSideMessage,
                                 });
                             return (
                                 <FunFactsRoom
@@ -688,6 +732,9 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeCheeseThiefPlayerView,
+                                    decodeServerMessage:
+                                        decodeCheeseThiefSideMessage,
                                 });
                             return (
                                 <CheeseThiefRoom
@@ -726,6 +773,9 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeCockroachPokerPlayerView,
+                                    decodeServerMessage:
+                                        decodeCockroachPokerSideMessage,
                                 });
                             return (
                                 <CockroachPokerRoom
@@ -764,6 +814,8 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeFlip7PlayerView,
+                                    decodeServerMessage: decodeFlip7SideMessage,
                                 });
                             return (
                                 <Flip7Room
@@ -802,6 +854,8 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeSkullPlayerView,
+                                    decodeServerMessage: decodeSkullSideMessage,
                                 });
                             return (
                                 <SkullRoom
@@ -840,6 +894,8 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeSpicyPlayerView,
+                                    decodeServerMessage: decodeSpicySideMessage,
                                 });
                             return (
                                 <SpicyRoom

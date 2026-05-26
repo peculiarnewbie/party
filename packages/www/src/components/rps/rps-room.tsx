@@ -56,23 +56,21 @@ export const RpsRoom: Component<RpsRoomProps> = (props) => {
     onCleanup(
         props.connection.subscribe((event) => {
             if (event.type === "rps:action") {
-                const d = event.data as Record<string, any>;
-                if (d.type === "round_advanced") {
+                if (event.data.type === "round_advanced") {
                     showAnnouncement(
                         getRoundLabel(
-                            d.roundNumber,
+                            event.data.roundNumber,
                             gameView()?.totalRounds ?? 1,
                         ),
                     );
                 }
-                if (d.type === "best_of_changed") {
-                    showAnnouncement(`BEST OF ${d.bestOf}`);
+                if (event.data.type === "best_of_changed") {
+                    showAnnouncement(`BEST OF ${event.data.bestOf}`);
                 }
             }
 
             if (event.type === "rps:game_over") {
-                const winnerId = (event.data as { winnerId?: string })
-                    .winnerId;
+                const winnerId = event.data.winnerId;
                 if (winnerId) {
                     showAnnouncement(
                         `${playerName(winnerId)} WINS THE TOURNAMENT!`,

@@ -1,6 +1,7 @@
 import { Effect, Schema } from "effect";
 
 import {
+    decodeUnknownSync,
     decodeWithSchema,
     encodeJsonMessage,
     extractMessageType,
@@ -127,4 +128,24 @@ export function encodeYahtzeeServerMessage(
     message: YahtzeeServerMessage,
 ): string {
     return encodeJsonMessage(yahtzeeServerMessageSchema, message);
+}
+
+export type YahtzeeSideMessage = Exclude<
+    YahtzeeServerMessage,
+    { type: "yahtzee:state" }
+>;
+
+export function decodeYahtzeeSideMessage(
+    raw: unknown,
+): YahtzeeSideMessage | null {
+    try {
+        const message = decodeUnknownSync(yahtzeeServerMessageSchema, raw);
+        if (message.type === "yahtzee:state") {
+            return null;
+        }
+
+        return message;
+    } catch {
+        return null;
+    }
 }

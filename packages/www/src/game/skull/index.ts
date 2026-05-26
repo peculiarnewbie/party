@@ -21,12 +21,15 @@ export {
     endGameByHost,
 } from "./engine";
 export type { ChooseStartingPlayer, ShuffleHand } from "./engine";
-export type { SkullPlayerInfo, SkullPlayerView, SkullAttemptView } from "./views";
+export type { SkullPlayerInfo, SkullPlayerView, SkullAttemptView } from "./schemas";
 export { getPlayerView } from "./views";
 export type { SkullClientMessage, SkullServerMessage } from "./messages";
 export {
     decodeSkullClientMessage,
     skullClientMessageSchema,
     skullServerMessageSchema,
+    decodeSkullPlayerView,
+    decodeSkullSideMessage,
+    encodeSkullServerMessage,
 } from "./messages";
 export { skullServer } from "./server";

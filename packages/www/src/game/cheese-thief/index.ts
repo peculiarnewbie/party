@@ -7,7 +7,10 @@ export type {
     VoteResult,
     PlayerRole,
 } from "./types";
-
+export type {
+    CheeseThiefPlayerInfo,
+    CheeseThiefPlayerView,
+} from "./schemas";
 export {
     decodeCheeseThiefClientMessage,
     cheeseThiefClientMessageSchema,
@@ -15,5 +18,10 @@ export {
     cheeseThiefServerMessageSchema,
     type CheeseThiefServerMessage,
 } from "./messages";
-
+export {
+    cheeseThiefStateSchema,
+    decodeCheeseThiefPlayerView,
+    decodeCheeseThiefSideMessage,
+    encodeCheeseThiefServerMessage,
+} from "./schemas";
 export { cheeseThiefServer } from "./server";

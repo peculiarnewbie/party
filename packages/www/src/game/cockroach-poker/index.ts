@@ -7,9 +7,12 @@ export type {
     CreatureType,
     OfferChain,
 } from "./types";
-
 export { CREATURE_TYPES } from "./types";
-
+export type {
+    CockroachPokerPlayerInfo,
+    CockroachPokerPlayerView,
+    OfferChainView,
+} from "./schemas";
 export {
     decodeCockroachPokerClientMessage,
     cockroachPokerClientMessageSchema,
@@ -17,5 +20,10 @@ export {
     cockroachPokerServerMessageSchema,
     type CockroachPokerServerMessage,
 } from "./messages";
-
+export {
+    cockroachPokerStateSchema,
+    decodeCockroachPokerPlayerView,
+    decodeCockroachPokerSideMessage,
+    encodeCockroachPokerServerMessage,
+} from "./schemas";
 export { cockroachPokerServer } from "./server";

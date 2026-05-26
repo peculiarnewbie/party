@@ -1,8 +1,8 @@
 import type { GameConnection } from "../connection";
-import type { SpicyClientMessage, SpicyServerMessage } from "./messages";
-import type { SpicyPlayerView } from "./views";
+import type { SpicyClientMessage } from "./messages";
+import type { SpicyPlayerView, SpicySideMessage } from "./schemas";
 
-export type SpicySideEvent = Exclude<SpicyServerMessage, { type: "spicy:state" }>;
+export type SpicySideEvent = SpicySideMessage;
 
 export type SpicyClientOutgoing = Omit<SpicyClientMessage, "playerId" | "playerName">;
 

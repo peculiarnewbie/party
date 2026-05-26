@@ -1,8 +1,8 @@
 import type { GameConnection } from "../connection";
-import type { RpsClientMessage, RpsServerMessage } from "./messages";
-import type { RpsPlayerView } from "./views";
+import type { RpsClientMessage } from "./messages";
+import type { RpsPlayerView, RpsSideMessage } from "./schemas";
 
-export type RpsSideEvent = Exclude<RpsServerMessage, { type: "rps:state" }>;
+export type RpsSideEvent = RpsSideMessage;
 
 export type RpsClientOutgoing = Omit<
     RpsClientMessage,

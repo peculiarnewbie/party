@@ -1,64 +1,11 @@
 import type { DiscType, SkullPhase, SkullResult, SkullState } from "./types";
+import type {
+    SkullAttemptView,
+    SkullPlayerInfo,
+    SkullPlayerView,
+} from "./schemas";
 
-export interface SkullPlayerInfo {
-    id: string;
-    name: string;
-    handCount: number;
-    matCount: number;
-    faceDownCount: number;
-    successfulChallenges: number;
-    eliminated: boolean;
-    isCurrentPlayer: boolean;
-    isStarter: boolean;
-    isHighestBidder: boolean;
-    hasPassed: boolean;
-    revealedDiscs: DiscType[];
-}
-
-export interface SkullAttemptView {
-    challengerId: string;
-    target: number;
-    revealedCount: number;
-    autoRevealDone: boolean;
-    revealedSteps: {
-        ownerId: string;
-        disc: DiscType;
-        automatic: boolean;
-    }[];
-}
-
-export interface SkullPlayerView {
-    myId: string;
-    phase: SkullPhase;
-    roundNumber: number;
-    currentPlayerId: string;
-    starterPlayerId: string;
-    highestBid: number | null;
-    highestBidderId: string | null;
-    passedBidderIds: string[];
-    penaltyPlayerId: string | null;
-    penaltyChooserId: string | null;
-    penaltyTargetHandCount: number;
-    pendingNextStarterChooserId: string | null;
-    winnerId: string | null;
-    players: SkullPlayerInfo[];
-    myHand: DiscType[];
-    myMat: DiscType[];
-    isMyTurn: boolean;
-    canPlayDisc: boolean;
-    canStartChallenge: boolean;
-    canRaiseBid: boolean;
-    canPassBid: boolean;
-    minBid: number;
-    maxBid: number;
-    attempt: SkullAttemptView | null;
-    selectableFlipOwnerIds: string[];
-    needsDiscardChoice: boolean;
-    discardableDiscIndices: number[];
-    canChooseNextStarter: boolean;
-    nextStarterOptions: string[];
-    lastPublicResult: SkullResult | null;
-}
+export type { SkullAttemptView, SkullPlayerInfo, SkullPlayerView };
 
 function getRevealedDiscs(state: SkullState, ownerId: string) {
     const player = state.players.find((entry) => entry.id === ownerId);
