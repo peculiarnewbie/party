@@ -42,7 +42,7 @@ function broadcastState(
         });
     }
 
-    const latestEvent = state.eventLog[state.eventLog.length - 1];
+    const latestEvent = state.eventLog[0];
     if (latestEvent) {
         broadcastServerMessage(broadcast, {
             type: "poker:event",

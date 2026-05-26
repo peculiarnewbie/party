@@ -611,3 +611,48 @@ describe("full game flow", () => {
         expect(result.type).toBe("error");
     });
 });
+
+describe("goFishClientMessage decode", () => {
+    it("decodes valid ask and draw messages", async () => {
+        const { Effect } = await import("effect");
+        const { decodeGoFishClientMessage } = await import("./messages");
+
+        const ask = {
+            type: "go_fish:ask" as const,
+            playerId: "p1",
+            playerName: "Alice",
+            data: { targetId: "p2", rank: 7 },
+        };
+        const draw = {
+            type: "go_fish:draw" as const,
+            playerId: "p1",
+            playerName: "Alice",
+            data: {},
+        };
+
+        expect(await Effect.runPromise(decodeGoFishClientMessage(ask))).toEqual(
+            ask,
+        );
+        expect(await Effect.runPromise(decodeGoFishClientMessage(draw))).toEqual(
+            draw,
+        );
+    });
+
+    it("returns a typed decode error for invalid ranks", async () => {
+        const { Effect } = await import("effect");
+        const { decodeGoFishClientMessage } = await import("./messages");
+
+        await expect(
+            Effect.runPromise(
+                decodeGoFishClientMessage({
+                    type: "go_fish:ask",
+                    playerId: "p1",
+                    playerName: "Alice",
+                    data: { targetId: "p2", rank: 0 },
+                }),
+            ),
+        ).rejects.toMatchObject({
+            _tag: "GoFishMessageDecodeError",
+        });
+    });
+});

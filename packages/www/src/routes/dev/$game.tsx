@@ -1,22 +1,40 @@
 import { createFileRoute, notFound } from "@tanstack/solid-router";
 import { createMemo, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import z from "zod";
 import { FixtureIsland } from "~/components/dev/fixture-island";
 import { getFixtureModule } from "./-fixtures";
 
-const searchSchema = z.object({
-    fixture: z.string().optional(),
-    playerId: z.string().optional(),
-    step: z.coerce.number().int().positive().optional(),
-    island: z.enum(["hidden"]).optional(),
-});
+type DevSearch = {
+    fixture?: string;
+    playerId?: string;
+    step?: number;
+    island?: "hidden";
+};
+
+function parseDevSearch(search: Record<string, unknown>): DevSearch {
+    const step =
+        search.step === undefined
+            ? undefined
+            : Number(search.step);
+
+    return {
+        fixture:
+            typeof search.fixture === "string" ? search.fixture : undefined,
+        playerId:
+            typeof search.playerId === "string" ? search.playerId : undefined,
+        step:
+            step !== undefined && Number.isInteger(step) && step > 0
+                ? step
+                : undefined,
+        island: search.island === "hidden" ? "hidden" : undefined,
+    };
+}
 
 export const Route = createFileRoute("/dev/$game")({
     beforeLoad: () => {
         if (import.meta.env.PROD) throw notFound();
     },
-    validateSearch: searchSchema,
+    validateSearch: parseDevSearch,
     component: DevGameViewer,
 });
 

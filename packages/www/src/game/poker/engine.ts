@@ -3,6 +3,7 @@ import type { Card } from "~/assets/card-deck/types";
 import type {
     PokerAction,
     PokerActionResult,
+    PokerEvent,
     PokerEventBase,
     PokerHandValue,
     PokerPlayer,
@@ -43,11 +44,11 @@ function pushEvent(
 ) {
     state.eventSeq += 1;
     state.eventLog = [
-        ...state.eventLog,
         {
             ...event,
             id: state.eventSeq,
-        },
+        } as PokerEvent,
+        ...state.eventLog,
     ].slice(-MAX_LOG_LENGTH);
 }
 

@@ -1,13 +1,15 @@
 import type {
-    YahtzeeState,
-    YahtzeePhase,
-    ScoringCategory,
     Dice,
     HeldDice,
-    YahtzeeMode,
     LyingClaim,
     LyingTurnReveal,
-} from "./types";
+    ScoringCategory,
+    YahtzeeMode,
+    YahtzeePhase,
+    YahtzeePlayerInfo,
+    YahtzeePlayerView,
+} from "./schemas";
+import type { YahtzeeState } from "./types";
 import { SCORING_CATEGORIES } from "./types";
 import {
     calculateScore,
@@ -16,39 +18,7 @@ import {
     getUpperBonus,
 } from "./engine";
 
-export interface YahtzeePlayerInfo {
-    id: string;
-    name: string;
-    scorecard: Partial<Record<ScoringCategory, number>>;
-    yahtzeeBonus: number;
-    penaltyPoints: number;
-    upperTotal: number;
-    upperBonus: number;
-    totalScore: number;
-}
-
-export interface YahtzeePlayerView {
-    mode: YahtzeeMode;
-    myId: string;
-    phase: YahtzeePhase;
-    round: number;
-    dice: Dice;
-    held: HeldDice;
-    rollsLeft: number;
-    currentPlayerId: string;
-    isMyTurn: boolean;
-    players: YahtzeePlayerInfo[];
-    potentialScores: Partial<Record<ScoringCategory, number>> | null;
-    suggestedCategories: ScoringCategory[];
-    canRoll: boolean;
-    canScore: boolean;
-    canClaim: boolean;
-    canAcceptClaim: boolean;
-    canChallengeClaim: boolean;
-    pendingClaim: LyingClaim | null;
-    lastTurnReveal: LyingTurnReveal | null;
-    winners: string[] | null;
-}
+export type { YahtzeePlayerInfo, YahtzeePlayerView };
 
 export function getPlayerView(
     state: YahtzeeState,

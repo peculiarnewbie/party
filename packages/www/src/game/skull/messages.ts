@@ -1,83 +1,97 @@
-import z from "zod";
+import { Schema } from "effect";
 
-const discTypeSchema = z.union([z.literal("flower"), z.literal("skull")]);
+import { decodeGameClientMessage } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
+import {
+    emptyDataSchema,
+    nonNegativeIntSchema,
+    positiveIntSchema,
+    serverMessageWithData,
+    unknownRecordSchema,
+} from "~/game/shared/wire-schemas";
 
-export const skullClientMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("skull:play_disc"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            disc: discTypeSchema,
-        }),
+export const skullDiscTypes = ["flower", "skull"] as const;
+const discTypeSchema = Schema.Literals(skullDiscTypes);
+
+export const skullClientMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("skull:play_disc")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                disc: Schema.mutableKey(discTypeSchema),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("skull:start_challenge"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            bid: z.number().int().min(1),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("skull:start_challenge")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                bid: Schema.mutableKey(positiveIntSchema),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("skull:raise_bid"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            bid: z.number().int().min(1),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("skull:raise_bid")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                bid: Schema.mutableKey(positiveIntSchema),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("skull:pass_bid"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("skull:pass_bid")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("skull:flip_disc"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            ownerId: z.string(),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("skull:flip_disc")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                ownerId: Schema.mutableKey(Schema.String),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("skull:discard_lost_disc"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            discIndex: z.number().int().min(0),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("skull:discard_lost_disc")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                discIndex: Schema.mutableKey(nonNegativeIntSchema),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("skull:choose_next_starter"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            playerId: z.string(),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("skull:choose_next_starter")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                playerId: Schema.mutableKey(Schema.String),
+            }),
+        ),
     }),
 ]);
 
-export type SkullClientMessage = z.output<typeof skullClientMessageSchema>;
-
-export const skullServerMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("skull:state"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("skull:action"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("skull:error"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("skull:game_over"),
-        data: z.record(z.string(), z.unknown()),
-    }),
+export const skullServerMessageSchema = Schema.Union([
+    serverMessageWithData("skull:state", unknownRecordSchema),
+    serverMessageWithData("skull:action", unknownRecordSchema),
+    serverMessageWithData("skull:error", unknownRecordSchema),
+    serverMessageWithData("skull:game_over", unknownRecordSchema),
 ]);
 
-export type SkullServerMessage = z.output<typeof skullServerMessageSchema>;
+export type SkullClientMessage = SchemaType<typeof skullClientMessageSchema>;
+export type SkullServerMessage = SchemaType<typeof skullServerMessageSchema>;
+
+export function decodeSkullClientMessage(raw: unknown) {
+    return decodeGameClientMessage("skull", skullClientMessageSchema, raw);
+}

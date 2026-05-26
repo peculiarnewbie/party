@@ -1,4 +1,3 @@
-import type { Card } from "~/assets/card-deck/types";
 import { getLegalActions } from "./engine";
 import type {
     PokerActionType,
@@ -8,51 +7,19 @@ import type {
     PokerState,
     PokerStreet,
 } from "./types";
+import type {
+    PokerPlayerPublicView,
+    PokerPlayerView,
+} from "./schemas";
 
 export type PokerVisibilityMode = "standard" | "backwards";
 
-export interface PokerPlayerPublicView {
-    id: string;
-    name: string;
-    stack: number;
-    status: PokerPlayerStatus;
-    connected: boolean;
-    committedThisStreet: number;
-    committedThisHand: number;
-    holeCardCount: number;
-    visibleHoleCards: Card[];
-    isDealer: boolean;
-    isSmallBlind: boolean;
-    isBigBlind: boolean;
-    isActing: boolean;
-}
-
-export interface PokerPlayerView {
-    myHoleCards: Card[];
-    myHoleCardCount: number;
-    myStack: number;
-    myStatus: PokerPlayerStatus | "spectator" | null;
-    isSpectator: boolean;
-    legalActions: PokerActionType[];
-    callAmount: number;
-    minBetOrRaise: number | null;
-    maxBet: number;
-    players: PokerPlayerPublicView[];
-    board: Card[];
-    pots: PokerPot[];
-    actingPlayerId: string | null;
-    street: PokerStreet;
-    handNumber: number;
-    eventLog: PokerEvent[];
-    spectators: { id: string; name: string }[];
-    endedByHost: boolean;
-    winnerIds: string[] | null;
-}
+export type { PokerPlayerPublicView, PokerPlayerView };
 
 function getMyVisibleHoleCards(
-    holeCards: Card[],
+    holeCards: PokerPlayerView["myHoleCards"],
     visibilityMode: PokerVisibilityMode,
-): Card[] {
+): PokerPlayerView["myHoleCards"] {
     if (visibilityMode === "backwards") {
         return [];
     }
@@ -64,9 +31,9 @@ function getSeatVisibleHoleCards(
     viewerId: string,
     targetPlayerId: string,
     viewerIsSeated: boolean,
-    holeCards: Card[],
+    holeCards: PokerPlayerView["myHoleCards"],
     visibilityMode: PokerVisibilityMode,
-): Card[] {
+): PokerPlayerView["myHoleCards"] {
     if (!viewerIsSeated) {
         return [];
     }
@@ -80,28 +47,20 @@ function getSeatVisibleHoleCards(
 
 export function getPlayerView(
     state: PokerState,
-    playerId: string,
+    viewerId: string,
     visibilityMode: PokerVisibilityMode = "standard",
 ): PokerPlayerView {
-    const me = state.players.find((player) => player.id === playerId);
-    const legal = me ? getLegalActions(state, playerId) : {
-        legalActions: [],
-        callAmount: 0,
-        minBetOrRaise: null,
-        maxBet: 0,
-    };
+    const viewerIsSeated = state.players.some(
+        (player) => player.id === viewerId,
+    );
+    const me = state.players.find((player) => player.id === viewerId);
+    const actingPlayer =
+        state.actingPlayerIndex === null
+            ? null
+            : state.players[state.actingPlayerIndex];
 
-    return {
-        myHoleCards: me ? getMyVisibleHoleCards(me.holeCards, visibilityMode) : [],
-        myHoleCardCount: me?.holeCards.length ?? 0,
-        myStack: me?.stack ?? 0,
-        myStatus: me ? me.status : "spectator",
-        isSpectator: !me,
-        legalActions: legal.legalActions,
-        callAmount: legal.callAmount,
-        minBetOrRaise: legal.minBetOrRaise,
-        maxBet: legal.maxBet,
-        players: state.players.map((player, index) => ({
+    const players: PokerPlayerPublicView[] = state.players.map(
+        (player, index) => ({
             id: player.id,
             name: player.name,
             stack: player.stack,
@@ -111,9 +70,9 @@ export function getPlayerView(
             committedThisHand: player.committedThisHand,
             holeCardCount: player.holeCards.length,
             visibleHoleCards: getSeatVisibleHoleCards(
-                playerId,
+                viewerId,
                 player.id,
-                !!me,
+                viewerIsSeated,
                 player.holeCards,
                 visibilityMode,
             ),
@@ -121,19 +80,40 @@ export function getPlayerView(
             isSmallBlind: index === state.smallBlindIndex,
             isBigBlind: index === state.bigBlindIndex,
             isActing: index === state.actingPlayerIndex,
-        })),
+        }),
+    );
+
+    const actionContext = me
+        ? getLegalActions(state, me.id)
+        : {
+              legalActions: [] as PokerActionType[],
+              callAmount: 0,
+              minBetOrRaise: null,
+              maxBet: 0,
+          };
+
+    return {
+        myHoleCards: me
+            ? getMyVisibleHoleCards(me.holeCards, visibilityMode)
+            : [],
+        myHoleCardCount: me?.holeCards.length ?? 0,
+        myStack: me?.stack ?? 0,
+        myStatus: me?.status ?? "spectator",
+        isSpectator: !me,
+        legalActions: actionContext.legalActions,
+        callAmount: actionContext.callAmount,
+        minBetOrRaise: actionContext.minBetOrRaise,
+        maxBet: actionContext.maxBet,
+        players,
         board: [...state.board],
-        pots: state.pots.map((pot) => ({
+        pots: state.pots.map((pot: PokerPot) => ({
             amount: pot.amount,
             eligiblePlayerIds: [...pot.eligiblePlayerIds],
         })),
-        actingPlayerId:
-            state.actingPlayerIndex === null
-                ? null
-                : state.players[state.actingPlayerIndex]?.id ?? null,
-        street: state.street,
+        actingPlayerId: actingPlayer?.id ?? null,
+        street: state.street as PokerStreet,
         handNumber: state.handNumber,
-        eventLog: [...state.eventLog],
+        eventLog: state.eventLog.map((event: PokerEvent) => ({ ...event })),
         spectators: state.spectators.map((spectator) => ({ ...spectator })),
         endedByHost: state.endedByHost,
         winnerIds: state.winnerIds ? [...state.winnerIds] : null,

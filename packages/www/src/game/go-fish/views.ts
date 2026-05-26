@@ -1,27 +1,7 @@
-import type { Card, Rank } from "~/assets/card-deck/types";
-import type {
-    GoFishState,
-    GoFishAction,
-    GoFishResult,
-    TurnPhase,
-} from "./types";
+import type { GoFishState } from "./types";
+import type { GoFishPlayerView } from "./schemas";
 
-export interface GoFishPlayerView {
-    myHand: Card[];
-    drawPileCount: number;
-    currentPlayerId: string;
-    turnPhase: TurnPhase;
-    players: {
-        id: string;
-        name: string;
-        cardCount: number;
-        books: Rank[];
-    }[];
-    lastAction: GoFishAction | null;
-    lastResult: GoFishResult | null;
-    gameOver: boolean;
-    winner: string[] | null;
-}
+export type { GoFishPlayerView };
 
 export function getPlayerView(
     state: GoFishState,

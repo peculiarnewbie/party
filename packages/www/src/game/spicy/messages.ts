@@ -1,61 +1,70 @@
-import z from "zod";
+import { Schema } from "effect";
+
+import { decodeGameClientMessage } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
 import { CHALLENGE_TRAITS, SPICE_TYPES } from "./types";
+import {
+    emptyDataSchema,
+    serverMessageWithData,
+    unknownRecordSchema,
+} from "~/game/shared/wire-schemas";
 
-const spiceTypeSchema = z.enum(SPICE_TYPES);
-const challengeTraitSchema = z.enum(CHALLENGE_TRAITS);
+const spiceTypeSchema = Schema.Literals(SPICE_TYPES);
+const challengeTraitSchema = Schema.Literals(CHALLENGE_TRAITS);
 
-export const spicyClientMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("spicy:play_card"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            cardId: z.string(),
-            declaredNumber: z.number().int().min(1).max(10),
-            declaredSpice: spiceTypeSchema,
-        }),
+const declaredNumberSchema = Schema.Number.check(
+    Schema.isInt(),
+    Schema.isGreaterThanOrEqualTo(1),
+    Schema.isLessThanOrEqualTo(10),
+);
+
+export const spicyClientMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("spicy:play_card")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                cardId: Schema.mutableKey(Schema.String),
+                declaredNumber: Schema.mutableKey(declaredNumberSchema),
+                declaredSpice: Schema.mutableKey(spiceTypeSchema),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("spicy:pass"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("spicy:pass")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("spicy:challenge"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            trait: challengeTraitSchema,
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("spicy:challenge")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                trait: Schema.mutableKey(challengeTraitSchema),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("spicy:confirm_last_card"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("spicy:confirm_last_card")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
 ]);
 
-export type SpicyClientMessage = z.output<typeof spicyClientMessageSchema>;
-
-export const spicyServerMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("spicy:state"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("spicy:action"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("spicy:error"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("spicy:game_over"),
-        data: z.record(z.string(), z.unknown()),
-    }),
+export const spicyServerMessageSchema = Schema.Union([
+    serverMessageWithData("spicy:state", unknownRecordSchema),
+    serverMessageWithData("spicy:action", unknownRecordSchema),
+    serverMessageWithData("spicy:error", unknownRecordSchema),
+    serverMessageWithData("spicy:game_over", unknownRecordSchema),
 ]);
 
-export type SpicyServerMessage = z.output<typeof spicyServerMessageSchema>;
+export type SpicyClientMessage = SchemaType<typeof spicyClientMessageSchema>;
+export type SpicyServerMessage = SchemaType<typeof spicyServerMessageSchema>;
+
+export function decodeSpicyClientMessage(raw: unknown) {
+    return decodeGameClientMessage("spicy", spicyClientMessageSchema, raw);
+}

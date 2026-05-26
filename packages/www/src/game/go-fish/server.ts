@@ -1,12 +1,19 @@
-import type { Rank } from "~/assets/card-deck/types";
-import type { GoFishState } from "./types";
-import type { GoFishClientMessage } from "./messages";
+import type { GoFishClientMessage, GoFishServerMessage } from "./messages";
+import { encodeGoFishServerMessage } from "./schemas";
 import {
     initGame,
     processAction,
     removePlayer as removeGoFishPlayer,
 } from "./engine";
 import { getPlayerView } from "./views";
+import type { GoFishState } from "./types";
+
+function sendServerMessage(
+    send: (message: string) => void,
+    message: GoFishServerMessage,
+) {
+    send(encodeGoFishServerMessage(message));
+}
 
 export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
     sendStateToPlayer(
@@ -16,13 +23,10 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "go_fish:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((message) => sendTo(playerId, message), {
+            type: "go_fish:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -34,13 +38,10 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
         stateRef.current = state;
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "go_fish:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((message) => sendTo(player.id, message), {
+                type: "go_fish:state",
+                data: getPlayerView(state, player.id),
+            });
         }
     },
 
@@ -57,23 +58,20 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
                 type: "ask",
                 askerId: message.playerId,
                 targetId: message.data.targetId,
-                rank: message.data.rank as Rank,
+                rank: message.data.rank,
             });
 
             if (result.type === "error") {
-                sendTo(
-                    message.playerId,
-                    JSON.stringify({
-                        type: "go_fish:ask_result",
-                        data: { error: result.message },
-                    }),
-                );
+                sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                    type: "go_fish:ask_result",
+                    data: { error: result.message },
+                });
                 return;
             }
 
             if (result.type === "cards_given") {
                 broadcast(
-                    JSON.stringify({
+                    encodeGoFishServerMessage({
                         type: "go_fish:ask_result",
                         data: {
                             askerId: message.playerId,
@@ -88,7 +86,7 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
                 );
             } else if (result.type === "go_fish") {
                 broadcast(
-                    JSON.stringify({
+                    encodeGoFishServerMessage({
                         type: "go_fish:ask_result",
                         data: {
                             askerId: message.playerId,
@@ -103,7 +101,7 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
 
             if (state.gameOver) {
                 broadcast(
-                    JSON.stringify({
+                    encodeGoFishServerMessage({
                         type: "go_fish:game_over",
                         data: { winners: state.winner },
                     }),
@@ -111,13 +109,10 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
             }
 
             for (const player of state.players) {
-                sendTo(
-                    player.id,
-                    JSON.stringify({
-                        type: "go_fish:state",
-                        data: getPlayerView(state, player.id),
-                    }),
-                );
+                sendServerMessage((msg) => sendTo(player.id, msg), {
+                    type: "go_fish:state",
+                    data: getPlayerView(state, player.id),
+                });
             }
         } else if (message.type === "go_fish:draw") {
             const result = processAction(state, {
@@ -126,19 +121,16 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
             });
 
             if (result.type === "error") {
-                sendTo(
-                    message.playerId,
-                    JSON.stringify({
-                        type: "go_fish:draw_result",
-                        data: { error: result.message },
-                    }),
-                );
+                sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                    type: "go_fish:draw_result",
+                    data: { error: result.message },
+                });
                 return;
             }
 
             if (result.type === "go_fish") {
                 broadcast(
-                    JSON.stringify({
+                    encodeGoFishServerMessage({
                         type: "go_fish:draw_result",
                         data: {
                             playerId: message.playerId,
@@ -155,7 +147,7 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
                     );
                     if (player) {
                         broadcast(
-                            JSON.stringify({
+                            encodeGoFishServerMessage({
                                 type: "go_fish:book_made",
                                 data: {
                                     playerId: message.playerId,
@@ -170,7 +162,7 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
 
             if (state.gameOver) {
                 broadcast(
-                    JSON.stringify({
+                    encodeGoFishServerMessage({
                         type: "go_fish:game_over",
                         data: { winners: state.winner },
                     }),
@@ -178,13 +170,10 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
             }
 
             for (const player of state.players) {
-                sendTo(
-                    player.id,
-                    JSON.stringify({
-                        type: "go_fish:state",
-                        data: getPlayerView(state, player.id),
-                    }),
-                );
+                sendServerMessage((msg) => sendTo(player.id, msg), {
+                    type: "go_fish:state",
+                    data: getPlayerView(state, player.id),
+                });
             }
         }
     },
@@ -201,7 +190,7 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
 
         if (result?.type === "game_over") {
             broadcast(
-                JSON.stringify({
+                encodeGoFishServerMessage({
                     type: "go_fish:game_over",
                     data: { winners: result.winners },
                 }),
@@ -209,13 +198,10 @@ export const goFishServer = (stateRef: { current: GoFishState | null }) => ({
         }
 
         for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "go_fish:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
+            sendServerMessage((msg) => sendTo(player.id, msg), {
+                type: "go_fish:state",
+                data: getPlayerView(state, player.id),
+            });
         }
     },
 });

@@ -1,11 +1,43 @@
-import type { BlackjackState } from "./types";
-import type { BlackjackClientMessage } from "./messages";
+import type { BlackjackClientMessage, BlackjackServerMessage } from "./messages";
+import { encodeBlackjackServerMessage } from "./schemas";
 import {
     initGame,
     processAction,
     removePlayer as removeBlackjackPlayer,
 } from "./engine";
 import { getPlayerView } from "./views";
+import type { BlackjackResult, BlackjackState } from "./types";
+
+function sendServerMessage(
+    send: (message: string) => void,
+    message: BlackjackServerMessage,
+) {
+    send(encodeBlackjackServerMessage(message));
+}
+
+function broadcastAction(
+    broadcast: (msg: string) => void,
+    result: Exclude<BlackjackResult, { type: "error" }>,
+) {
+    broadcast(
+        encodeBlackjackServerMessage({
+            type: "blackjack:action",
+            data: result,
+        }),
+    );
+}
+
+function broadcastStateToAll(
+    state: BlackjackState,
+    sendTo: (playerId: string, msg: string) => void,
+) {
+    for (const player of state.players) {
+        sendServerMessage((msg) => sendTo(player.id, msg), {
+            type: "blackjack:state",
+            data: getPlayerView(state, player.id),
+        });
+    }
+}
 
 export const blackjackServer = (
     stateRef: { current: BlackjackState | null },
@@ -20,13 +52,10 @@ export const blackjackServer = (
         const state = stateRef.current;
         if (!state) return;
 
-        sendTo(
-            playerId,
-            JSON.stringify({
-                type: "blackjack:state",
-                data: getPlayerView(state, playerId),
-            }),
-        );
+        sendServerMessage((msg) => sendTo(playerId, msg), {
+            type: "blackjack:state",
+            data: getPlayerView(state, playerId),
+        });
     },
 
     initGame(
@@ -37,15 +66,7 @@ export const blackjackServer = (
         const state = initGame(players);
         stateRef.current = state;
 
-        for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "blackjack:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
-        }
+        broadcastStateToAll(state, sendTo);
     },
 
     processMessage(
@@ -96,36 +117,19 @@ export const blackjackServer = (
         const result = processAction(state, action);
 
         if (result.type === "error") {
-            sendTo(
-                message.playerId,
-                JSON.stringify({
-                    type: "blackjack:error",
-                    data: { message: result.message },
-                }),
-            );
+            sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                type: "blackjack:error",
+                data: { message: result.message },
+            });
             return;
         }
 
-        broadcast(
-            JSON.stringify({
-                type: "blackjack:action",
-                data: result,
-            }),
-        );
-
-        for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "blackjack:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
-        }
+        broadcastAction(broadcast, result);
+        broadcastStateToAll(state, sendTo);
 
         if (state.phase === "settled" && state.results) {
             broadcast(
-                JSON.stringify({
+                encodeBlackjackServerMessage({
                     type: "blackjack:settled",
                     data: { results: state.results },
                 }),
@@ -144,22 +148,8 @@ export const blackjackServer = (
         const result = processAction(state, { type: "new_round" });
         if (result.type === "error") return;
 
-        broadcast(
-            JSON.stringify({
-                type: "blackjack:action",
-                data: result,
-            }),
-        );
-
-        for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "blackjack:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
-        }
+        broadcastAction(broadcast, result);
+        broadcastStateToAll(state, sendTo);
     },
 
     removePlayer(
@@ -172,28 +162,15 @@ export const blackjackServer = (
 
         const result = removeBlackjackPlayer(state, playerId);
 
-        if (result) {
-            broadcast(
-                JSON.stringify({
-                    type: "blackjack:action",
-                    data: result,
-                }),
-            );
+        if (result && result.type !== "error") {
+            broadcastAction(broadcast, result);
         }
 
-        for (const player of state.players) {
-            sendTo(
-                player.id,
-                JSON.stringify({
-                    type: "blackjack:state",
-                    data: getPlayerView(state, player.id),
-                }),
-            );
-        }
+        broadcastStateToAll(state, sendTo);
 
         if (state.phase === "settled" && state.results) {
             broadcast(
-                JSON.stringify({
+                encodeBlackjackServerMessage({
                     type: "blackjack:settled",
                     data: { results: state.results },
                 }),

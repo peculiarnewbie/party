@@ -1,54 +1,24 @@
-export type ScoringCategory =
-    | "ones"
-    | "twos"
-    | "threes"
-    | "fours"
-    | "fives"
-    | "sixes"
-    | "three_of_a_kind"
-    | "four_of_a_kind"
-    | "full_house"
-    | "small_straight"
-    | "large_straight"
-    | "yahtzee"
-    | "chance";
+export type {
+    ScoringCategory,
+    Dice,
+    HeldDice,
+    YahtzeeMode,
+    YahtzeePhase,
+    YahtzeePlayer,
+    LyingClaim,
+    LyingTurnReveal,
+    YahtzeeState,
+    FinalScore,
+} from "./schemas";
 
-export const SCORING_CATEGORIES: ScoringCategory[] = [
-    "ones",
-    "twos",
-    "threes",
-    "fours",
-    "fives",
-    "sixes",
-    "three_of_a_kind",
-    "four_of_a_kind",
-    "full_house",
-    "small_straight",
-    "large_straight",
-    "yahtzee",
-    "chance",
-];
+export {
+    SCORING_CATEGORIES,
+    UPPER_CATEGORIES,
+    LOWER_CATEGORIES,
+    scoringCategories,
+} from "./schemas";
 
-export const UPPER_CATEGORIES: ScoringCategory[] = [
-    "ones",
-    "twos",
-    "threes",
-    "fours",
-    "fives",
-    "sixes",
-];
-
-export const LOWER_CATEGORIES: ScoringCategory[] = [
-    "three_of_a_kind",
-    "four_of_a_kind",
-    "full_house",
-    "small_straight",
-    "large_straight",
-    "yahtzee",
-    "chance",
-];
-
-export const CATEGORY_LABELS: Record<ScoringCategory, string> = {
+export const CATEGORY_LABELS = {
     ones: "Ones",
     twos: "Twos",
     threes: "Threes",
@@ -62,74 +32,27 @@ export const CATEGORY_LABELS: Record<ScoringCategory, string> = {
     large_straight: "Lg Straight",
     yahtzee: "YAHTZEE",
     chance: "Chance",
-};
-
-export type Dice = [number, number, number, number, number];
-export type HeldDice = [boolean, boolean, boolean, boolean, boolean];
-export type YahtzeeMode = "standard" | "lying";
-
-export interface YahtzeePlayer {
-    id: string;
-    name: string;
-    scorecard: Partial<Record<ScoringCategory, number>>;
-    yahtzeeBonus: number;
-    penaltyPoints: number;
-}
-
-export interface LyingClaim {
-    playerId: string;
-    category: ScoringCategory;
-    claimedDice: Dice;
-    claimedPoints: number;
-}
-
-export interface LyingTurnReveal {
-    playerId: string;
-    category: ScoringCategory;
-    actualDice: Dice;
-    claimedDice: Dice;
-    claimedPoints: number;
-    outcome: "accepted" | "truthful_challenge" | "caught_lying";
-    penaltyPlayerId: string | null;
-    penaltyPoints: number;
-}
-
-export type YahtzeePhase =
-    | "pre_roll"
-    | "mid_turn"
-    | "awaiting_response"
-    | "game_over";
-
-export interface YahtzeeState {
-    mode: YahtzeeMode;
-    players: YahtzeePlayer[];
-    currentPlayerIndex: number;
-    dice: Dice;
-    held: HeldDice;
-    rollsLeft: number;
-    phase: YahtzeePhase;
-    round: number;
-    winners: string[] | null;
-    pendingClaim: LyingClaim | null;
-    lastTurnReveal: LyingTurnReveal | null;
-}
+} as const satisfies Record<
+    import("./schemas").ScoringCategory,
+    string
+>;
 
 export type YahtzeeAction =
     | { type: "roll"; playerId: string }
     | { type: "toggle_hold"; playerId: string; diceIndex: number }
-    | { type: "score"; playerId: string; category: ScoringCategory }
+    | { type: "score"; playerId: string; category: import("./schemas").ScoringCategory }
     | {
           type: "claim";
           playerId: string;
-          category: ScoringCategory;
-          claimedDice: Dice;
+          category: import("./schemas").ScoringCategory;
+          claimedDice: import("./schemas").RolledDice;
       }
     | { type: "accept_claim"; playerId: string }
     | { type: "challenge_claim"; playerId: string };
 
 export type YahtzeeResult =
     | { type: "error"; message: string }
-    | { type: "rolled"; playerId: string; dice: Dice }
+    | { type: "rolled"; playerId: string; dice: import("./schemas").RolledDice }
     | {
           type: "held_toggled";
           playerId: string;
@@ -139,28 +62,26 @@ export type YahtzeeResult =
     | {
           type: "scored";
           playerId: string;
-          category: ScoringCategory;
+          category: import("./schemas").ScoringCategory;
           points: number;
           yahtzeeBonus: boolean;
       }
     | {
           type: "claim_submitted";
           playerId: string;
-          category: ScoringCategory;
-          claimedDice: Dice;
+          category: import("./schemas").ScoringCategory;
+          claimedDice: import("./schemas").RolledDice;
           claimedPoints: number;
       }
     | ({
           type: "claim_resolved";
           playerId: string;
-          category: ScoringCategory;
+          category: import("./schemas").ScoringCategory;
           points: number;
           yahtzeeBonus: boolean;
-      } & LyingTurnReveal)
-    | { type: "game_over"; winners: string[]; finalScores: FinalScore[] };
-
-export interface FinalScore {
-    playerId: string;
-    playerName: string;
-    total: number;
-}
+      } & import("./schemas").LyingTurnReveal)
+    | {
+          type: "game_over";
+          winners: string[];
+          finalScores: import("./schemas").FinalScore[];
+      };

@@ -1,67 +1,79 @@
-import z from "zod";
+import { Schema } from "effect";
 
-export const funFactsClientMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("fun_facts:next_question"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            customQuestion: z.string().optional(),
-        }),
+import { decodeGameClientMessage } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
+import {
+    emptyDataSchema,
+    nonNegativeIntSchema,
+    serverMessageWithData,
+    unknownRecordSchema,
+} from "~/game/shared/wire-schemas";
+
+export const funFactsClientMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("fun_facts:next_question")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                customQuestion: Schema.optionalKey(
+                    Schema.mutableKey(Schema.String),
+                ),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("fun_facts:submit_answer"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            answer: z.number(),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("fun_facts:submit_answer")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                answer: Schema.mutableKey(Schema.Number),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("fun_facts:close_answers"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("fun_facts:close_answers")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("fun_facts:place_arrow"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            position: z.number().int().min(0),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("fun_facts:place_arrow")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                position: Schema.mutableKey(nonNegativeIntSchema),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("fun_facts:next_round"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("fun_facts:next_round")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
 ]);
 
-export type FunFactsClientMessage = z.output<
+export const funFactsServerMessageSchema = Schema.Union([
+    serverMessageWithData("fun_facts:state", unknownRecordSchema),
+    serverMessageWithData("fun_facts:action", unknownRecordSchema),
+    serverMessageWithData("fun_facts:game_over", unknownRecordSchema),
+    serverMessageWithData("fun_facts:error", unknownRecordSchema),
+]);
+
+export type FunFactsClientMessage = SchemaType<
     typeof funFactsClientMessageSchema
 >;
-
-export const funFactsServerMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("fun_facts:state"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("fun_facts:action"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("fun_facts:game_over"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("fun_facts:error"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-]);
-
-export type FunFactsServerMessage = z.output<
+export type FunFactsServerMessage = SchemaType<
     typeof funFactsServerMessageSchema
 >;
+
+export function decodeFunFactsClientMessage(raw: unknown) {
+    return decodeGameClientMessage(
+        "fun_facts",
+        funFactsClientMessageSchema,
+        raw,
+    );
+}

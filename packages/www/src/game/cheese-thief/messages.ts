@@ -1,59 +1,67 @@
-import z from "zod";
+import { Schema } from "effect";
 
-export const cheeseThiefClientMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("cheese_thief:start_day"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+import { decodeGameClientMessage } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
+import {
+    emptyDataSchema,
+    serverMessageWithData,
+    unknownRecordSchema,
+} from "~/game/shared/wire-schemas";
+
+export const cheeseThiefClientMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cheese_thief:start_day")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("cheese_thief:start_voting"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cheese_thief:start_voting")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("cheese_thief:cast_vote"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            targetId: z.string(),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cheese_thief:cast_vote")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                targetId: Schema.mutableKey(Schema.String),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("cheese_thief:reveal_votes"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cheese_thief:reveal_votes")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("cheese_thief:next_round"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cheese_thief:next_round")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
 ]);
 
-export type CheeseThiefClientMessage = z.output<
+export const cheeseThiefServerMessageSchema = Schema.Union([
+    serverMessageWithData("cheese_thief:state", unknownRecordSchema),
+    serverMessageWithData("cheese_thief:action", unknownRecordSchema),
+    serverMessageWithData("cheese_thief:error", unknownRecordSchema),
+]);
+
+export type CheeseThiefClientMessage = SchemaType<
     typeof cheeseThiefClientMessageSchema
 >;
-
-export const cheeseThiefServerMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("cheese_thief:state"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("cheese_thief:action"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("cheese_thief:error"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-]);
-
-export type CheeseThiefServerMessage = z.output<
+export type CheeseThiefServerMessage = SchemaType<
     typeof cheeseThiefServerMessageSchema
 >;
+
+export function decodeCheeseThiefClientMessage(raw: unknown) {
+    return decodeGameClientMessage(
+        "cheese_thief",
+        cheeseThiefClientMessageSchema,
+        raw,
+    );
+}

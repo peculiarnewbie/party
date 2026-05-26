@@ -1,9 +1,9 @@
 export type {
     GoFishState,
     GoFishPlayer,
+    TurnPhase,
     GoFishAction,
     GoFishResult,
-    TurnPhase,
 } from "./types";
 export {
     createDeck,
@@ -13,14 +13,17 @@ export {
     checkGameOver,
     removePlayer,
 } from "./engine";
-export type { GoFishPlayerView } from "./views";
+export type { GoFishPlayerView } from "./schemas";
 export { getPlayerView } from "./views";
-export type {
-    GoFishClientMessage,
-    GoFishServerMessage,
+export type { GoFishClientMessage } from "./messages";
+export type { GoFishServerMessage } from "./schemas";
+export {
+    decodeGoFishClientMessage,
+    goFishClientMessageSchema,
 } from "./messages";
 export {
-    goFishClientMessageSchema,
+    decodeGoFishPlayerView,
+    encodeGoFishServerMessage,
     goFishServerMessageSchema,
-} from "./messages";
+} from "./schemas";
 export { goFishServer } from "./server";

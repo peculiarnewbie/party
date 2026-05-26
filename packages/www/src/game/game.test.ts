@@ -536,39 +536,70 @@ describe("Game Logic", () => {
 
 describe("Quiz Questions Schema", () => {
     it("validates correct question structure", async () => {
-        const { z } = await import("zod");
-        const questionSchema = z.object({
-            id: z.number(),
-            text: z.string().min(1),
-            options: z.array(z.string()).length(4),
-            correctIndex: z.number().min(0).max(3),
-            timerSeconds: z.number().min(5).max(60).default(10),
+        const { Schema } = await import("effect");
+        const questionSchema = Schema.Struct({
+            id: Schema.mutableKey(Schema.Number),
+            text: Schema.mutableKey(
+                Schema.String.check(Schema.isMinLength(1)),
+            ),
+            options: Schema.mutableKey(
+                Schema.Tuple([
+                    Schema.String,
+                    Schema.String,
+                    Schema.String,
+                    Schema.String,
+                ]),
+            ),
+            correctIndex: Schema.mutableKey(
+                Schema.Number.check(
+                    Schema.isGreaterThanOrEqualTo(0),
+                    Schema.isLessThanOrEqualTo(3),
+                ),
+            ),
+            timerSeconds: Schema.mutableKey(
+                Schema.Number.check(
+                    Schema.isGreaterThanOrEqualTo(5),
+                    Schema.isLessThanOrEqualTo(60),
+                ),
+            ),
         });
 
         const validQuestion = {
             id: 1,
             text: "What is 2 + 2?",
-            options: ["3", "4", "5", "6"],
+            options: ["3", "4", "5", "6"] as [string, string, string, string],
             correctIndex: 1,
             timerSeconds: 15,
         };
 
-        const result = questionSchema.parse(validQuestion);
+        const result = Schema.decodeUnknownSync(questionSchema)(validQuestion);
         expect(result.text).toBe("What is 2 + 2?");
         expect(result.options).toHaveLength(4);
     });
 
     it("rejects invalid correctIndex", async () => {
-        const { z } = await import("zod");
-        const questionSchema = z.object({
-            id: z.number(),
-            text: z.string(),
-            options: z.array(z.string()).length(4),
-            correctIndex: z.number().min(0).max(3),
+        const { Schema } = await import("effect");
+        const questionSchema = Schema.Struct({
+            id: Schema.mutableKey(Schema.Number),
+            text: Schema.mutableKey(Schema.String),
+            options: Schema.mutableKey(
+                Schema.Tuple([
+                    Schema.String,
+                    Schema.String,
+                    Schema.String,
+                    Schema.String,
+                ]),
+            ),
+            correctIndex: Schema.mutableKey(
+                Schema.Number.check(
+                    Schema.isGreaterThanOrEqualTo(0),
+                    Schema.isLessThanOrEqualTo(3),
+                ),
+            ),
         });
 
         expect(() =>
-            questionSchema.parse({
+            Schema.decodeUnknownSync(questionSchema)({
                 id: 1,
                 text: "Test",
                 options: ["a", "b", "c", "d"],

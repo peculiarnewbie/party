@@ -2,6 +2,12 @@ import type { Card, Rank } from "~/assets/card-deck/types";
 
 export type { Card, Rank };
 
+export type {
+    BlackjackPhase,
+    HandResult,
+    RoundResult,
+} from "./schemas";
+
 export interface BlackjackHand {
     cards: Card[];
     bet: number;
@@ -24,13 +30,6 @@ export interface BlackjackPlayer {
     done: boolean;
 }
 
-export type BlackjackPhase =
-    | "betting"
-    | "insurance"
-    | "playing"
-    | "dealer_turn"
-    | "settled";
-
 export interface BlackjackState {
     players: BlackjackPlayer[];
     shoe: Card[];
@@ -38,26 +37,11 @@ export interface BlackjackState {
     dealerHand: Card[];
     dealerRevealed: boolean;
     currentPlayerIndex: number;
-    phase: BlackjackPhase;
+    phase: import("./schemas").BlackjackPhase;
     roundNumber: number;
     deckCount: number;
     cutCardPosition: number;
-    results: RoundResult[] | null;
-}
-
-export interface HandResult {
-    handIndex: number;
-    bet: number;
-    payout: number;
-    outcome: "blackjack" | "win" | "push" | "lose" | "bust";
-}
-
-export interface RoundResult {
-    playerId: string;
-    playerName: string;
-    hands: HandResult[];
-    insurancePayout: number;
-    netChips: number;
+    results: import("./schemas").RoundResult[] | null;
 }
 
 export type BlackjackAction =
@@ -78,5 +62,5 @@ export type BlackjackResult =
     | { type: "player_stood"; playerId: string; handIndex: number }
     | { type: "player_doubled"; playerId: string; handIndex: number; busted: boolean }
     | { type: "player_split"; playerId: string }
-    | { type: "settled"; results: RoundResult[] }
+    | { type: "settled"; results: import("./schemas").RoundResult[] }
     | { type: "new_round"; roundNumber: number };

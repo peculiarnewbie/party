@@ -25,6 +25,7 @@ export type { SkullPlayerInfo, SkullPlayerView, SkullAttemptView } from "./views
 export { getPlayerView } from "./views";
 export type { SkullClientMessage, SkullServerMessage } from "./messages";
 export {
+    decodeSkullClientMessage,
     skullClientMessageSchema,
     skullServerMessageSchema,
 } from "./messages";

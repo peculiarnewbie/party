@@ -24,6 +24,7 @@ export {
 } from "./types";
 
 export {
+    decodeSpicyClientMessage,
     spicyClientMessageSchema,
     type SpicyClientMessage,
     spicyServerMessageSchema,

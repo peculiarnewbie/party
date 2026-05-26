@@ -29,11 +29,13 @@ export {
     startNextHand,
 } from "./engine";
 export type {
-    PokerActionResultPayload,
     PokerClientMessage,
-    PokerGameOverPayload,
     PokerServerMessage,
 } from "./messages";
+export type {
+    PokerActionResultPayload,
+    PokerGameOverPayload,
+} from "./schemas";
 export {
     decodePokerClientMessage,
     decodePokerServerMessage,
@@ -42,6 +44,10 @@ export {
     pokerServerMessageSchema,
 } from "./messages";
 export { decodePokerPlayerView, pokerStateSchema } from "./schemas";
-export type { PokerPlayerPublicView, PokerPlayerView, PokerVisibilityMode } from "./views";
+export type {
+    PokerPlayerPublicView,
+    PokerPlayerView,
+    PokerVisibilityMode,
+} from "./views";
 export { getPlayerView } from "./views";
 export { pokerServer } from "./server";
