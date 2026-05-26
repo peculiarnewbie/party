@@ -39,5 +39,6 @@ export {
     decodePerudoSideMessage,
     encodePerudoServerMessage,
     perudoStateSchema,
+    perudoPlayerViewSchema,
 } from "./schemas";
 export { perudoServer } from "./server";

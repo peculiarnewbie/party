@@ -1,64 +1,53 @@
+import type { Schema } from "effect";
 import { createSignal, onCleanup } from "solid-js";
+import { decodeJsonMessage } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
 import type { GameConnection } from "./connection";
 
-export interface CreateGameConnectionOptions<TView, TEvent = never> {
-    stateType: string;
+export interface CreateGameConnectionOptions<
+    ViewSchema extends Schema.Top,
+    ServerSchema extends Schema.Top,
+    TStateType extends string,
+> {
+    stateType: TStateType;
     prefix: string;
     envelope: () => { playerId: string | null; playerName: string };
-    decodeView?: (data: unknown) => TView | null;
-    decodeServerMessage?: (raw: unknown) => TEvent | null;
+    playerViewSchema: ViewSchema;
+    serverMessageSchema: ServerSchema;
 }
 
 export function createGameConnection<
-    TView,
+    ViewSchema extends Schema.Top,
+    ServerSchema extends Schema.Top,
+    TStateType extends string,
     TOutgoing extends { type: string },
     TEvent extends { type: string } = never,
 >(
     ws: WebSocket,
-    options: CreateGameConnectionOptions<TView, TEvent>,
-): GameConnection<TView, TOutgoing, TEvent> {
-    const [view, setView] = createSignal<TView | null>(null);
+    options: CreateGameConnectionOptions<ViewSchema, ServerSchema, TStateType>,
+): GameConnection<SchemaType<ViewSchema>, TOutgoing, TEvent> {
+    const [view, setView] = createSignal<SchemaType<ViewSchema> | null>(null);
     const handlers = new Set<(event: TEvent) => void>();
 
     const handleMessage = (event: MessageEvent) => {
-        let payload: unknown;
+        let message: SchemaType<ServerSchema> & { type: string };
         try {
-            payload = JSON.parse(event.data);
+            message = decodeJsonMessage(options.serverMessageSchema, event.data) as SchemaType<ServerSchema> & { type: string };
         } catch {
             return;
         }
 
-        if (
-            typeof payload !== "object" ||
-            payload === null ||
-            !("type" in payload) ||
-            typeof (payload as { type: unknown }).type !== "string"
-        ) {
-            return;
-        }
+        if (!message.type.startsWith(options.prefix)) return;
 
-        const messageType = (payload as { type: string }).type;
-        if (!messageType.startsWith(options.prefix)) return;
-
-        if (messageType === options.stateType) {
-            const rawData = (payload as unknown as { data: unknown }).data;
-            const data = options.decodeView
-                ? options.decodeView(rawData)
-                : (rawData as TView);
-            if (data === null) return;
+        if (message.type === options.stateType) {
+            const data = (message as unknown as { data: SchemaType<ViewSchema> })
+                .data;
             setView(() => data);
             return;
         }
 
-        const decoded = options.decodeServerMessage
-            ? options.decodeServerMessage(payload)
-            : (payload as TEvent);
-        if (decoded === null) {
-            return;
-        }
-
         for (const handler of handlers) {
-            handler(decoded);
+            handler(message as unknown as TEvent);
         }
     };
 

@@ -522,7 +522,7 @@ describe("GameRoom yahtzee sequences", () => {
                     roomPhase: instance.state.phase,
                     activeGameType: instance.state.activeGameType,
                     participants: instance.state.gameParticipants,
-                    yahtzeeState: instance.yahtzeeState.current,
+                    yahtzeeState: instance.gameStateHolder.current,
                 };
             });
 
@@ -821,7 +821,7 @@ describe("GameRoom yahtzee sequences", () => {
                     alarm: await ctx.storage.getAlarm(),
                     phase: instance.state.phase,
                     participants: instance.state.gameParticipants,
-                    yahtzeeState: instance.yahtzeeState.current,
+                    yahtzeeState: instance.gameStateHolder.current,
                 };
             });
 
@@ -910,7 +910,7 @@ describe("GameRoom yahtzee sequences", () => {
                     hostId: instance.state.hostId,
                     activeGameType: instance.state.activeGameType,
                     participants: instance.state.gameParticipants,
-                    yahtzeeState: instance.yahtzeeState.current,
+                    yahtzeeState: instance.gameStateHolder.current,
                 };
             });
 

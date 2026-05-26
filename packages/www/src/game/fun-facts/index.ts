@@ -20,6 +20,7 @@ export {
     decodeFunFactsSideMessage,
     encodeFunFactsServerMessage,
     funFactsStateSchema,
+    funFactsPlayerViewSchema,
 } from "./schemas";
 
 export type {

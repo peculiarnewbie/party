@@ -220,7 +220,7 @@ async function waitForRoomCondition<T>(
                     phase: instance.state.phase,
                     activeGameType: instance.state.activeGameType,
                     participants: instance.state.gameParticipants,
-                    pokerStreet: instance.pokerState.current?.street ?? null,
+                    pokerStreet: (instance.gameStateHolder.current as PokerState | null)?.street ?? null,
                 },
                 null,
                 2,
@@ -377,7 +377,7 @@ describe("GameRoom poker sequences", () => {
 
             const persisted = await withRoom(roomId, async (_, instance) => {
                 return {
-                    pokerState: instance.pokerState.current,
+                    pokerState: instance.gameStateHolder.current,
                     phase: instance.state.phase,
                 };
             });
@@ -441,7 +441,7 @@ describe("GameRoom poker sequences", () => {
                 const persisted = await withRoom(roomId, async (_, instance) => {
                     return {
                         participants: instance.state.gameParticipants,
-                        spectators: instance.pokerState.current?.spectators ?? [],
+                        spectators: (instance.gameStateHolder.current as PokerState | null)?.spectators ?? [],
                     };
                 });
 
@@ -521,7 +521,7 @@ describe("GameRoom poker sequences", () => {
                 const participant = instance.state.gameParticipants.find(
                     (entry) => entry.playerId === actingPlayerId,
                 );
-                const street = (instance.pokerState.current as PokerState | null)?.street;
+                const street = (instance.gameStateHolder.current as PokerState | null)?.street;
                 const nextHandTimer = instance.nextHandTimer;
 
                 if (
@@ -761,7 +761,7 @@ describe("GameRoom poker sequences", () => {
                     activeGameType: instance.state.activeGameType,
                     gameSessionId: instance.state.gameSessionId,
                     participants: instance.state.gameParticipants,
-                    pokerState: instance.pokerState.current,
+                    pokerState: instance.gameStateHolder.current,
                 };
             });
 
@@ -805,7 +805,7 @@ describe("GameRoom poker sequences", () => {
                           phase: instance.state.phase,
                           participants: instance.state.gameParticipants,
                           street:
-                              (instance.pokerState.current as PokerState | null)
+                              (instance.gameStateHolder.current as PokerState | null)
                                   ?.street ?? null,
                       }
                     : null;
@@ -816,7 +816,7 @@ describe("GameRoom poker sequences", () => {
                     alarm: await ctx.storage.getAlarm(),
                     phase: instance.state.phase,
                     participants: instance.state.gameParticipants,
-                    pokerState: instance.pokerState.current,
+                    pokerState: instance.gameStateHolder.current,
                 };
             });
 
@@ -894,7 +894,7 @@ describe("GameRoom poker sequences", () => {
                     hostId: instance.state.hostId,
                     activeGameType: instance.state.activeGameType,
                     participants: instance.state.gameParticipants,
-                    pokerState: instance.pokerState.current,
+                    pokerState: instance.gameStateHolder.current,
                 };
             });
 

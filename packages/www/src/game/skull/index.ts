@@ -28,6 +28,7 @@ export {
     decodeSkullClientMessage,
     skullClientMessageSchema,
     skullServerMessageSchema,
+    skullPlayerViewSchema,
     decodeSkullPlayerView,
     decodeSkullSideMessage,
     encodeSkullServerMessage,

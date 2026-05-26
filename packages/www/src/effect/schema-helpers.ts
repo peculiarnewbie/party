@@ -112,6 +112,15 @@ export function encodeJsonMessage<S extends Schema.Top>(
     return JSON.stringify(encodeWithSchema(schema, value));
 }
 
+export function decodeJsonMessage<S extends Schema.Top>(
+    schema: S,
+    raw: string,
+): SchemaType<S> {
+    return Schema.decodeUnknownSync(
+        Schema.fromJsonString(schema) as unknown as Schema.Decoder<unknown>,
+    )(raw) as SchemaType<S>;
+}
+
 export function decodeUnknownSync<S extends Schema.Top>(
     schema: S,
     raw: unknown,

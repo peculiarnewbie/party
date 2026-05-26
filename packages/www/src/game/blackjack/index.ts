@@ -43,6 +43,7 @@ export {
 } from "./messages";
 export {
     blackjackStateSchema,
+    blackjackPlayerViewSchema,
     decodeBlackjackPlayerView,
     decodeBlackjackServerMessage,
     decodeBlackjackSideMessage,

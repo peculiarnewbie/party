@@ -45,7 +45,7 @@ export {
     pokerClientMessageSchema,
     pokerServerMessageSchema,
 } from "./messages";
-export { decodePokerPlayerView, pokerStateSchema } from "./schemas";
+export { decodePokerPlayerView, pokerStateSchema, pokerPlayerViewSchema } from "./schemas";
 export type {
     PokerPlayerPublicView,
     PokerPlayerView,

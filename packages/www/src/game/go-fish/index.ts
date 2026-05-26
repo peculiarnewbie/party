@@ -28,5 +28,6 @@ export {
     goFishStateSchema,
     encodeGoFishServerMessage,
     goFishServerMessageSchema,
+    goFishPlayerViewSchema,
 } from "./schemas";
 export { goFishServer } from "./server";

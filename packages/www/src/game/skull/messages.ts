@@ -87,6 +87,7 @@ export {
     decodeSkullSideMessage,
     encodeSkullServerMessage,
     skullServerMessageSchema,
+    skullPlayerViewSchema,
     type SkullServerMessage,
 } from "./schemas";
 

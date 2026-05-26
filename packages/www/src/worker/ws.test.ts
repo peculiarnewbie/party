@@ -328,7 +328,7 @@ describe("GameRoom worker boundary", () => {
         });
         await flushEffects();
 
-        expect(room.pokerState.current).toBeNull();
+        expect(room.gameStateHolder.current).toBeNull();
         const logs = readLoggedEntries(logSpy);
         const decodeLog = findLoggedEntry(logs, "game-room.poker-message.decode");
 
@@ -367,7 +367,7 @@ describe("GameRoom worker boundary", () => {
         });
         await flushEffects();
 
-        expect(room.yahtzeeState.current).toBeNull();
+        expect(room.gameStateHolder.current).toBeNull();
         const logs = readLoggedEntries(logSpy);
         const decodeLog = findLoggedEntry(
             logs,
@@ -423,7 +423,7 @@ describe("GameRoom worker boundary", () => {
         await room.ready;
 
         expect(room.state.activeGameType).toBe("yahtzee");
-        expect(room.yahtzeeState.current).toBeNull();
+        expect(room.gameStateHolder.current).toBeNull();
         const logs = readLoggedEntries(logSpy);
         const decodeLog = findLoggedEntry(logs, "persisted-state.decode-fallback");
 

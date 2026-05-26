@@ -41,6 +41,7 @@ export {
 export {
     flip7CardSchema,
     flip7StateSchema,
+    flip7PlayerViewSchema,
     decodeFlip7PlayerView,
     decodeFlip7SideMessage,
     encodeFlip7ServerMessage,

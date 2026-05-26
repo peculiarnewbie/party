@@ -60,6 +60,7 @@ export {
     decodeSpicySideMessage,
     encodeSpicyServerMessage,
     spicyServerMessageSchema,
+    spicyPlayerViewSchema,
     type SpicyServerMessage,
 } from "./schemas";
 

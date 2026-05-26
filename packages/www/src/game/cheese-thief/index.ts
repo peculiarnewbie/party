@@ -20,6 +20,7 @@ export {
 } from "./messages";
 export {
     cheeseThiefStateSchema,
+    cheeseThiefPlayerViewSchema,
     decodeCheeseThiefPlayerView,
     decodeCheeseThiefSideMessage,
     encodeCheeseThiefServerMessage,

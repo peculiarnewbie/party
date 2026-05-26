@@ -22,6 +22,7 @@ export {
 } from "./messages";
 export {
     cockroachPokerStateSchema,
+    cockroachPokerPlayerViewSchema,
     decodeCockroachPokerPlayerView,
     decodeCockroachPokerSideMessage,
     encodeCockroachPokerServerMessage,

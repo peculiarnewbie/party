@@ -21,6 +21,7 @@ export {
     decodeHerdSideMessage,
     encodeHerdServerMessage,
     herdStateSchema,
+    herdPlayerViewSchema,
 } from "./schemas";
 
 export type { HerdPlayerView, HerdPlayerInfo, AnswerGroupView } from "./schemas";

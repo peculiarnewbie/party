@@ -37,6 +37,7 @@ export {
     decodeSpicyPlayerView,
     decodeSpicySideMessage,
     encodeSpicyServerMessage,
+    spicyPlayerViewSchema,
 } from "./messages";
 
 export { spicyServer } from "./server";

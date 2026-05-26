@@ -56,5 +56,5 @@ export {
     decodeYahtzeeSideMessage,
     encodeYahtzeeServerMessage,
 } from "./messages";
-export { decodeYahtzeePlayerView, yahtzeeStateSchema } from "./schemas";
+export { decodeYahtzeePlayerView, yahtzeeStateSchema, yahtzeePlayerViewSchema } from "./schemas";
 export { yahtzeeServer } from "./server";

@@ -37,5 +37,6 @@ export {
     decodeRpsSideMessage,
     encodeRpsServerMessage,
     rpsStateSchema,
+    rpsPlayerViewSchema,
 } from "./schemas";
 export { rpsServer } from "./server";
