@@ -24,6 +24,7 @@ import type { RpsState } from "~/game/rps";
 import type { SkullState } from "~/game/skull";
 import type { SpicyState } from "~/game/spicy";
 import type { YahtzeeState } from "~/game/yahtzee";
+import { yahtzeeStateSchema } from "~/game/yahtzee/schemas";
 import {
     decodeWithSchema,
     encodeWithSchema,
@@ -100,22 +101,6 @@ export type PersistedGameSnapshot =
           state: SpicyState;
       };
 
-const scoringCategories = [
-    "ones",
-    "twos",
-    "threes",
-    "fours",
-    "fives",
-    "sixes",
-    "three_of_a_kind",
-    "four_of_a_kind",
-    "full_house",
-    "small_straight",
-    "large_straight",
-    "yahtzee",
-    "chance",
-] as const;
-
 const gameTypeSchema = Schema.Literals(gameTypes);
 const roomPhaseSchema = Schema.Literals([
     "lobby",
@@ -127,29 +112,6 @@ const participantStatusSchema = Schema.Literals([
     "disconnected",
     "left_game",
 ] as const);
-const scoringCategorySchema = Schema.Literals(scoringCategories);
-const persistedNumberDieSchema = Schema.Number.check(
-    Schema.isGreaterThanOrEqualTo(0),
-    Schema.isLessThanOrEqualTo(6),
-);
-const diceSchema = Schema.mutable(
-    Schema.Tuple([
-        persistedNumberDieSchema,
-        persistedNumberDieSchema,
-        persistedNumberDieSchema,
-        persistedNumberDieSchema,
-        persistedNumberDieSchema,
-    ]),
-);
-const heldDiceSchema = Schema.mutable(
-    Schema.Tuple([
-        Schema.Boolean,
-        Schema.Boolean,
-        Schema.Boolean,
-        Schema.Boolean,
-        Schema.Boolean,
-    ]),
-);
 
 const persistedParticipantRowSchema = Schema.Struct({
     player_id: Schema.mutableKey(Schema.String),
@@ -190,70 +152,6 @@ const partialRoomStateSchema = Schema.Struct({
     gameParticipants: Schema.optionalKey(
         Schema.mutableKey(Schema.mutable(Schema.Array(gameParticipantSchema))),
     ),
-});
-
-const partialScorecardSchema = Schema.Record(
-    scoringCategorySchema,
-    Schema.optionalKey(Schema.mutableKey(Schema.Number)),
-);
-
-const yahtzeePlayerSchema = Schema.Struct({
-    id: Schema.mutableKey(Schema.String),
-    name: Schema.mutableKey(Schema.String),
-    scorecard: Schema.mutableKey(partialScorecardSchema),
-    yahtzeeBonus: Schema.mutableKey(Schema.Number),
-    penaltyPoints: Schema.mutableKey(Schema.Number),
-});
-
-const lyingClaimSchema = Schema.Struct({
-    playerId: Schema.mutableKey(Schema.String),
-    category: Schema.mutableKey(scoringCategorySchema),
-    claimedDice: Schema.mutableKey(diceSchema),
-    claimedPoints: Schema.mutableKey(Schema.Number),
-});
-
-const lyingTurnRevealSchema = Schema.Struct({
-    playerId: Schema.mutableKey(Schema.String),
-    category: Schema.mutableKey(scoringCategorySchema),
-    actualDice: Schema.mutableKey(diceSchema),
-    claimedDice: Schema.mutableKey(diceSchema),
-    claimedPoints: Schema.mutableKey(Schema.Number),
-    outcome: Schema.mutableKey(
-        Schema.Literals([
-            "accepted",
-            "truthful_challenge",
-            "caught_lying",
-        ] as const),
-    ),
-    penaltyPlayerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    penaltyPoints: Schema.mutableKey(Schema.Number),
-});
-
-const yahtzeeStateSchema = Schema.Struct({
-    mode: Schema.mutableKey(
-        Schema.Literals(["standard", "lying"] as const),
-    ),
-    players: Schema.mutableKey(
-        Schema.mutable(Schema.Array(yahtzeePlayerSchema)),
-    ),
-    currentPlayerIndex: Schema.mutableKey(Schema.Number),
-    dice: Schema.mutableKey(diceSchema),
-    held: Schema.mutableKey(heldDiceSchema),
-    rollsLeft: Schema.mutableKey(Schema.Number),
-    phase: Schema.mutableKey(
-        Schema.Literals([
-            "pre_roll",
-            "mid_turn",
-            "awaiting_response",
-            "game_over",
-        ] as const),
-    ),
-    round: Schema.mutableKey(Schema.Number),
-    winners: Schema.mutableKey(
-        Schema.NullOr(Schema.mutable(Schema.Array(Schema.String))),
-    ),
-    pendingClaim: Schema.mutableKey(Schema.NullOr(lyingClaimSchema)),
-    lastTurnReveal: Schema.mutableKey(Schema.NullOr(lyingTurnRevealSchema)),
 });
 
 function createLooseSnapshotSchema<GameType extends PersistedGameSnapshot["gameType"]>(

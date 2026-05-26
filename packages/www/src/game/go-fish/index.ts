@@ -20,7 +20,7 @@ export type {
     GoFishServerMessage,
 } from "./messages";
 export {
+    decodeGoFishClientMessage,
     goFishClientMessageSchema,
-    goFishServerMessageSchema,
 } from "./messages";
 export { goFishServer } from "./server";

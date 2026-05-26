@@ -46,6 +46,9 @@ export { getPlayerView } from "./views";
 export type {
     YahtzeeClientMessage,
     YahtzeeServerMessage,
+    YahtzeeActionPayload,
+    YahtzeeErrorPayload,
+    YahtzeeGameOverPayload,
 } from "./messages";
 export {
     yahtzeeClientMessageSchema,
@@ -54,4 +57,5 @@ export {
     decodeYahtzeeServerMessage,
     encodeYahtzeeServerMessage,
 } from "./messages";
+export { decodeYahtzeePlayerView, yahtzeeStateSchema } from "./schemas";
 export { yahtzeeServer } from "./server";

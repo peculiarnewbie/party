@@ -1623,3 +1623,48 @@ describe("getPlayerView", () => {
         expect(view.canSplit).toBe(true);
     });
 });
+
+describe("blackjackClientMessage decode", () => {
+    it("decodes valid bet and hit messages", async () => {
+        const { Effect } = await import("effect");
+        const { decodeBlackjackClientMessage } = await import("./messages");
+
+        const bet = {
+            type: "blackjack:bet" as const,
+            playerId: "p1",
+            playerName: "Alice",
+            data: { amount: 25 },
+        };
+        const hit = {
+            type: "blackjack:hit" as const,
+            playerId: "p1",
+            playerName: "Alice",
+            data: {},
+        };
+
+        expect(await Effect.runPromise(decodeBlackjackClientMessage(bet))).toEqual(
+            bet,
+        );
+        expect(await Effect.runPromise(decodeBlackjackClientMessage(hit))).toEqual(
+            hit,
+        );
+    });
+
+    it("returns a typed decode error for invalid bet amounts", async () => {
+        const { Effect } = await import("effect");
+        const { decodeBlackjackClientMessage } = await import("./messages");
+
+        await expect(
+            Effect.runPromise(
+                decodeBlackjackClientMessage({
+                    type: "blackjack:bet",
+                    playerId: "p1",
+                    playerName: "Alice",
+                    data: { amount: 0 },
+                }),
+            ),
+        ).rejects.toMatchObject({
+            _tag: "BlackjackMessageDecodeError",
+        });
+    });
+});

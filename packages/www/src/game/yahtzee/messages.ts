@@ -7,31 +7,15 @@ import {
 } from "~/effect/schema-helpers";
 
 import type { Dice, ScoringCategory } from "./types";
-
-const scoringCategories = [
-    "ones",
-    "twos",
-    "threes",
-    "fours",
-    "fives",
-    "sixes",
-    "three_of_a_kind",
-    "four_of_a_kind",
-    "full_house",
-    "small_straight",
-    "large_straight",
-    "yahtzee",
-    "chance",
-] as const;
-
-const scoringCategorySchema = Schema.Literals(scoringCategories);
-const dieSchema = Schema.Number.check(
-    Schema.isGreaterThanOrEqualTo(1),
-    Schema.isLessThanOrEqualTo(6),
-);
-const diceSchema = Schema.mutable(
-    Schema.Tuple([dieSchema, dieSchema, dieSchema, dieSchema, dieSchema]),
-);
+import type { YahtzeePlayerView } from "./views";
+import {
+    scoringCategorySchema,
+    yahtzeeActionPayloadSchema,
+    yahtzeeErrorPayloadSchema,
+    yahtzeeGameOverPayloadSchema,
+    yahtzeePlayerViewSchema,
+} from "./schemas";
+import type { YahtzeeResult } from "./types";
 
 type BaseClientMessage = {
     playerId: string;
@@ -64,11 +48,32 @@ export type YahtzeeClientMessage =
           data: Record<string, never>;
       } & BaseClientMessage);
 
+export type YahtzeeErrorPayload = { message: string };
+
+export type YahtzeeGameOverPayload = {
+    winners: string[];
+    finalScores: Array<{
+        playerId: string;
+        playerName: string;
+        total: number;
+    }>;
+};
+
+export type YahtzeeActionPayload = Exclude<YahtzeeResult, { type: "error" }>;
+
 export type YahtzeeServerMessage =
-    | { type: "yahtzee:state"; data: Record<string, unknown> }
-    | { type: "yahtzee:action"; data: Record<string, unknown> }
-    | { type: "yahtzee:game_over"; data: Record<string, unknown> }
-    | { type: "yahtzee:error"; data: Record<string, unknown> };
+    | { type: "yahtzee:state"; data: YahtzeePlayerView }
+    | { type: "yahtzee:action"; data: YahtzeeActionPayload }
+    | { type: "yahtzee:game_over"; data: YahtzeeGameOverPayload }
+    | { type: "yahtzee:error"; data: YahtzeeErrorPayload };
+
+const dieSchema = Schema.Number.check(
+    Schema.isGreaterThanOrEqualTo(1),
+    Schema.isLessThanOrEqualTo(6),
+);
+const diceSchema = Schema.mutable(
+    Schema.Tuple([dieSchema, dieSchema, dieSchema, dieSchema, dieSchema]),
+);
 
 export const yahtzeeClientMessageSchema = Schema.Union([
     Schema.Struct({
@@ -130,19 +135,19 @@ export const yahtzeeClientMessageSchema = Schema.Union([
 export const yahtzeeServerMessageSchema = Schema.Union([
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("yahtzee:state")),
-        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+        data: Schema.mutableKey(yahtzeePlayerViewSchema),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("yahtzee:action")),
-        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+        data: Schema.mutableKey(yahtzeeActionPayloadSchema),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("yahtzee:game_over")),
-        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+        data: Schema.mutableKey(yahtzeeGameOverPayloadSchema),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("yahtzee:error")),
-        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+        data: Schema.mutableKey(yahtzeeErrorPayloadSchema),
     }),
 ]);
 

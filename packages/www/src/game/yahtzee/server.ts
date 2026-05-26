@@ -25,10 +25,7 @@ export const yahtzeeServer = (
             playerId,
             encodeYahtzeeServerMessage({
                 type: "yahtzee:state",
-                data: getPlayerView(state, playerId) as unknown as Record<
-                    string,
-                    unknown
-                >,
+                data: getPlayerView(state, playerId),
             }),
         );
     },
@@ -46,10 +43,7 @@ export const yahtzeeServer = (
                 player.id,
                 encodeYahtzeeServerMessage({
                     type: "yahtzee:state",
-                    data: getPlayerView(state, player.id) as unknown as Record<
-                        string,
-                        unknown
-                    >,
+                    data: getPlayerView(state, player.id),
                 }),
             );
         }
@@ -118,7 +112,7 @@ export const yahtzeeServer = (
         broadcast(
             encodeYahtzeeServerMessage({
                 type: "yahtzee:action",
-                data: result as unknown as Record<string, unknown>,
+                data: result,
             }),
         );
 
@@ -127,10 +121,7 @@ export const yahtzeeServer = (
                 player.id,
                 encodeYahtzeeServerMessage({
                     type: "yahtzee:state",
-                    data: getPlayerView(state, player.id) as unknown as Record<
-                        string,
-                        unknown
-                    >,
+                    data: getPlayerView(state, player.id),
                 }),
             );
         }
@@ -163,10 +154,7 @@ export const yahtzeeServer = (
                 player.id,
                 encodeYahtzeeServerMessage({
                     type: "yahtzee:state",
-                    data: getPlayerView(state, player.id) as unknown as Record<
-                        string,
-                        unknown
-                    >,
+                    data: getPlayerView(state, player.id),
                 }),
             );
         }
@@ -197,10 +185,7 @@ export const yahtzeeServer = (
                 player.id,
                 encodeYahtzeeServerMessage({
                     type: "yahtzee:state",
-                    data: getPlayerView(state, player.id) as unknown as Record<
-                        string,
-                        unknown
-                    >,
+                    data: getPlayerView(state, player.id),
                 }),
             );
         }

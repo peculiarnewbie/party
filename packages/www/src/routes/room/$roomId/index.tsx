@@ -16,6 +16,7 @@ import { PokerRoom } from "~/components/poker/poker-room";
 import { createGameConnection } from "~/game/connection-from-ws";
 import type { PokerConnection } from "~/game/poker/connection";
 import { decodePokerPlayerView } from "~/game/poker";
+import { decodeYahtzeePlayerView } from "~/game/yahtzee";
 import type { YahtzeeConnection } from "~/game/yahtzee/connection";
 import type { GoFishConnection } from "~/game/go-fish/connection";
 import type { BlackjackConnection } from "~/game/blackjack/connection";
@@ -449,6 +450,7 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeYahtzeePlayerView,
                                 },
                             );
                             return (
@@ -490,6 +492,7 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodeYahtzeePlayerView,
                                 },
                             );
                             return (

@@ -21,6 +21,20 @@ export class PokerMessageDecodeError extends Data.TaggedError(
     readonly messageType?: string;
 }> {}
 
+export class GoFishMessageDecodeError extends Data.TaggedError(
+    "GoFishMessageDecodeError",
+)<{
+    readonly issue: string;
+    readonly messageType?: string;
+}> {}
+
+export class BlackjackMessageDecodeError extends Data.TaggedError(
+    "BlackjackMessageDecodeError",
+)<{
+    readonly issue: string;
+    readonly messageType?: string;
+}> {}
+
 export class PersistedStateDecodeError extends Data.TaggedError(
     "PersistedStateDecodeError",
 )<{

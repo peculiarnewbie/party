@@ -2,11 +2,12 @@ import { Effect } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     decodeYahtzeeClientMessage,
+    decodeYahtzeeServerMessage,
     encodeYahtzeeServerMessage,
 } from "./messages";
 import type { YahtzeeClientMessage } from "./messages";
 import { yahtzeeServer } from "./server";
-import { makeState } from "./test-helpers";
+import { makeState, makeView } from "./test-helpers";
 
 const PLAYERS = [
     { id: "p1", name: "Alice" },
@@ -112,16 +113,33 @@ describe("yahtzeeServer", () => {
         });
     });
 
-    it("encodes yahtzee server messages with the current wire shape", () => {
-        const encoded = encodeYahtzeeServerMessage({
-            type: "yahtzee:error",
+    it("round-trips typed yahtzee server messages", async () => {
+        const message = {
+            type: "yahtzee:error" as const,
             data: { message: "Must roll first" },
-        });
+        };
 
-        expect(JSON.parse(encoded)).toEqual({
-            type: "yahtzee:error",
-            data: { message: "Must roll first" },
-        });
+        const encoded = encodeYahtzeeServerMessage(message);
+        const decoded = await Effect.runPromise(
+            decodeYahtzeeServerMessage(JSON.parse(encoded)),
+        );
+
+        expect(decoded).toEqual(message);
+    });
+
+    it("round-trips yahtzee state views on the wire", async () => {
+        const view = makeView({ canRoll: true, isMyTurn: true });
+        const message = {
+            type: "yahtzee:state" as const,
+            data: view,
+        };
+
+        const encoded = encodeYahtzeeServerMessage(message);
+        const decoded = await Effect.runPromise(
+            decodeYahtzeeServerMessage(JSON.parse(encoded)),
+        );
+
+        expect(decoded).toEqual(message);
     });
 
     it("sends personalized initial state to every player", () => {

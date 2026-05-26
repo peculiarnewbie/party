@@ -10,13 +10,13 @@ import {
     server,
 } from "~/game";
 import {
-    goFishClientMessageSchema,
+    decodeGoFishClientMessage,
     goFishServer,
     type GoFishState,
 } from "~/game/go-fish";
 import {
-    blackjackClientMessageSchema,
     blackjackServer,
+    decodeBlackjackClientMessage,
     type BlackjackState,
 } from "~/game/blackjack";
 import {
@@ -1080,21 +1080,52 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("go_fish:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "go_fish",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGoFishClientMessage(json).pipe(
+                        Effect.tap(() =>
+                            Effect.logInfo("game-room.go-fish-message.decode").pipe(
+                                Effect.annotateLogs({
+                                    component: "go-fish-transport",
+                                    operation:
+                                        "game-room.go-fish-message.decode",
+                                    result: "success",
+                                }),
+                            ),
+                        ),
+                        Effect.catchTag("GoFishMessageDecodeError", (error) =>
+                            Effect.gen(function*() {
+                                yield* Effect.logWarning(
+                                    "game-room.go-fish-message.decode",
+                                ).pipe(
+                                    Effect.annotateLogs({
+                                        component: "go-fish-transport",
+                                        operation:
+                                            "game-room.go-fish-message.decode",
+                                        result: "ignored",
+                                        errorTag: error._tag,
+                                    }),
+                                );
+                                return null;
+                            }),
+                        ),
                     );
-                    const parsed = goFishClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+
+                    if (!parsed) {
+                        return;
+                    }
+
                     goFishServer(this.goFishState).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "go_fish",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
@@ -1155,19 +1186,52 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("blackjack:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
+                    const parsed = yield* decodeBlackjackClientMessage(json).pipe(
+                        Effect.tap(() =>
+                            Effect.logInfo(
+                                "game-room.blackjack-message.decode",
+                            ).pipe(
+                                Effect.annotateLogs({
+                                    component: "blackjack-transport",
+                                    operation:
+                                        "game-room.blackjack-message.decode",
+                                    result: "success",
+                                }),
+                            ),
+                        ),
+                        Effect.catchTag("BlackjackMessageDecodeError", (error) =>
+                            Effect.gen(function*() {
+                                yield* Effect.logWarning(
+                                    "game-room.blackjack-message.decode",
+                                ).pipe(
+                                    Effect.annotateLogs({
+                                        component: "blackjack-transport",
+                                        operation:
+                                            "game-room.blackjack-message.decode",
+                                        result: "ignored",
+                                        errorTag: error._tag,
+                                    }),
+                                );
+                                return null;
+                            }),
+                        ),
+                    );
+
+                    if (!parsed) {
+                        return;
+                    }
+
+                    blackjackServer(this.blackjackState, {
+                        scheduleNextRound: scheduleBlackjackNextRound,
+                    }).processMessage(parsed, broadcast, sendTo);
+                    this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
                         Effect.annotateLogs({
                             component: "game-room",
                             branch: "blackjack",
-                            result: "legacy",
+                            result: "ok",
                         }),
                     );
-                    const parsed = blackjackClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
-                    blackjackServer(this.blackjackState, {
-                        scheduleNextRound: scheduleBlackjackNextRound,
-                    }).processMessage(parsed.data, broadcast, sendTo);
-                    this.persistGameSnapshot();
                     return;
                 }
 

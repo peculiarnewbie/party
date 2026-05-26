@@ -110,7 +110,7 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
             }
 
             if (event.type === "yahtzee:game_over") {
-                const winners = (event.data as { winners: string[] }).winners;
+                const winners = event.data.winners;
                 const names = winners.map((id: string) => playerName(id));
                 if (winners.length === 1) {
                     showAnnouncement(`${names[0]} WINS!`);

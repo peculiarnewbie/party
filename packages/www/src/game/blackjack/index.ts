@@ -37,6 +37,6 @@ export type {
 } from "./messages";
 export {
     blackjackClientMessageSchema,
-    blackjackServerMessageSchema,
+    decodeBlackjackClientMessage,
 } from "./messages";
 export { blackjackServer } from "./server";
