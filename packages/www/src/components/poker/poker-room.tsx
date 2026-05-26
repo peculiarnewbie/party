@@ -12,7 +12,11 @@ import { ResultsOverlay } from "./results-overlay";
 import { StreetBanner } from "./street-banner";
 import { TableSeat } from "./table-seat";
 
-function getLastActionText(event: PokerEvent): string {
+function isPlayerAction(event: PokerEvent): event is PokerEvent & { type: "player_action" } {
+    return event.type === "player_action";
+}
+
+function getLastActionText(event: PokerEvent & { type: "player_action" }): string {
     const msg = event.message;
     if (msg.includes("folded")) return "Folded";
     if (msg.includes("checked")) return "Checked";
@@ -25,12 +29,10 @@ function getLastActionText(event: PokerEvent): string {
 
 function computeLastActions(events: PokerEvent[]): Record<string, string> {
     const actions: Record<string, string> = {};
-    for (const event of events) {
-        if (event.type === "player_action" && event.playerId) {
-            const text = getLastActionText(event);
-            if (text) {
-                actions[event.playerId] = text;
-            }
+    for (const event of events.filter(isPlayerAction)) {
+        const text = getLastActionText(event);
+        if (text) {
+            actions[event.playerId] = text;
         }
     }
     return actions;
@@ -61,8 +63,7 @@ export const PokerRoom: Component<{
     onCleanup(
         props.connection.subscribe((event) => {
             if (event.type === "poker:action_result") {
-                const error = (event.data as { error?: string }).error;
-                if (error) setActionError(error);
+                setActionError(event.data.error);
             }
         }),
     );

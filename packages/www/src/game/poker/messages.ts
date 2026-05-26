@@ -6,6 +6,15 @@ import {
     PokerMessageDecodeError,
 } from "~/effect/schema-helpers";
 
+import {
+    pokerActionResultPayloadSchema,
+    pokerEventSchema,
+    pokerGameOverPayloadSchema,
+    pokerPlayerViewSchema,
+} from "./schemas";
+import type { PokerEvent } from "./types";
+import type { PokerPlayerView } from "./views";
+
 type BaseClientMessage = {
     playerId: string;
     playerName: string;
@@ -23,11 +32,18 @@ export type PokerClientMessage =
               | { type: "all_in" };
       } & BaseClientMessage);
 
+export type PokerActionResultPayload = { error: string };
+
+export type PokerGameOverPayload = {
+    winnerIds: string[] | null;
+    endedByHost: boolean;
+};
+
 export type PokerServerMessage =
-    | { type: "poker:state"; data: Record<string, unknown> }
-    | { type: "poker:event"; data: Record<string, unknown> }
-    | { type: "poker:action_result"; data: Record<string, unknown> }
-    | { type: "poker:game_over"; data: Record<string, unknown> };
+    | { type: "poker:state"; data: PokerPlayerView }
+    | { type: "poker:event"; data: PokerEvent }
+    | { type: "poker:action_result"; data: PokerActionResultPayload }
+    | { type: "poker:game_over"; data: PokerGameOverPayload };
 
 const positiveIntSchema = Schema.Number.check(
     Schema.isInt(),
@@ -67,19 +83,19 @@ export const pokerClientMessageSchema = Schema.Struct({
 export const pokerServerMessageSchema = Schema.Union([
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("poker:state")),
-        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+        data: Schema.mutableKey(pokerPlayerViewSchema),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("poker:event")),
-        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+        data: Schema.mutableKey(pokerEventSchema),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("poker:action_result")),
-        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+        data: Schema.mutableKey(pokerActionResultPayloadSchema),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("poker:game_over")),
-        data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+        data: Schema.mutableKey(pokerGameOverPayloadSchema),
     }),
 ]);
 

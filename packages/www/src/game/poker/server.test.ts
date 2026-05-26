@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import {
     decodePokerClientMessage,
+    decodePokerServerMessage,
     encodePokerServerMessage,
 } from "./messages";
 import type { PokerClientMessage } from "./messages";
+import { pokerEventSchema } from "./schemas";
 import { pokerServer } from "./server";
 import type { PokerState } from "./types";
+import { makeView } from "./test-helpers";
 
 const PLAYERS = [
     { id: "p1", name: "Alice" },
@@ -107,16 +110,47 @@ describe("pokerServer", () => {
         });
     });
 
-    it("encodes poker server messages with the current wire shape", () => {
-        const encoded = encodePokerServerMessage({
-            type: "poker:action_result",
+    it("round-trips typed poker server messages", async () => {
+        const message = {
+            type: "poker:action_result" as const,
             data: { error: "Not your turn" },
-        });
+        };
 
-        expect(JSON.parse(encoded)).toEqual({
-            type: "poker:action_result",
-            data: { error: "Not your turn" },
+        const encoded = encodePokerServerMessage(message);
+        const decoded = await Effect.runPromise(
+            decodePokerServerMessage(JSON.parse(encoded)),
+        );
+
+        expect(decoded).toEqual(message);
+    });
+
+    it("round-trips poker state views on the wire", async () => {
+        const view = makeView({
+            legalActions: ["fold", "call", "raise"],
         });
+        const message = {
+            type: "poker:state" as const,
+            data: view,
+        };
+
+        const encoded = encodePokerServerMessage(message);
+        const decoded = await Effect.runPromise(
+            decodePokerServerMessage(JSON.parse(encoded)),
+        );
+
+        expect(decoded).toEqual(message);
+    });
+
+    it("rejects blinds_posted events missing playerId", () => {
+        expect(() =>
+            Schema.decodeUnknownSync(pokerEventSchema)({
+                id: 1,
+                type: "blinds_posted",
+                message: "Blinds posted",
+                amount: 10,
+                street: "preflop",
+            }),
+        ).toThrow();
     });
 
     it("sends personalized initial state to every player", () => {

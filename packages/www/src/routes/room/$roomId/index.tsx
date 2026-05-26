@@ -15,6 +15,7 @@ import { GoFishRoom } from "~/components/go-fish/go-fish-room";
 import { PokerRoom } from "~/components/poker/poker-room";
 import { createGameConnection } from "~/game/connection-from-ws";
 import type { PokerConnection } from "~/game/poker/connection";
+import { decodePokerPlayerView } from "~/game/poker";
 import type { YahtzeeConnection } from "~/game/yahtzee/connection";
 import type { GoFishConnection } from "~/game/go-fish/connection";
 import type { BlackjackConnection } from "~/game/blackjack/connection";
@@ -364,6 +365,7 @@ function RouteComponent() {
                                         playerId: playerId(),
                                         playerName: name(),
                                     }),
+                                    decodeView: decodePokerPlayerView,
                                 },
                             );
                             return (

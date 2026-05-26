@@ -3,6 +3,7 @@ export type {
     PokerActionType,
     PokerActionResult,
     PokerEvent,
+    PokerEventBase,
     PokerHandValue,
     PokerPlayer,
     PokerPlayerStatus,
@@ -27,7 +28,12 @@ export {
     reconnectPlayer,
     startNextHand,
 } from "./engine";
-export type { PokerClientMessage, PokerServerMessage } from "./messages";
+export type {
+    PokerActionResultPayload,
+    PokerClientMessage,
+    PokerGameOverPayload,
+    PokerServerMessage,
+} from "./messages";
 export {
     decodePokerClientMessage,
     decodePokerServerMessage,
@@ -35,6 +41,7 @@ export {
     pokerClientMessageSchema,
     pokerServerMessageSchema,
 } from "./messages";
+export { decodePokerPlayerView, pokerStateSchema } from "./schemas";
 export type { PokerPlayerPublicView, PokerPlayerView, PokerVisibilityMode } from "./views";
 export { getPlayerView } from "./views";
 export { pokerServer } from "./server";

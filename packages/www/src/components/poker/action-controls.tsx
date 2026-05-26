@@ -3,7 +3,7 @@ import { For, Show } from "solid-js";
 import type { PokerActionType } from "~/game/poker/types";
 
 export const ActionControls: Component<{
-    legalActions: string[];
+    legalActions: PokerActionType[];
     callAmount: number;
     minBetOrRaise: number | null;
     maxBet: number;

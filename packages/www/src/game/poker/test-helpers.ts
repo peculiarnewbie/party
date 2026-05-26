@@ -53,13 +53,16 @@ export function makeView(overrides: Partial<PokerPlayerView> = {}): PokerPlayerV
     };
 }
 
-export function makeEvent(overrides: Partial<PokerEvent> = {}): PokerEvent {
+export function makeEvent(
+    overrides: Partial<PokerEvent> = {},
+): PokerEvent {
     return {
         id: 1,
         type: "hand_started",
+        street: "preflop",
         message: "Hand started",
         ...overrides,
-    };
+    } as PokerEvent;
 }
 
 export function makePot(overrides: Partial<PokerPot> = {}): PokerPot {

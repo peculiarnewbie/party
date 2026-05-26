@@ -31,20 +31,14 @@ function broadcastState(
     for (const player of state.players) {
         broadcastServerMessage((message) => sendTo(player.id, message), {
             type: "poker:state",
-            data: getPlayerView(state, player.id, visibilityMode) as unknown as Record<
-                string,
-                unknown
-            >,
+            data: getPlayerView(state, player.id, visibilityMode),
         });
     }
 
     for (const spectator of state.spectators) {
         broadcastServerMessage((message) => sendTo(spectator.id, message), {
             type: "poker:state",
-            data: getPlayerView(state, spectator.id, visibilityMode) as unknown as Record<
-                string,
-                unknown
-            >,
+            data: getPlayerView(state, spectator.id, visibilityMode),
         });
     }
 
@@ -52,7 +46,7 @@ function broadcastState(
     if (latestEvent) {
         broadcastServerMessage(broadcast, {
             type: "poker:event",
-            data: latestEvent as unknown as Record<string, unknown>,
+            data: latestEvent,
         });
     }
 

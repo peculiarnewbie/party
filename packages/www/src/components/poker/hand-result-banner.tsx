@@ -10,18 +10,20 @@ interface HandResult {
     isUncontested: boolean;
 }
 
+function isPotAwarded(event: PokerEvent): event is PokerEvent & { type: "pot_awarded" } {
+    return event.type === "pot_awarded";
+}
+
 function extractHandResult(
     events: PokerEvent[],
     players: PokerPlayerPublicView[],
 ): HandResult | null {
-    const potEvents = events.filter((e) => e.type === "pot_awarded");
+    const potEvents = events.filter(isPotAwarded);
     if (potEvents.length === 0) return null;
 
-    // Use the last pot_awarded event
     const last = potEvents[potEvents.length - 1];
     const message = last.message;
 
-    // Extract winner names from message like "Alice & Bob won 240 chips with Two Pair"
     const wonMatch = message.match(/(.+?) won (\d+) chips(?: with (.+))?/);
     if (!wonMatch) {
         return {

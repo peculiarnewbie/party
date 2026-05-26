@@ -16,14 +16,6 @@ export type PokerPlayerStatus =
     | "busted"
     | "disconnected";
 
-export type PokerActionType =
-    | "fold"
-    | "check"
-    | "call"
-    | "bet"
-    | "raise"
-    | "all_in";
-
 export type PokerAction =
     | { type: "fold" }
     | { type: "check" }
@@ -31,6 +23,8 @@ export type PokerAction =
     | { type: "bet"; amount: number }
     | { type: "raise"; amount: number }
     | { type: "all_in" };
+
+export type PokerActionType = PokerAction["type"];
 
 export interface PokerPlayer {
     id: string;
@@ -50,24 +44,65 @@ export interface PokerPot {
     eligiblePlayerIds: string[];
 }
 
-export interface PokerEvent {
-    id: number;
-    type:
-        | "hand_started"
-        | "blinds_posted"
-        | "player_action"
-        | "board_dealt"
-        | "showdown"
-        | "pot_awarded"
-        | "player_disconnected"
-        | "player_reconnected"
-        | "game_ended"
-        | "info";
-    message: string;
-    playerId?: string;
-    amount?: number;
-    street?: PokerStreet;
-}
+export type PokerEventBase =
+    | {
+          type: "hand_started";
+          message: string;
+          street: PokerStreet;
+      }
+    | {
+          type: "blinds_posted";
+          message: string;
+          playerId: string;
+          amount: number;
+          street: PokerStreet;
+      }
+    | {
+          type: "player_action";
+          message: string;
+          playerId: string;
+          amount?: number;
+          street: PokerStreet;
+      }
+    | {
+          type: "board_dealt";
+          message: string;
+          street: PokerStreet;
+      }
+    | {
+          type: "showdown";
+          message: string;
+          street: PokerStreet;
+      }
+    | {
+          type: "pot_awarded";
+          message: string;
+          amount?: number;
+          street: PokerStreet;
+      }
+    | {
+          type: "player_disconnected";
+          message: string;
+          playerId: string;
+          street: PokerStreet;
+      }
+    | {
+          type: "player_reconnected";
+          message: string;
+          playerId: string;
+          street: PokerStreet;
+      }
+    | {
+          type: "game_ended";
+          message: string;
+      }
+    | {
+          type: "info";
+          message: string;
+          street: PokerStreet;
+      };
+
+export type PokerEvent = PokerEventBase & { id: number };
 
 export interface PokerSpectator {
     id: string;

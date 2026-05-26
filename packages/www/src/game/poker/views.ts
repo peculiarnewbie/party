@@ -1,6 +1,13 @@
 import type { Card } from "~/assets/card-deck/types";
 import { getLegalActions } from "./engine";
-import type { PokerEvent, PokerPlayerStatus, PokerPot, PokerState, PokerStreet } from "./types";
+import type {
+    PokerActionType,
+    PokerEvent,
+    PokerPlayerStatus,
+    PokerPot,
+    PokerState,
+    PokerStreet,
+} from "./types";
 
 export type PokerVisibilityMode = "standard" | "backwards";
 
@@ -26,7 +33,7 @@ export interface PokerPlayerView {
     myStack: number;
     myStatus: PokerPlayerStatus | "spectator" | null;
     isSpectator: boolean;
-    legalActions: string[];
+    legalActions: PokerActionType[];
     callAmount: number;
     minBetOrRaise: number | null;
     maxBet: number;
