@@ -195,15 +195,14 @@ function RouteComponent() {
             }
 
             if (parsed.type === "room_state") {
-                const nextPlayers = parsed.data.players as Player[];
-                const hostId = parsed.data.hostId as string | null;
-                const phase = parsed.data.phase as RoomPhase;
-                const nextSelectedGameType = parsed.data
-                    .selectedGameType as GameType;
-                const nextActiveGameType = parsed.data
-                    .activeGameType as GameType | null;
-                const nextGameParticipants = parsed.data
-                    .gameParticipants as GameParticipant[];
+                const {
+                    players: nextPlayers,
+                    hostId,
+                    phase,
+                    selectedGameType: nextSelectedGameType,
+                    activeGameType: nextActiveGameType,
+                    gameParticipants: nextGameParticipants,
+                } = parsed.data;
 
                 setPlayers(nextPlayers);
                 setIsHost(hostId === playerId());
@@ -222,7 +221,7 @@ function RouteComponent() {
             }
 
             if (parsed.type === "player_list") {
-                const nextPlayers = parsed.data.players as Player[];
+                const nextPlayers = parsed.data.players;
                 setPlayers(nextPlayers);
 
                 const currentPlayer = nextPlayers.find(
@@ -239,16 +238,16 @@ function RouteComponent() {
             }
 
             if (parsed.type === "game_selected") {
-                setSelectedGameType(parsed.data.gameType as GameType);
+                setSelectedGameType(parsed.data.gameType);
             }
 
             if (parsed.type === "game_started") {
-                setActiveGameType(parsed.data.gameType as GameType);
+                setActiveGameType(parsed.data.gameType);
                 setRoomPhase("playing");
             }
 
             if (parsed.type === "game_ended") {
-                setActiveGameType(parsed.data.gameType as GameType);
+                setActiveGameType(parsed.data.gameType);
                 setRoomPhase("playing");
             }
         };

@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 
-import type { YahtzeePlayerView } from "./views";
+import { decodeUnknownSync } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
 
 export const scoringCategories = [
     "ones",
@@ -122,7 +123,7 @@ export const yahtzeeStateSchema = Schema.Struct({
     lastTurnReveal: Schema.mutableKey(Schema.NullOr(lyingTurnRevealSchema)),
 });
 
-const yahtzeePlayerInfoSchema = Schema.Struct({
+export const yahtzeePlayerInfoSchema = Schema.Struct({
     id: Schema.mutableKey(Schema.String),
     name: Schema.mutableKey(Schema.String),
     scorecard: Schema.mutableKey(partialScorecardSchema),
@@ -229,11 +230,32 @@ export const yahtzeeActionPayloadSchema = Schema.Union([
     }),
 ]);
 
+export type ScoringCategory = SchemaType<typeof scoringCategorySchema>;
+export type YahtzeeMode = SchemaType<typeof yahtzeeModeSchema>;
+export type YahtzeePhase = SchemaType<typeof yahtzeePhaseSchema>;
+export type Dice = SchemaType<typeof diceSchema>;
+export type HeldDice = SchemaType<typeof heldDiceSchema>;
+export type RolledDice = SchemaType<typeof rolledDiceSchema>;
+export type LyingClaim = SchemaType<typeof lyingClaimSchema>;
+export type LyingTurnReveal = SchemaType<typeof lyingTurnRevealSchema>;
+export type YahtzeePlayer = SchemaType<typeof yahtzeePlayerSchema>;
+export type YahtzeeState = SchemaType<typeof yahtzeeStateSchema>;
+export type YahtzeePlayerInfo = SchemaType<typeof yahtzeePlayerInfoSchema>;
+export type YahtzeePlayerView = SchemaType<typeof yahtzeePlayerViewSchema>;
+export type YahtzeeErrorPayload = SchemaType<typeof yahtzeeErrorPayloadSchema>;
+export type FinalScore = SchemaType<typeof finalScoreSchema>;
+export type YahtzeeGameOverPayload = SchemaType<
+    typeof yahtzeeGameOverPayloadSchema
+>;
+export type YahtzeeActionPayload = SchemaType<typeof yahtzeeActionPayloadSchema>;
+
+export const SCORING_CATEGORIES = [...scoringCategories] as ScoringCategory[];
+export const UPPER_CATEGORIES = SCORING_CATEGORIES.slice(0, 6);
+export const LOWER_CATEGORIES = SCORING_CATEGORIES.slice(6);
+
 export function decodeYahtzeePlayerView(raw: unknown): YahtzeePlayerView | null {
     try {
-        return Schema.decodeUnknownSync(yahtzeePlayerViewSchema)(
-            raw,
-        ) as YahtzeePlayerView;
+        return decodeUnknownSync(yahtzeePlayerViewSchema, raw);
     } catch {
         return null;
     }

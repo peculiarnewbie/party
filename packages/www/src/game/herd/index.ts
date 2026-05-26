@@ -9,6 +9,7 @@ export type {
 } from "./types";
 
 export {
+    decodeHerdClientMessage,
     herdClientMessageSchema,
     type HerdClientMessage,
     herdServerMessageSchema,

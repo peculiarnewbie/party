@@ -5,33 +5,8 @@ import {
     extractMessageType,
     GoFishMessageDecodeError,
 } from "~/effect/schema-helpers";
-
-const rankSchema = Schema.Number.check(
-    Schema.isInt(),
-    Schema.isGreaterThanOrEqualTo(1),
-    Schema.isLessThanOrEqualTo(13),
-);
-
-export type GoFishClientMessage =
-    | {
-          type: "go_fish:ask";
-          playerId: string;
-          playerName: string;
-          data: { targetId: string; rank: number };
-      }
-    | {
-          type: "go_fish:draw";
-          playerId: string;
-          playerName: string;
-          data: Record<string, never>;
-      };
-
-export type GoFishServerMessage =
-    | { type: "go_fish:state"; data: Record<string, unknown> }
-    | { type: "go_fish:ask_result"; data: Record<string, unknown> }
-    | { type: "go_fish:draw_result"; data: Record<string, unknown> }
-    | { type: "go_fish:book_made"; data: Record<string, unknown> }
-    | { type: "go_fish:game_over"; data: Record<string, unknown> };
+import type { SchemaType } from "~/effect/schema-types";
+import { rankSchema } from "~/game/shared/card-schemas";
 
 export const goFishClientMessageSchema = Schema.Union([
     Schema.Struct({
@@ -53,6 +28,14 @@ export const goFishClientMessageSchema = Schema.Union([
     }),
 ]);
 
+export type GoFishClientMessage = SchemaType<typeof goFishClientMessageSchema>;
+
+export {
+    encodeGoFishServerMessage,
+    goFishServerMessageSchema,
+    type GoFishServerMessage,
+} from "./schemas";
+
 export function decodeGoFishClientMessage(
     raw: unknown,
 ): Effect.Effect<GoFishClientMessage, GoFishMessageDecodeError, never> {
@@ -61,5 +44,5 @@ export function decodeGoFishClientMessage(
             issue,
             messageType: extractMessageType(value),
         });
-    }) as Effect.Effect<GoFishClientMessage, GoFishMessageDecodeError, never>;
+    });
 }

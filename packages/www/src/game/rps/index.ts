@@ -27,5 +27,5 @@ export type {
 } from "./views";
 export { getPlayerView, getRoundLabel } from "./views";
 export type { RpsClientMessage, RpsServerMessage } from "./messages";
-export { rpsClientMessageSchema, rpsServerMessageSchema } from "./messages";
+export { decodeRpsClientMessage, rpsClientMessageSchema, rpsServerMessageSchema } from "./messages";
 export { rpsServer } from "./server";

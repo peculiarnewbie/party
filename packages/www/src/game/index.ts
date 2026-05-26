@@ -2,9 +2,11 @@ import { Effect, Schema } from "effect";
 
 import {
     decodeWithSchema,
+    encodeJsonMessage,
     extractMessageType,
     RoomMessageDecodeError,
 } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
 
 export const gameTypes = [
     "quiz",
@@ -27,10 +29,12 @@ export const gameTypes = [
 export type GameType = (typeof gameTypes)[number];
 export type GameParticipantStatus = "active" | "disconnected" | "left_game";
 
-export interface GameParticipant {
-    playerId: string;
-    status: GameParticipantStatus;
-}
+export const roomPhaseSchema = Schema.Literals([
+    "lobby",
+    "playing",
+    "hibernated",
+] as const);
+export const gameTypeSchema = Schema.Literals(gameTypes);
 
 export const GAME_RULES: Record<
     GameType,
@@ -124,7 +128,7 @@ export function isPokerGameType(
     return gameType === "poker" || gameType === "backwards_poker";
 }
 
-export type RoomPhase = "lobby" | "playing" | "hibernated";
+export type RoomPhase = SchemaType<typeof roomPhaseSchema>;
 
 export const messageTypes = [
     "identify",
@@ -142,51 +146,6 @@ export const messageTypes = [
 ] as const;
 export type MessageType = (typeof messageTypes)[number];
 
-export interface Player {
-    id: string;
-    name: string;
-    score?: number;
-}
-
-export interface GameState {
-    players: Player[];
-    hostId: string | null;
-    answers: Record<string, string>;
-    phase: RoomPhase;
-    selectedGameType: GameType;
-    activeGameType: GameType | null;
-    gameSessionId: string | null;
-    gameParticipants: GameParticipant[];
-}
-
-export type RoomStatePayload = Omit<GameState, "answers">;
-
-export type RoomProcessResult =
-    | { kind: "none" }
-    | { kind: "start"; gameType: GameType }
-    | { kind: "end"; gameType: GameType | null }
-    | { kind: "return_to_lobby" }
-    | { kind: "leave_game"; gameType: GameType; playerId: string };
-
-export type ClientMessage = {
-    playerId: string;
-    playerName: string;
-    type: MessageType;
-    data: Record<string, unknown>;
-};
-
-export type ServerMessage = {
-    type:
-        | "player_list"
-        | "host_assigned"
-        | "room_state"
-        | "game_selected"
-        | "game_started"
-        | "game_ended"
-        | "player_answered";
-    data: Record<string, unknown>;
-};
-
 export const playerSchema = Schema.Struct({
     id: Schema.mutableKey(Schema.String),
     name: Schema.mutableKey(Schema.String),
@@ -200,6 +159,43 @@ export const gameParticipantSchema = Schema.Struct({
     ),
 });
 
+export const gameStateSchema = Schema.Struct({
+    players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
+    hostId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    answers: Schema.mutableKey(Schema.Record(Schema.String, Schema.String)),
+    phase: Schema.mutableKey(roomPhaseSchema),
+    selectedGameType: Schema.mutableKey(gameTypeSchema),
+    activeGameType: Schema.mutableKey(Schema.NullOr(gameTypeSchema)),
+    gameSessionId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    gameParticipants: Schema.mutableKey(
+        Schema.mutable(Schema.Array(gameParticipantSchema)),
+    ),
+});
+
+export const roomStatePayloadSchema = Schema.Struct({
+    players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
+    hostId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    phase: Schema.mutableKey(roomPhaseSchema),
+    selectedGameType: Schema.mutableKey(gameTypeSchema),
+    activeGameType: Schema.mutableKey(Schema.NullOr(gameTypeSchema)),
+    gameSessionId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    gameParticipants: Schema.mutableKey(
+        Schema.mutable(Schema.Array(gameParticipantSchema)),
+    ),
+});
+
+export type Player = SchemaType<typeof playerSchema>;
+export type GameParticipant = SchemaType<typeof gameParticipantSchema>;
+export type GameState = SchemaType<typeof gameStateSchema>;
+export type RoomStatePayload = SchemaType<typeof roomStatePayloadSchema>;
+
+export type RoomProcessResult =
+    | { kind: "none" }
+    | { kind: "start"; gameType: GameType }
+    | { kind: "end"; gameType: GameType | null }
+    | { kind: "return_to_lobby" }
+    | { kind: "leave_game"; gameType: GameType; playerId: string };
+
 export const clientMessageSchema = Schema.Struct({
     playerId: Schema.mutableKey(Schema.String),
     playerName: Schema.mutableKey(Schema.String),
@@ -207,36 +203,62 @@ export const clientMessageSchema = Schema.Struct({
     data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
 });
 
-export const serverMessageSchema = Schema.Struct({
-    type: Schema.mutableKey(
-        Schema.Literals([
-            "player_list",
-            "host_assigned",
-            "room_state",
-            "game_selected",
-            "game_started",
-            "game_ended",
-            "player_answered",
-        ] as const),
-    ),
-    data: Schema.mutableKey(Schema.Record(Schema.String, Schema.Unknown)),
+const playerListPayloadSchema = Schema.Struct({
+    players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
 });
+
+const hostAssignedPayloadSchema = Schema.Struct({
+    hostId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+});
+
+const gameTypePayloadSchema = Schema.Struct({
+    gameType: Schema.mutableKey(gameTypeSchema),
+});
+
+const playerAnsweredPayloadSchema = Schema.Struct({
+    players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
+    answers: Schema.mutableKey(Schema.Record(Schema.String, Schema.String)),
+});
+
+const gameEndedPayloadSchema = Schema.Struct({
+    gameType: Schema.mutableKey(Schema.NullOr(gameTypeSchema)),
+});
+
+export const serverMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("player_list")),
+        data: Schema.mutableKey(playerListPayloadSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("host_assigned")),
+        data: Schema.mutableKey(hostAssignedPayloadSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("room_state")),
+        data: Schema.mutableKey(roomStatePayloadSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("game_selected")),
+        data: Schema.mutableKey(gameTypePayloadSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("game_started")),
+        data: Schema.mutableKey(gameTypePayloadSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("game_ended")),
+        data: Schema.mutableKey(gameEndedPayloadSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("player_answered")),
+        data: Schema.mutableKey(playerAnsweredPayloadSchema),
+    }),
+]);
+
+export type ClientMessage = SchemaType<typeof clientMessageSchema>;
+export type ServerMessage = SchemaType<typeof serverMessageSchema>;
 
 const clientMessageJsonSchema = Schema.fromJsonString(clientMessageSchema);
-
-const roomStatePayloadSchema = Schema.Struct({
-    players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
-    hostId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    phase: Schema.mutableKey(
-        Schema.Literals(["lobby", "playing", "hibernated"] as const),
-    ),
-    selectedGameType: Schema.mutableKey(Schema.Literals(gameTypes)),
-    activeGameType: Schema.mutableKey(Schema.NullOr(Schema.Literals(gameTypes))),
-    gameSessionId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    gameParticipants: Schema.mutableKey(
-        Schema.mutable(Schema.Array(gameParticipantSchema)),
-    ),
-});
 
 export function decodeClientMessage(
     raw: unknown,
@@ -246,7 +268,7 @@ export function decodeClientMessage(
             issue,
             messageType: extractMessageType(value),
         });
-    }) as Effect.Effect<ClientMessage, RoomMessageDecodeError, never>;
+    });
 }
 
 export function decodeServerMessage(
@@ -257,17 +279,15 @@ export function decodeServerMessage(
             issue,
             messageType: extractMessageType(value),
         });
-    }) as Effect.Effect<ServerMessage, RoomMessageDecodeError, never>;
+    });
 }
 
 export function encodeServerMessage(message: ServerMessage): string {
-    return JSON.stringify(
-        Schema.encodeUnknownSync(serverMessageSchema)(message),
-    );
+    return encodeJsonMessage(serverMessageSchema, message);
 }
 
 function buildRoomStatePayload(state: GameState): RoomStatePayload {
-    return Schema.decodeUnknownSync(roomStatePayloadSchema)({
+    return {
         players: state.players,
         hostId: state.hostId,
         phase: state.phase,
@@ -275,7 +295,7 @@ function buildRoomStatePayload(state: GameState): RoomStatePayload {
         activeGameType: state.activeGameType,
         gameSessionId: state.gameSessionId,
         gameParticipants: state.gameParticipants,
-    }) as RoomStatePayload;
+    };
 }
 
 function canStartGame(
@@ -305,10 +325,7 @@ export const server = (state: GameState) => {
         broadcast(
             encodeServerMessage({
                 type: "room_state",
-                data: buildRoomStatePayload(state) as unknown as Record<
-                    string,
-                    unknown
-                >,
+                data: buildRoomStatePayload(state),
             }),
         );
     };
@@ -545,7 +562,10 @@ export const server = (state: GameState) => {
         },
 
         saveAnswer: (playerId: string, answer: string) => {
-            state.answers[playerId] = answer;
+            state.answers = {
+                ...state.answers,
+                [playerId]: answer,
+            };
             return state.answers;
         },
 

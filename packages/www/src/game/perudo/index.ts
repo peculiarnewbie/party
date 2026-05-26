@@ -30,6 +30,7 @@ export type { PerudoPlayerView, PerudoPlayerInfo } from "./views";
 export { getPlayerView } from "./views";
 export type { PerudoClientMessage, PerudoServerMessage } from "./messages";
 export {
+    decodePerudoClientMessage,
     perudoClientMessageSchema,
     perudoServerMessageSchema,
 } from "./messages";

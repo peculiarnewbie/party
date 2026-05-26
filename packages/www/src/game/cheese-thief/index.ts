@@ -9,6 +9,7 @@ export type {
 } from "./types";
 
 export {
+    decodeCheeseThiefClientMessage,
     cheeseThiefClientMessageSchema,
     type CheeseThiefClientMessage,
     cheeseThiefServerMessageSchema,

@@ -11,6 +11,7 @@ export type {
 export { CREATURE_TYPES } from "./types";
 
 export {
+    decodeCockroachPokerClientMessage,
     cockroachPokerClientMessageSchema,
     type CockroachPokerClientMessage,
     cockroachPokerServerMessageSchema,

@@ -1,49 +1,55 @@
-import z from "zod";
+import { Schema } from "effect";
 
-export const rpsClientMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("rps:throw"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            choice: z.enum(["rock", "paper", "scissors"]),
-        }),
+import { decodeGameClientMessage } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
+import {
+    emptyDataSchema,
+    serverMessageWithData,
+    unknownRecordSchema,
+} from "~/game/shared/wire-schemas";
+
+export const rpsChoices = ["rock", "paper", "scissors"] as const;
+export const rpsBestOfValues = [1, 3, 5] as const;
+
+export const rpsClientMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("rps:throw")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                choice: Schema.mutableKey(Schema.Literals(rpsChoices)),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("rps:next_round"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("rps:next_round")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("rps:set_best_of"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            bestOf: z.union([z.literal(1), z.literal(3), z.literal(5)]),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("rps:set_best_of")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                bestOf: Schema.mutableKey(Schema.Literals(rpsBestOfValues)),
+            }),
+        ),
     }),
 ]);
 
-export type RpsClientMessage = z.output<typeof rpsClientMessageSchema>;
-
-export const rpsServerMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("rps:state"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("rps:action"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("rps:game_over"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("rps:error"),
-        data: z.record(z.string(), z.unknown()),
-    }),
+export const rpsServerMessageSchema = Schema.Union([
+    serverMessageWithData("rps:state", unknownRecordSchema),
+    serverMessageWithData("rps:action", unknownRecordSchema),
+    serverMessageWithData("rps:game_over", unknownRecordSchema),
+    serverMessageWithData("rps:error", unknownRecordSchema),
 ]);
 
-export type RpsServerMessage = z.output<typeof rpsServerMessageSchema>;
+export type RpsClientMessage = SchemaType<typeof rpsClientMessageSchema>;
+export type RpsServerMessage = SchemaType<typeof rpsServerMessageSchema>;
+
+export function decodeRpsClientMessage(raw: unknown) {
+    return decodeGameClientMessage("rps", rpsClientMessageSchema, raw);
+}

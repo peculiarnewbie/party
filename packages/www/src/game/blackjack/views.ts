@@ -1,9 +1,10 @@
-import type { Card } from "~/assets/card-deck/types";
+import type { BlackjackState } from "./types";
 import type {
-    BlackjackState,
-    BlackjackPhase,
-    RoundResult,
-} from "./types";
+    BlackjackPlayerView,
+    DealerView,
+    PlayerHandView,
+    PlayerInfoView,
+} from "./schemas";
 import {
     getHandValue,
     isHandDone,
@@ -11,53 +12,12 @@ import {
     canDoubleDown,
 } from "./engine";
 
-export interface PlayerHandView {
-    cards: Card[];
-    bet: number;
-    doubled: boolean;
-    stood: boolean;
-    busted: boolean;
-    isBlackjack: boolean;
-    value: number;
-    soft: boolean;
-}
-
-export interface PlayerInfoView {
-    id: string;
-    name: string;
-    chips: number;
-    hands: PlayerHandView[];
-    currentHandIndex: number;
-    done: boolean;
-    bet: number;
-    insuranceBet: number;
-    insuranceDecided: boolean;
-}
-
-export interface DealerView {
-    cards: (Card | "hidden")[];
-    value: number | null;
-    upCardValue: number | null;
-    busted: boolean;
-}
-
-export interface BlackjackPlayerView {
-    phase: BlackjackPhase;
-    roundNumber: number;
-    myId: string;
-    dealer: DealerView;
-    players: PlayerInfoView[];
-    currentPlayerIndex: number;
-    results: RoundResult[] | null;
-    shoeCount: number;
-    canHit: boolean;
-    canStand: boolean;
-    canDouble: boolean;
-    canSplit: boolean;
-    isMyTurn: boolean;
-    needsBet: boolean;
-    needsInsurance: boolean;
-}
+export type {
+    BlackjackPlayerView,
+    DealerView,
+    PlayerHandView,
+    PlayerInfoView,
+};
 
 export function getPlayerView(
     state: BlackjackState,
@@ -71,12 +31,11 @@ export function getPlayerView(
     const currentHand =
         isMyTurn && me ? me.hands[me.currentHandIndex] : null;
 
-    const dealerCards: (Card | "hidden")[] = state.dealerHand.map(
-        (card, i) => {
+    const dealerCards: BlackjackPlayerView["dealer"]["cards"] =
+        state.dealerHand.map((card, i) => {
             if (i === 1 && !state.dealerRevealed) return "hidden";
             return card;
-        },
-    );
+        });
 
     let upCardValue: number | null = null;
     if (state.dealerHand.length > 0) {

@@ -1,57 +1,53 @@
-import z from "zod";
+import { Schema } from "effect";
 
-const faceValueSchema = z.union([
-    z.literal(1),
-    z.literal(2),
-    z.literal(3),
-    z.literal(4),
-    z.literal(5),
-    z.literal(6),
-]);
+import { decodeGameClientMessage } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
+import {
+    emptyDataSchema,
+    positiveIntSchema,
+    serverMessageWithData,
+    unknownRecordSchema,
+} from "~/game/shared/wire-schemas";
 
-export const perudoClientMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("perudo:bid"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            quantity: z.number().min(1),
-            faceValue: faceValueSchema,
-        }),
-    }),
-    z.object({
-        type: z.literal("perudo:challenge"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
-    }),
-    z.object({
-        type: z.literal("perudo:start_round"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
-    }),
-]);
+export const perudoFaceValues = [1, 2, 3, 4, 5, 6] as const;
+const faceValueSchema = Schema.Literals(perudoFaceValues);
 
-export type PerudoClientMessage = z.output<typeof perudoClientMessageSchema>;
-
-export const perudoServerMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("perudo:state"),
-        data: z.record(z.string(), z.unknown()),
+export const perudoClientMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("perudo:bid")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                quantity: Schema.mutableKey(positiveIntSchema),
+                faceValue: Schema.mutableKey(faceValueSchema),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("perudo:action"),
-        data: z.record(z.string(), z.unknown()),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("perudo:challenge")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("perudo:game_over"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("perudo:error"),
-        data: z.record(z.string(), z.unknown()),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("perudo:start_round")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
 ]);
 
-export type PerudoServerMessage = z.output<typeof perudoServerMessageSchema>;
+export const perudoServerMessageSchema = Schema.Union([
+    serverMessageWithData("perudo:state", unknownRecordSchema),
+    serverMessageWithData("perudo:action", unknownRecordSchema),
+    serverMessageWithData("perudo:game_over", unknownRecordSchema),
+    serverMessageWithData("perudo:error", unknownRecordSchema),
+]);
+
+export type PerudoClientMessage = SchemaType<typeof perudoClientMessageSchema>;
+export type PerudoServerMessage = SchemaType<typeof perudoServerMessageSchema>;
+
+export function decodePerudoClientMessage(raw: unknown) {
+    return decodeGameClientMessage("perudo", perudoClientMessageSchema, raw);
+}

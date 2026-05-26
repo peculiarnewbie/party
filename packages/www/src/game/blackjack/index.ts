@@ -4,10 +4,16 @@ export type {
     BlackjackHand,
     BlackjackAction,
     BlackjackResult,
+} from "./types";
+export type {
     BlackjackPhase,
     RoundResult,
     HandResult,
-} from "./types";
+    BlackjackPlayerView,
+    PlayerHandView,
+    PlayerInfoView,
+    DealerView,
+} from "./schemas";
 export {
     createShoe,
     getHandValue,
@@ -24,12 +30,6 @@ export {
     DECK_COUNT,
     MAX_SPLITS,
 } from "./engine";
-export type {
-    BlackjackPlayerView,
-    PlayerHandView,
-    PlayerInfoView,
-    DealerView,
-} from "./views";
 export { getPlayerView } from "./views";
 export type {
     BlackjackClientMessage,
@@ -37,6 +37,9 @@ export type {
 } from "./messages";
 export {
     blackjackClientMessageSchema,
+    blackjackServerMessageSchema,
     decodeBlackjackClientMessage,
+    encodeBlackjackServerMessage,
 } from "./messages";
+export { decodeBlackjackPlayerView } from "./schemas";
 export { blackjackServer } from "./server";

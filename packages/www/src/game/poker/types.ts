@@ -1,48 +1,16 @@
-import type { Card } from "~/assets/card-deck/types";
+import type { PokerStreet } from "./schemas";
 
-export type PokerStreet =
-    | "preflop"
-    | "flop"
-    | "turn"
-    | "river"
-    | "showdown"
-    | "hand_over"
-    | "tournament_over";
-
-export type PokerPlayerStatus =
-    | "active"
-    | "folded"
-    | "all_in"
-    | "busted"
-    | "disconnected";
-
-export type PokerAction =
-    | { type: "fold" }
-    | { type: "check" }
-    | { type: "call" }
-    | { type: "bet"; amount: number }
-    | { type: "raise"; amount: number }
-    | { type: "all_in" };
-
-export type PokerActionType = PokerAction["type"];
-
-export interface PokerPlayer {
-    id: string;
-    name: string;
-    stack: number;
-    holeCards: Card[];
-    status: PokerPlayerStatus;
-    connected: boolean;
-    committedThisStreet: number;
-    committedThisHand: number;
-    hasActedThisStreet: boolean;
-    raiseLocked: boolean;
-}
-
-export interface PokerPot {
-    amount: number;
-    eligiblePlayerIds: string[];
-}
+export type {
+    PokerAction,
+    PokerActionType,
+    PokerPlayer,
+    PokerPot,
+    PokerSpectator,
+    PokerEvent,
+    PokerState,
+    PokerStreet,
+    PokerPlayerStatus,
+} from "./schemas";
 
 export type PokerEventBase =
     | {
@@ -101,34 +69,6 @@ export type PokerEventBase =
           message: string;
           street: PokerStreet;
       };
-
-export type PokerEvent = PokerEventBase & { id: number };
-
-export interface PokerSpectator {
-    id: string;
-    name: string;
-}
-
-export interface PokerState {
-    players: PokerPlayer[];
-    spectators: PokerSpectator[];
-    deck: Card[];
-    board: Card[];
-    dealerIndex: number;
-    smallBlindIndex: number;
-    bigBlindIndex: number;
-    actingPlayerIndex: number | null;
-    street: PokerStreet;
-    pots: PokerPot[];
-    currentBet: number;
-    minRaise: number;
-    handNumber: number;
-    lastAggressorIndex: number | null;
-    endedByHost: boolean;
-    winnerIds: string[] | null;
-    eventLog: PokerEvent[];
-    eventSeq: number;
-}
 
 export type PokerActionResult =
     | {

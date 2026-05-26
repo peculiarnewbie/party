@@ -1,69 +1,72 @@
-import z from "zod";
+import { Schema } from "effect";
 
-const creatureTypeSchema = z.enum([
-    "bat",
-    "fly",
-    "cockroach",
-    "toad",
-    "rat",
-    "scorpion",
-    "spider",
-    "stink_bug",
+import { decodeGameClientMessage } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
+import { CREATURE_TYPES } from "./types";
+import {
+    emptyDataSchema,
+    nonNegativeIntSchema,
+    serverMessageWithData,
+    unknownRecordSchema,
+} from "~/game/shared/wire-schemas";
+
+const creatureTypeSchema = Schema.Literals(CREATURE_TYPES);
+
+export const cockroachPokerClientMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cockroach_poker:offer_card")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                targetId: Schema.mutableKey(Schema.String),
+                cardIndex: Schema.mutableKey(nonNegativeIntSchema),
+                claim: Schema.mutableKey(creatureTypeSchema),
+            }),
+        ),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cockroach_poker:call_true")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cockroach_poker:call_false")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cockroach_poker:peek_and_pass")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                targetId: Schema.mutableKey(Schema.String),
+                newClaim: Schema.mutableKey(creatureTypeSchema),
+            }),
+        ),
+    }),
 ]);
 
-export const cockroachPokerClientMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("cockroach_poker:offer_card"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            targetId: z.string(),
-            cardIndex: z.number().int().min(0),
-            claim: creatureTypeSchema,
-        }),
-    }),
-    z.object({
-        type: z.literal("cockroach_poker:call_true"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
-    }),
-    z.object({
-        type: z.literal("cockroach_poker:call_false"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
-    }),
-    z.object({
-        type: z.literal("cockroach_poker:peek_and_pass"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            targetId: z.string(),
-            newClaim: creatureTypeSchema,
-        }),
-    }),
+export const cockroachPokerServerMessageSchema = Schema.Union([
+    serverMessageWithData("cockroach_poker:state", unknownRecordSchema),
+    serverMessageWithData("cockroach_poker:action", unknownRecordSchema),
+    serverMessageWithData("cockroach_poker:error", unknownRecordSchema),
 ]);
 
-export type CockroachPokerClientMessage = z.output<
+export type CockroachPokerClientMessage = SchemaType<
     typeof cockroachPokerClientMessageSchema
 >;
-
-export const cockroachPokerServerMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("cockroach_poker:state"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("cockroach_poker:action"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("cockroach_poker:error"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-]);
-
-export type CockroachPokerServerMessage = z.output<
+export type CockroachPokerServerMessage = SchemaType<
     typeof cockroachPokerServerMessageSchema
 >;
+
+export function decodeCockroachPokerClientMessage(raw: unknown) {
+    return decodeGameClientMessage(
+        "cockroach_poker",
+        cockroachPokerClientMessageSchema,
+        raw,
+    );
+}

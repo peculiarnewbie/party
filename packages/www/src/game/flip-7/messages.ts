@@ -1,53 +1,54 @@
-import z from "zod";
+import { Schema } from "effect";
 
-export const flip7ClientMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("flip_7:hit"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+import { decodeGameClientMessage } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
+import {
+    emptyDataSchema,
+    serverMessageWithData,
+    unknownRecordSchema,
+} from "~/game/shared/wire-schemas";
+
+export const flip7ClientMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("flip_7:hit")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("flip_7:stay"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("flip_7:stay")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
-    z.object({
-        type: z.literal("flip_7:choose_target"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({
-            targetId: z.string(),
-        }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("flip_7:choose_target")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                targetId: Schema.mutableKey(Schema.String),
+            }),
+        ),
     }),
-    z.object({
-        type: z.literal("flip_7:next_round"),
-        playerId: z.string(),
-        playerName: z.string(),
-        data: z.object({}),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("flip_7:next_round")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
     }),
 ]);
 
-export type Flip7ClientMessage = z.output<typeof flip7ClientMessageSchema>;
-
-export const flip7ServerMessageSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("flip_7:state"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("flip_7:action"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("flip_7:error"),
-        data: z.record(z.string(), z.unknown()),
-    }),
-    z.object({
-        type: z.literal("flip_7:game_over"),
-        data: z.record(z.string(), z.unknown()),
-    }),
+export const flip7ServerMessageSchema = Schema.Union([
+    serverMessageWithData("flip_7:state", unknownRecordSchema),
+    serverMessageWithData("flip_7:action", unknownRecordSchema),
+    serverMessageWithData("flip_7:error", unknownRecordSchema),
+    serverMessageWithData("flip_7:game_over", unknownRecordSchema),
 ]);
 
-export type Flip7ServerMessage = z.output<typeof flip7ServerMessageSchema>;
+export type Flip7ClientMessage = SchemaType<typeof flip7ClientMessageSchema>;
+export type Flip7ServerMessage = SchemaType<typeof flip7ServerMessageSchema>;
+
+export function decodeFlip7ClientMessage(raw: unknown) {
+    return decodeGameClientMessage("flip_7", flip7ClientMessageSchema, raw);
+}

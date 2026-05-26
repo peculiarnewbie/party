@@ -16,8 +16,9 @@ export {
     SCORING_CATEGORIES,
     UPPER_CATEGORIES,
     LOWER_CATEGORIES,
-    CATEGORY_LABELS,
-} from "./types";
+    scoringCategories,
+} from "./schemas";
+export { CATEGORY_LABELS } from "./types";
 export {
     endGameByHost,
     initGame,
@@ -38,10 +39,7 @@ export {
     YAHTZEE_BONUS_POINTS,
     YAHTZEE_BASE_POINTS,
 } from "./engine";
-export type {
-    YahtzeePlayerView,
-    YahtzeePlayerInfo,
-} from "./views";
+export type { YahtzeePlayerView, YahtzeePlayerInfo } from "./schemas";
 export { getPlayerView } from "./views";
 export type {
     YahtzeeClientMessage,

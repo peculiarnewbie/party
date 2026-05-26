@@ -26,6 +26,7 @@ export {
 } from "./engine";
 export type { Flip7ClientMessage, Flip7ServerMessage } from "./messages";
 export {
+    decodeFlip7ClientMessage,
     flip7ClientMessageSchema,
     flip7ServerMessageSchema,
 } from "./messages";

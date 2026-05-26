@@ -1,8 +1,8 @@
 import { Schema } from "effect";
 
-import { RANKS, SUITS } from "~/assets/card-deck/types";
-
-import type { PokerPlayerView } from "./views";
+import { decodeUnknownSync } from "~/effect/schema-helpers";
+import type { SchemaType } from "~/effect/schema-types";
+import { cardSchema } from "~/game/shared/card-schemas";
 
 export const pokerStreets = [
     "preflop",
@@ -31,17 +31,9 @@ export const pokerActionTypes = [
     "all_in",
 ] as const;
 
-const suitSchema = Schema.Literals(SUITS);
-const rankSchema = Schema.Literals(RANKS);
-
 export const pokerStreetSchema = Schema.Literals(pokerStreets);
 export const pokerPlayerStatusSchema = Schema.Literals(pokerPlayerStatuses);
 export const pokerActionTypeSchema = Schema.Literals(pokerActionTypes);
-
-export const cardSchema = Schema.Struct({
-    suit: Schema.mutableKey(suitSchema),
-    rank: Schema.mutableKey(rankSchema),
-});
 
 export const pokerPotSchema = Schema.Struct({
     amount: Schema.mutableKey(Schema.Number),
@@ -124,7 +116,7 @@ export const pokerEventSchema = Schema.Union([
     }),
 ]);
 
-const pokerPlayerPublicViewSchema = Schema.Struct({
+export const pokerPlayerPublicViewSchema = Schema.Struct({
     id: Schema.mutableKey(Schema.String),
     name: Schema.mutableKey(Schema.String),
     stack: Schema.mutableKey(Schema.Number),
@@ -185,7 +177,7 @@ export const pokerGameOverPayloadSchema = Schema.Struct({
     endedByHost: Schema.mutableKey(Schema.Boolean),
 });
 
-const pokerPlayerSchema = Schema.Struct({
+export const pokerPlayerSchema = Schema.Struct({
     id: Schema.mutableKey(Schema.String),
     name: Schema.mutableKey(Schema.String),
     stack: Schema.mutableKey(Schema.Number),
@@ -223,9 +215,55 @@ export const pokerStateSchema = Schema.Struct({
     eventSeq: Schema.mutableKey(Schema.Number),
 });
 
+export const positiveIntSchema = Schema.Number.check(
+    Schema.isInt(),
+    Schema.isGreaterThan(0),
+);
+
+export const pokerActionSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("fold")),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("check")),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("call")),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("bet")),
+        amount: Schema.mutableKey(positiveIntSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("raise")),
+        amount: Schema.mutableKey(positiveIntSchema),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("all_in")),
+    }),
+]);
+
+export type PokerStreet = SchemaType<typeof pokerStreetSchema>;
+export type PokerPlayerStatus = SchemaType<typeof pokerPlayerStatusSchema>;
+export type PokerActionType = SchemaType<typeof pokerActionTypeSchema>;
+export type PokerAction = SchemaType<typeof pokerActionSchema>;
+export type PokerPot = SchemaType<typeof pokerPotSchema>;
+export type PokerSpectator = SchemaType<typeof pokerSpectatorSchema>;
+export type PokerEvent = SchemaType<typeof pokerEventSchema>;
+export type PokerPlayerPublicView = SchemaType<
+    typeof pokerPlayerPublicViewSchema
+>;
+export type PokerPlayerView = SchemaType<typeof pokerPlayerViewSchema>;
+export type PokerPlayer = SchemaType<typeof pokerPlayerSchema>;
+export type PokerState = SchemaType<typeof pokerStateSchema>;
+export type PokerActionResultPayload = SchemaType<
+    typeof pokerActionResultPayloadSchema
+>;
+export type PokerGameOverPayload = SchemaType<typeof pokerGameOverPayloadSchema>;
+
 export function decodePokerPlayerView(raw: unknown): PokerPlayerView | null {
     try {
-        return Schema.decodeUnknownSync(pokerPlayerViewSchema)(raw) as PokerPlayerView;
+        return decodeUnknownSync(pokerPlayerViewSchema, raw);
     } catch {
         return null;
     }

@@ -80,6 +80,7 @@ import {
     type PersistedGameSnapshot,
 } from "~/worker/room-storage";
 import {
+    decodeGameClientMessageOrNull,
     RoomMessageDecodeError,
     formatUnknownError,
 } from "~/effect/schema-helpers";
@@ -538,10 +539,7 @@ export class GameRoom extends DurableObject {
     roomStateMessage() {
         return encodeServerMessage({
             type: "room_state",
-            data: server(this.state).getRoomState() as unknown as Record<
-                string,
-                unknown
-            >,
+            data: server(this.state).getRoomState(),
         });
     }
 
@@ -1290,21 +1288,30 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("perudo:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "perudo",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGameClientMessageOrNull(
+                        "perudo",
+                        perudoClientMessageSchema,
+                        json,
+                        {
+                            operation: "game-room.perudo-message.decode",
+                            component: "perudo-transport",
+                        },
                     );
-                    const parsed = perudoClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+                    if (!parsed) return;
+
                     perudoServer(this.perudoState).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "perudo",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
@@ -1312,21 +1319,30 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("rps:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "rps",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGameClientMessageOrNull(
+                        "rps",
+                        rpsClientMessageSchema,
+                        json,
+                        {
+                            operation: "game-room.rps-message.decode",
+                            component: "rps-transport",
+                        },
                     );
-                    const parsed = rpsClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+                    if (!parsed) return;
+
                     rpsServer(this.rpsState).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "rps",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
@@ -1334,21 +1350,30 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("herd:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "herd",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGameClientMessageOrNull(
+                        "herd",
+                        herdClientMessageSchema,
+                        json,
+                        {
+                            operation: "game-room.herd-message.decode",
+                            component: "herd-transport",
+                        },
                     );
-                    const parsed = herdClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+                    if (!parsed) return;
+
                     herdServer(this.herdState).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "herd",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
@@ -1356,21 +1381,30 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("fun_facts:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "fun_facts",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGameClientMessageOrNull(
+                        "fun_facts",
+                        funFactsClientMessageSchema,
+                        json,
+                        {
+                            operation: "game-room.fun-facts-message.decode",
+                            component: "fun-facts-transport",
+                        },
                     );
-                    const parsed = funFactsClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+                    if (!parsed) return;
+
                     funFactsServer(this.funFactsState).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "fun_facts",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
@@ -1378,21 +1412,30 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("cheese_thief:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "cheese_thief",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGameClientMessageOrNull(
+                        "cheese_thief",
+                        cheeseThiefClientMessageSchema,
+                        json,
+                        {
+                            operation: "game-room.cheese-thief-message.decode",
+                            component: "cheese-thief-transport",
+                        },
                     );
-                    const parsed = cheeseThiefClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+                    if (!parsed) return;
+
                     cheeseThiefServer(this.cheeseThiefState).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "cheese_thief",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
@@ -1400,22 +1443,31 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("cockroach_poker:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "cockroach_poker",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGameClientMessageOrNull(
+                        "cockroach_poker",
+                        cockroachPokerClientMessageSchema,
+                        json,
+                        {
+                            operation:
+                                "game-room.cockroach-poker-message.decode",
+                            component: "cockroach-poker-transport",
+                        },
                     );
-                    const parsed =
-                        cockroachPokerClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+                    if (!parsed) return;
+
                     cockroachPokerServer(this.cockroachPokerState).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "cockroach_poker",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
@@ -1423,21 +1475,30 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("flip_7:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "flip_7",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGameClientMessageOrNull(
+                        "flip_7",
+                        flip7ClientMessageSchema,
+                        json,
+                        {
+                            operation: "game-room.flip-7-message.decode",
+                            component: "flip-7-transport",
+                        },
                     );
-                    const parsed = flip7ClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+                    if (!parsed) return;
+
                     flip7Server(this.flip7State).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "flip_7",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
@@ -1445,21 +1506,30 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("skull:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "skull",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGameClientMessageOrNull(
+                        "skull",
+                        skullClientMessageSchema,
+                        json,
+                        {
+                            operation: "game-room.skull-message.decode",
+                            component: "skull-transport",
+                        },
                     );
-                    const parsed = skullClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+                    if (!parsed) return;
+
                     skullServer(this.skullState).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "skull",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
@@ -1467,21 +1537,30 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith("spicy:")
                 ) {
-                    yield* Effect.logInfo("game-room.message.legacy-branch").pipe(
-                        Effect.annotateLogs({
-                            component: "game-room",
-                            branch: "spicy",
-                            result: "legacy",
-                        }),
+                    const parsed = yield* decodeGameClientMessageOrNull(
+                        "spicy",
+                        spicyClientMessageSchema,
+                        json,
+                        {
+                            operation: "game-room.spicy-message.decode",
+                            component: "spicy-transport",
+                        },
                     );
-                    const parsed = spicyClientMessageSchema.safeParse(json);
-                    if (!parsed.success) return;
+                    if (!parsed) return;
+
                     spicyServer(this.spicyState).processMessage(
-                        parsed.data,
+                        parsed,
                         broadcast,
                         sendTo,
                     );
                     this.persistGameSnapshot();
+                    yield* Effect.logInfo("game-room.message.processed").pipe(
+                        Effect.annotateLogs({
+                            component: "game-room",
+                            branch: "spicy",
+                            result: "ok",
+                        }),
+                    );
                     return;
                 }
 
