@@ -42,7 +42,10 @@ function broadcastStateToAll(
 export const blackjackServer = (
     stateRef: { current: BlackjackState | null },
     opts: {
-        scheduleNextRound: () => void;
+        scheduleNextRound?: (
+            broadcast: (msg: string) => void,
+            sendTo: (playerId: string, msg: string) => void,
+        ) => void;
     },
 ) => ({
     sendStateToPlayer(
@@ -134,7 +137,7 @@ export const blackjackServer = (
                     data: { results: state.results },
                 }),
             );
-            opts.scheduleNextRound();
+            opts.scheduleNextRound?.(broadcast, sendTo);
         }
     },
 
@@ -175,7 +178,7 @@ export const blackjackServer = (
                     data: { results: state.results },
                 }),
             );
-            opts.scheduleNextRound();
+            opts.scheduleNextRound?.(broadcast, sendTo);
         }
     },
 });

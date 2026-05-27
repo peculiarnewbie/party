@@ -64,7 +64,10 @@ function broadcastState(
 export const pokerServer = (
     stateRef: { current: PokerState | null },
     opts?: {
-        scheduleNextHand?: () => void;
+        scheduleNextHand?: (
+            broadcast: (msg: string) => void,
+            sendTo: (playerId: string, msg: string) => void,
+        ) => void;
         visibilityMode?: PokerVisibilityMode;
     },
 ) => ({
@@ -82,7 +85,7 @@ export const pokerServer = (
             opts?.visibilityMode ?? "standard",
         );
         if (state.street === "hand_over") {
-            opts?.scheduleNextHand?.();
+            opts?.scheduleNextHand?.(broadcast, sendTo);
         }
     },
 
@@ -133,7 +136,7 @@ export const pokerServer = (
             opts?.visibilityMode ?? "standard",
         );
         if (state.street === "hand_over") {
-            opts?.scheduleNextHand?.();
+            opts?.scheduleNextHand?.(broadcast, sendTo);
         }
     },
 
@@ -164,7 +167,7 @@ export const pokerServer = (
             opts?.visibilityMode ?? "standard",
         );
         if (state.street === "hand_over") {
-            opts?.scheduleNextHand?.();
+            opts?.scheduleNextHand?.(broadcast, sendTo);
         }
     },
 
@@ -200,7 +203,7 @@ export const pokerServer = (
             opts?.visibilityMode ?? "standard",
         );
         if (state.street === "hand_over") {
-            opts?.scheduleNextHand?.();
+            opts?.scheduleNextHand?.(broadcast, sendTo);
         }
     },
 });

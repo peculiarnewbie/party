@@ -522,18 +522,18 @@ describe("GameRoom poker sequences", () => {
                     (entry) => entry.playerId === actingPlayerId,
                 );
                 const street = (instance.gameStateHolder.current as PokerState | null)?.street;
-                const nextHandTimer = instance.nextHandTimer;
+                const clearGameTimer = instance.clearGameTimer;
 
                 if (
                     participant?.status === "disconnected" &&
                     street === "hand_over" &&
-                    nextHandTimer !== null
+                    clearGameTimer !== null
                 ) {
                     return {
                         phase: instance.state.phase,
                         participant,
                         street,
-                        nextHandTimer,
+                        nextHandTimer: clearGameTimer,
                     };
                 }
 

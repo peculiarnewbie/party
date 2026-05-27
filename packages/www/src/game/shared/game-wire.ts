@@ -57,7 +57,8 @@ export function createPlayerViewDecoder<ViewSchema extends Schema.Top>(
     return (raw: unknown): SchemaType<ViewSchema> | null => {
         try {
             return decodeUnknownSync(viewSchema, raw);
-        } catch {
+        } catch (error) {
+            console.warn("[game-wire] player view decode failed", error);
             return null;
         }
     };
@@ -80,7 +81,8 @@ export function createServerMessageDecoder<
             }
 
             return message as unknown as SideMessage;
-        } catch {
+        } catch (error) {
+            console.warn("[game-wire] server message decode failed", error);
             return null;
         }
     };

@@ -1,4 +1,5 @@
 import type { GameType } from "~/game";
+import { isPokerGameType } from "~/game";
 import { decodeGameClientMessageOrNull } from "~/effect/schema-helpers";
 import { goFishServer, goFishClientMessageSchema } from "~/game/go-fish";
 import { pokerServer, pokerClientMessageSchema } from "~/game/poker";
@@ -16,6 +17,9 @@ import { spicyServer, spicyClientMessageSchema } from "~/game/spicy";
 
 type BroadcastFn = (msg: string) => void;
 type SendToFn = (playerId: string, msg: string) => void;
+
+const POKER_NEXT_HAND_DELAY_MS = 4500;
+const BLACKJACK_NEXT_ROUND_DELAY_MS = 5000;
 
 export interface GameAdapter {
     messagePrefix: string;
@@ -49,10 +53,6 @@ export interface GameAdapter {
     ): void;
 }
 
-function isPokerGameType(gameType: GameType): boolean {
-    return gameType === "poker" || gameType === "backwards_poker";
-}
-
 function getPokerVisibilityMode(gameType: GameType): "standard" | "backwards" {
     return gameType === "backwards_poker" ? "backwards" : "standard";
 }
@@ -61,9 +61,19 @@ function getYahtzeeMode(gameType: GameType): "standard" | "lying" {
     return gameType === "lying_yahtzee" ? "lying" : "standard";
 }
 
+function requireHostId(hostId: string | null, gameType: string): string {
+    if (hostId === null) {
+        throw new Error(`Cannot init ${gameType}: hostId is null`);
+    }
+    return hostId;
+}
+
 export interface GameAdapterContext {
-    scheduleNextHand?: () => void;
-    scheduleNextRound?: () => void;
+    endGameAndPersist: (
+        broadcast: (msg: string) => void,
+        sendTo: (playerId: string, msg: string) => void,
+    ) => void;
+    setGameTimer: (clearFn: (() => void) | null) => void;
 }
 
 export function createGameAdapter(
@@ -89,13 +99,30 @@ export function createGameAdapter(
             removePlayer: (playerId, broadcast, sendTo) =>
                 goFishServer(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: () => {},
+
         };
     }
 
     if (isPokerGameType(gameType)) {
         const ref = stateRef as { current: import("~/game/poker").PokerState | null };
         const vis = getPokerVisibilityMode(gameType);
-        const opts = { visibilityMode: vis, scheduleNextHand: adapterCtx?.scheduleNextHand };
+        let nextHandTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleNextHand = adapterCtx
+            ? (broadcast: (msg: string) => void, sendTo: (playerId: string, msg: string) => void) => {
+                if (nextHandTimer) clearTimeout(nextHandTimer);
+                nextHandTimer = setTimeout(() => {
+                    nextHandTimer = null;
+                    adapterCtx.endGameAndPersist(broadcast, sendTo);
+                }, POKER_NEXT_HAND_DELAY_MS);
+                adapterCtx.setGameTimer(() => {
+                    if (nextHandTimer) {
+                        clearTimeout(nextHandTimer);
+                        nextHandTimer = null;
+                    }
+                });
+            }
+            : undefined;
+        const opts = { visibilityMode: vis, scheduleNextHand };
         return {
             messagePrefix: "poker:",
             decodeMessage: (json) =>
@@ -125,7 +152,23 @@ export function createGameAdapter(
 
     if (gameType === "blackjack") {
         const ref = stateRef as { current: import("~/game/blackjack").BlackjackState | null };
-        const opts = { scheduleNextRound: () => {} };
+        let nextRoundTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleNextRound = adapterCtx
+            ? (broadcast: (msg: string) => void, sendTo: (playerId: string, msg: string) => void) => {
+                if (nextRoundTimer) clearTimeout(nextRoundTimer);
+                nextRoundTimer = setTimeout(() => {
+                    nextRoundTimer = null;
+                    adapterCtx.endGameAndPersist(broadcast, sendTo);
+                }, BLACKJACK_NEXT_ROUND_DELAY_MS);
+                adapterCtx.setGameTimer(() => {
+                    if (nextRoundTimer) {
+                        clearTimeout(nextRoundTimer);
+                        nextRoundTimer = null;
+                    }
+                });
+            }
+            : undefined;
+        const opts = { scheduleNextRound };
         return {
             messagePrefix: "blackjack:",
             decodeMessage: (json) =>
@@ -166,6 +209,7 @@ export function createGameAdapter(
                 yahtzeeServer(ref, opts).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 yahtzeeServer(ref, opts).endGame(broadcast, sendTo),
+
         };
     }
 
@@ -188,6 +232,7 @@ export function createGameAdapter(
                 perudoServer(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 perudoServer(ref).endGame(broadcast, sendTo),
+
         };
     }
 
@@ -210,6 +255,7 @@ export function createGameAdapter(
                 rpsServer(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 rpsServer(ref).endGame(broadcast, sendTo),
+
         };
     }
 
@@ -227,11 +273,12 @@ export function createGameAdapter(
             sendStateToPlayer: (playerId, sendTo) =>
                 herdServer(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, hostId, broadcast, sendTo) =>
-                herdServer(ref).initGame(players, hostId!, broadcast, sendTo),
+                herdServer(ref).initGame(players, requireHostId(hostId, "herd"), broadcast, sendTo),
             removePlayer: (playerId, broadcast, sendTo) =>
                 herdServer(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 herdServer(ref).endGame(broadcast, sendTo),
+
         };
     }
 
@@ -249,11 +296,12 @@ export function createGameAdapter(
             sendStateToPlayer: (playerId, sendTo) =>
                 funFactsServer(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, hostId, broadcast, sendTo) =>
-                funFactsServer(ref).initGame(players, hostId!, broadcast, sendTo),
+                funFactsServer(ref).initGame(players, requireHostId(hostId, "fun_facts"), broadcast, sendTo),
             removePlayer: (playerId, broadcast, sendTo) =>
                 funFactsServer(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 funFactsServer(ref).endGame(broadcast, sendTo),
+
         };
     }
 
@@ -271,11 +319,12 @@ export function createGameAdapter(
             sendStateToPlayer: (playerId, sendTo) =>
                 cheeseThiefServer(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, hostId, broadcast, sendTo) =>
-                cheeseThiefServer(ref).initGame(players, hostId!, broadcast, sendTo),
+                cheeseThiefServer(ref).initGame(players, requireHostId(hostId, "cheese_thief"), broadcast, sendTo),
             removePlayer: (playerId, broadcast, sendTo) =>
                 cheeseThiefServer(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 cheeseThiefServer(ref).endGame(broadcast, sendTo),
+
         };
     }
 
@@ -298,6 +347,7 @@ export function createGameAdapter(
                 cockroachPokerServer(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 cockroachPokerServer(ref).endGame(broadcast, sendTo),
+
         };
     }
 
@@ -315,11 +365,12 @@ export function createGameAdapter(
             sendStateToPlayer: (playerId, sendTo) =>
                 flip7Server(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, hostId, broadcast, sendTo) =>
-                flip7Server(ref).initGame(players, hostId!, broadcast, sendTo),
+                flip7Server(ref).initGame(players, requireHostId(hostId, "flip_7"), broadcast, sendTo),
             removePlayer: (playerId, broadcast, sendTo) =>
                 flip7Server(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 flip7Server(ref).endGame(broadcast, sendTo),
+
         };
     }
 
@@ -342,6 +393,7 @@ export function createGameAdapter(
                 skullServer(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 skullServer(ref).endGame(broadcast, sendTo),
+
         };
     }
 
@@ -364,6 +416,7 @@ export function createGameAdapter(
                 spicyServer(ref).removePlayer(playerId, broadcast, sendTo),
             endGame: (broadcast, sendTo) =>
                 spicyServer(ref).endGame(broadcast, sendTo),
+
         };
     }
 

@@ -39,7 +39,7 @@ export class GameRoom extends DurableObject {
     sessions: Map<WebSocket, { id: string; playerId: string | null }>;
     state: GameState;
     gameStateHolder: { current: unknown };
-    nextHandTimer: ReturnType<typeof setTimeout> | null;
+    clearGameTimer: (() => void) | null;
     ready: Promise<void>;
 
     constructor(ctx: DurableObjectState, env: Env) {
@@ -47,7 +47,7 @@ export class GameRoom extends DurableObject {
         this.sessions = new Map();
         this.state = createDefaultState();
         this.gameStateHolder = { current: null };
-        this.nextHandTimer = null;
+        this.clearGameTimer = null;
         this.ready = this.ctx.blockConcurrencyWhile(async () => {
             const exit = await runObservedPromiseExit(
                 ensureSchema(this.ctx).pipe(
@@ -187,7 +187,8 @@ export class GameRoom extends DurableObject {
     }
 
     resetRoom() {
-        this.clearNextHandTimer();
+        this.clearGameTimer?.();
+        this.clearGameTimer = null;
         this.gameStateHolder.current = null;
         this.state = createDefaultState();
     }
@@ -197,7 +198,8 @@ export class GameRoom extends DurableObject {
             return;
         }
 
-        this.clearNextHandTimer();
+        this.clearGameTimer?.();
+        this.clearGameTimer = null;
         this.state.phase = "hibernated";
         this.persistAllState();
         await this.scheduleHibernationCleanup();
@@ -207,13 +209,6 @@ export class GameRoom extends DurableObject {
         this.resetRoom();
         await this.clearHibernationCleanup();
         this.persistAllState();
-    }
-
-    clearNextHandTimer() {
-        if (this.nextHandTimer) {
-            clearTimeout(this.nextHandTimer);
-            this.nextHandTimer = null;
-        }
     }
 
     getGameParticipant(playerId: string) {
@@ -343,33 +338,17 @@ export class GameRoom extends DurableObject {
             });
         };
 
-        const schedulePokerNextHand = () => {
-            this.clearNextHandTimer();
-            this.nextHandTimer = setTimeout(() => {
-                this.nextHandTimer = null;
-                const adapter = this.activeAdapter(adapterCtx);
-                if (adapter) {
-                    adapter.endGame(broadcast, sendTo);
-                }
-                this.persistGameSnapshot();
-            }, 4500);
-        };
-
-        const scheduleBlackjackNextRound = () => {
-            this.clearNextHandTimer();
-            this.nextHandTimer = setTimeout(() => {
-                this.nextHandTimer = null;
-                const adapter = this.activeAdapter(adapterCtx);
-                if (adapter) {
-                    adapter.endGame(broadcast, sendTo);
-                }
-                this.persistGameSnapshot();
-            }, 5000);
-        };
-
         const adapterCtx: GameAdapterContext = {
-            scheduleNextHand: schedulePokerNextHand,
-            scheduleNextRound: scheduleBlackjackNextRound,
+            endGameAndPersist: (broadcast, sendTo) => {
+                const adapter = this.activeAdapter(adapterCtx);
+                if (adapter) {
+                    adapter.endGame(broadcast, sendTo);
+                }
+                this.persistGameSnapshot();
+            },
+            setGameTimer: (clearFn) => {
+                this.clearGameTimer = clearFn;
+            },
         };
 
         sendRoomStateToSocket(serverWs);
@@ -657,7 +636,8 @@ export class GameRoom extends DurableObject {
                     yield* Effect.promise(() =>
                         this.clearHibernationCleanup(),
                     );
-                    this.clearNextHandTimer();
+                    this.clearGameTimer?.();
+                    this.clearGameTimer = null;
                     this.gameStateHolder.current = null;
 
                     const gameAdapter = createGameAdapter(
@@ -697,7 +677,8 @@ export class GameRoom extends DurableObject {
                             this.gameStateHolder,
                         );
                         if (endAdapter) {
-                            this.clearNextHandTimer();
+                            this.clearGameTimer?.();
+                            this.clearGameTimer = null;
                             endAdapter.endGame(broadcast, sendTo);
                         }
                     }
@@ -735,7 +716,8 @@ export class GameRoom extends DurableObject {
 
                 if (processResult.kind === "return_to_lobby") {
                     yield* Effect.promise(() => this.clearHibernationCleanup());
-                    this.clearNextHandTimer();
+                    this.clearGameTimer?.();
+                    this.clearGameTimer = null;
                     this.gameStateHolder.current = null;
                     this.persistAllState();
                     yield* Effect.logInfo("game-room.message.processed").pipe(
