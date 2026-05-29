@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { createFileRoute } from '@tanstack/solid-router'
 import { json } from '@tanstack/solid-start'
 import type { User } from '~/utils/users'
@@ -6,7 +7,7 @@ export const Route = createFileRoute('/api/users/$userId')({
   server: {
     handlers: {
       GET: async ({ params, request }) => {
-        console.info(`Fetching users by id=${params.userId}... @`, request.url)
+        Effect.runSync(Effect.logInfo("Fetching user by id").pipe(Effect.annotateLogs({ component: "route", route: "/api/users/$userId", userId: params.userId, url: request.url })));
         try {
           const res = await fetch(
             'https://jsonplaceholder.typicode.com/users/' + params.userId,
@@ -24,7 +25,7 @@ export const Route = createFileRoute('/api/users/$userId')({
             email: user.email,
           })
         } catch (e) {
-          console.error(e)
+          Effect.runSync(Effect.logError("User not found").pipe(Effect.annotateLogs({ component: "route", route: "/api/users/$userId", userId: params.userId })));
           return json({ error: 'User not found' }, { status: 404 })
         }
       },

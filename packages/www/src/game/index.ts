@@ -8,6 +8,11 @@ import {
 } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
 import { emptyDataSchema } from "~/game/shared/wire-schemas";
+import {
+    nullablePlayerIdSchema,
+    playerIdSchema,
+    type PlayerId,
+} from "~/game/shared/branded-ids";
 
 export const gameTypes = [
     "quiz",
@@ -168,13 +173,13 @@ export const messageTypes = [
 export type MessageType = (typeof messageTypes)[number];
 
 export const playerSchema = Schema.Struct({
-    id: Schema.mutableKey(Schema.String),
+    id: Schema.mutableKey(playerIdSchema),
     name: Schema.mutableKey(Schema.String),
     score: Schema.optionalKey(Schema.mutableKey(Schema.Number)),
 });
 
 export const gameParticipantSchema = Schema.Struct({
-    playerId: Schema.mutableKey(Schema.String),
+    playerId: Schema.mutableKey(playerIdSchema),
     status: Schema.mutableKey(
         Schema.Literals(["active", "disconnected", "left_game"] as const),
     ),
@@ -182,7 +187,7 @@ export const gameParticipantSchema = Schema.Struct({
 
 export const gameStateSchema = Schema.Struct({
     players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
-    hostId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    hostId: Schema.mutableKey(nullablePlayerIdSchema),
     answers: Schema.mutableKey(Schema.Record(Schema.String, Schema.String)),
     phase: Schema.mutableKey(roomPhaseSchema),
     selectedGameType: Schema.mutableKey(gameTypeSchema),
@@ -195,7 +200,7 @@ export const gameStateSchema = Schema.Struct({
 
 export const roomStatePayloadSchema = Schema.Struct({
     players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
-    hostId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    hostId: Schema.mutableKey(nullablePlayerIdSchema),
     phase: Schema.mutableKey(roomPhaseSchema),
     selectedGameType: Schema.mutableKey(gameTypeSchema),
     activeGameType: Schema.mutableKey(Schema.NullOr(gameTypeSchema)),
@@ -210,12 +215,15 @@ export type GameParticipant = SchemaType<typeof gameParticipantSchema>;
 export type GameState = SchemaType<typeof gameStateSchema>;
 export type RoomStatePayload = SchemaType<typeof roomStatePayloadSchema>;
 
+export { playerIdSchema, nullablePlayerIdSchema, parsePlayerId } from "~/game/shared/branded-ids";
+export type { PlayerId } from "~/game/shared/branded-ids";
+
 export type RoomProcessResult =
     | { kind: "none" }
     | { kind: "start"; gameType: GameType }
     | { kind: "end"; gameType: GameType | null }
     | { kind: "return_to_lobby" }
-    | { kind: "leave_game"; gameType: GameType; playerId: string };
+    | { kind: "leave_game"; gameType: GameType; playerId: PlayerId };
 
 const selectGameClientDataSchema = Schema.Struct({
     gameType: Schema.mutableKey(gameTypeSchema),
@@ -227,73 +235,73 @@ const answerClientDataSchema = Schema.Struct({
 
 export const clientMessageSchema = Schema.Union([
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("identify")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("join")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("leave")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("leave_game")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("resume_room")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("restart_room")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("select_game")),
         data: Schema.mutableKey(selectGameClientDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("start")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("end")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("return_to_lobby")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("info")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        playerId: Schema.mutableKey(Schema.String),
+        playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(Schema.String),
         type: Schema.mutableKey(Schema.Literal("answer")),
         data: Schema.mutableKey(answerClientDataSchema),
@@ -305,7 +313,7 @@ const playerListPayloadSchema = Schema.Struct({
 });
 
 const hostAssignedPayloadSchema = Schema.Struct({
-    hostId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    hostId: Schema.mutableKey(nullablePlayerIdSchema),
 });
 
 const gameTypePayloadSchema = Schema.Struct({
@@ -588,13 +596,13 @@ export const server = (state: GameState) => {
     };
 
     return {
-        getOrSetHost: (playerId: string) => {
+        getOrSetHost: (playerId: PlayerId): PlayerId => {
             if (state.hostId) return state.hostId;
             state.hostId = playerId;
             return playerId;
         },
 
-        addPlayer: (playerId: string, name: string) => {
+        addPlayer: (playerId: PlayerId, name: string) => {
             const existingIndex = state.players.findIndex(
                 (p) => p.id === playerId,
             );
@@ -606,7 +614,7 @@ export const server = (state: GameState) => {
             return state.players;
         },
 
-        removePlayer: (playerId: string) => {
+        removePlayer: (playerId: PlayerId) => {
             state.players = state.players.filter(({ id }) => id !== playerId);
 
             if (state.phase === "lobby" && state.hostId === playerId) {
@@ -618,7 +626,7 @@ export const server = (state: GameState) => {
 
         getPlayers: () => state.players,
 
-        getHostId: () => state.hostId,
+        getHostId: (): PlayerId | null => state.hostId,
 
         getRoomState: () => buildRoomStatePayload(state),
 
@@ -635,13 +643,13 @@ export const server = (state: GameState) => {
             state.gameParticipants = [];
         },
 
-        getGameParticipant: (playerId: string) =>
+        getGameParticipant: (playerId: PlayerId) =>
             state.gameParticipants.find(
                 (participant) => participant.playerId === playerId,
             ) ?? null,
 
         setGameParticipantStatus: (
-            playerId: string,
+            playerId: PlayerId,
             status: GameParticipantStatus,
         ) => {
             const participant = state.gameParticipants.find(
@@ -652,7 +660,7 @@ export const server = (state: GameState) => {
             return participant;
         },
 
-        saveAnswer: (playerId: string, answer: string) => {
+        saveAnswer: (playerId: PlayerId, answer: string) => {
             state.answers = {
                 ...state.answers,
                 [playerId]: answer,

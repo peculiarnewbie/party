@@ -7,7 +7,9 @@ import {
     messageTypes,
     server,
 } from "~/game";
-import type { GameState } from "~/game";
+import type { GameState, PlayerId } from "~/game";
+
+const pid = (s: string) => s as PlayerId;
 
 function makeRoomState(overrides?: Partial<GameState>): GameState {
     return {
@@ -27,11 +29,11 @@ describe("Game Logic", () => {
     describe("Player Management", () => {
         it("adds a new player to empty room", () => {
             const state = makeRoomState();
-            const result = server(state).addPlayer("player-123", "Alice");
+            const result = server(state).addPlayer(pid("player-123"), "Alice");
 
             expect(result).toHaveLength(1);
             expect(result[0]).toEqual({
-                id: "player-123",
+                id: pid("player-123"),
                 name: "Alice",
                 score: 0,
             });
@@ -39,10 +41,10 @@ describe("Game Logic", () => {
 
         it("updates existing player name on reconnect", () => {
             const state = makeRoomState({
-                players: [{ id: "player-123", name: "Alice", score: 10 }],
+                players: [{ id: pid("player-123"), name: "Alice", score: 10 }],
             });
             const result = server(state).addPlayer(
-                "player-123",
+                pid("player-123"),
                 "Alice Updated",
             );
 
@@ -53,9 +55,9 @@ describe("Game Logic", () => {
 
         it("adds new player alongside existing ones", () => {
             const state = makeRoomState({
-                players: [{ id: "player-123", name: "Alice", score: 0 }],
+                players: [{ id: pid("player-123"), name: "Alice", score: 0 }],
             });
-            const result = server(state).addPlayer("player-456", "Bob");
+            const result = server(state).addPlayer(pid("player-456"), "Bob");
 
             expect(result).toHaveLength(2);
             expect(result[0].name).toBe("Alice");
@@ -65,11 +67,11 @@ describe("Game Logic", () => {
         it("removes player from room", () => {
             const state = makeRoomState({
                 players: [
-                    { id: "player-123", name: "Alice", score: 0 },
-                    { id: "player-456", name: "Bob", score: 0 },
+                    { id: pid("player-123"), name: "Alice", score: 0 },
+                    { id: pid("player-456"), name: "Bob", score: 0 },
                 ],
             });
-            const result = server(state).removePlayer("player-123");
+            const result = server(state).removePlayer(pid("player-123"));
 
             expect(result).toHaveLength(1);
             expect(result[0].id).toBe("player-456");
@@ -79,30 +81,30 @@ describe("Game Logic", () => {
     describe("Host Assignment", () => {
         it("assigns first player as host", () => {
             const state = makeRoomState();
-            const hostId = server(state).getOrSetHost("player-123");
+            const hostId = server(state).getOrSetHost(pid("player-123"));
 
             expect(hostId).toBe("player-123");
         });
 
         it("returns existing host on subsequent calls", () => {
             const state = makeRoomState({
-                hostId: "player-123",
+                hostId: pid("player-123"),
             });
-            const hostId = server(state).getOrSetHost("player-456");
+            const hostId = server(state).getOrSetHost(pid("player-456"));
 
             expect(hostId).toBe("player-123");
         });
 
         it("reassigns host to next player when host leaves in lobby", () => {
             const state = makeRoomState({
-                hostId: "player-123",
+                hostId: pid("player-123"),
                 players: [
-                    { id: "player-123", name: "Alice", score: 0 },
-                    { id: "player-456", name: "Bob", score: 0 },
+                    { id: pid("player-123"), name: "Alice", score: 0 },
+                    { id: pid("player-456"), name: "Bob", score: 0 },
                 ],
             });
 
-            server(state).removePlayer("player-123");
+            server(state).removePlayer(pid("player-123"));
 
             expect(state.hostId).toBe("player-456");
         });
@@ -129,7 +131,7 @@ describe("Game Logic", () => {
         it("decodes a valid shared client message", async () => {
             const decoded = await Effect.runPromise(
                 decodeClientMessage({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "join",
                     data: {},
@@ -137,7 +139,7 @@ describe("Game Logic", () => {
             );
 
             expect(decoded).toEqual({
-                playerId: "host",
+                playerId: pid("host"),
                 playerName: "Host",
                 type: "join",
                 data: {},
@@ -148,7 +150,7 @@ describe("Game Logic", () => {
             await expect(
                 Effect.runPromise(
                     decodeClientMessage({
-                        playerId: "host",
+                        playerId: pid("host"),
                         playerName: "Host",
                         type: "not-a-real-message",
                         data: {},
@@ -163,7 +165,7 @@ describe("Game Logic", () => {
             await expect(
                 Effect.runPromise(
                     decodeClientMessage({
-                        playerId: "host",
+                        playerId: pid("host"),
                         playerName: "Host",
                         type: "select_game",
                         data: { gameType: "not_a_game" },
@@ -178,7 +180,7 @@ describe("Game Logic", () => {
             await expect(
                 Effect.runPromise(
                     decodeClientMessage({
-                        playerId: "host",
+                        playerId: pid("host"),
                         playerName: "Host",
                         type: "answer",
                         data: {},
@@ -219,8 +221,8 @@ describe("Game Logic", () => {
 
         it("returns none for invalid JSON through the compatibility wrapper", async () => {
             const state = makeRoomState({
-                hostId: "host",
-                players: [{ id: "host", name: "Host", score: 0 }],
+                hostId: pid("host"),
+                players: [{ id: pid("host"), name: "Host", score: 0 }],
             });
 
             const result = await server(state).processMessage(
@@ -234,13 +236,13 @@ describe("Game Logic", () => {
 
         it("processes valid raw JSON through the compatibility wrapper", async () => {
             const state = makeRoomState({
-                hostId: "host",
-                players: [{ id: "host", name: "Host", score: 0 }],
+                hostId: pid("host"),
+                players: [{ id: pid("host"), name: "Host", score: 0 }],
             });
 
             const result = await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "select_game",
                     data: { gameType: "poker" },
@@ -254,13 +256,13 @@ describe("Game Logic", () => {
 
         it("lets the host change the selected game in lobby", async () => {
             const state = makeRoomState({
-                hostId: "host",
-                players: [{ id: "host", name: "Host", score: 0 }],
+                hostId: pid("host"),
+                players: [{ id: pid("host"), name: "Host", score: 0 }],
             });
 
             await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "select_game",
                     data: { gameType: "poker" },
@@ -273,13 +275,13 @@ describe("Game Logic", () => {
 
         it("allows selecting backwards poker as a distinct game", async () => {
             const state = makeRoomState({
-                hostId: "host",
-                players: [{ id: "host", name: "Host", score: 0 }],
+                hostId: pid("host"),
+                players: [{ id: pid("host"), name: "Host", score: 0 }],
             });
 
             await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "select_game",
                     data: { gameType: "backwards_poker" },
@@ -292,13 +294,13 @@ describe("Game Logic", () => {
 
         it("allows selecting lying yahtzee as a distinct game", async () => {
             const state = makeRoomState({
-                hostId: "host",
-                players: [{ id: "host", name: "Host", score: 0 }],
+                hostId: pid("host"),
+                players: [{ id: pid("host"), name: "Host", score: 0 }],
             });
 
             await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "select_game",
                     data: { gameType: "lying_yahtzee" },
@@ -311,13 +313,13 @@ describe("Game Logic", () => {
 
         it("allows selecting spicy as a distinct game", async () => {
             const state = makeRoomState({
-                hostId: "host",
-                players: [{ id: "host", name: "Host", score: 0 }],
+                hostId: pid("host"),
+                players: [{ id: pid("host"), name: "Host", score: 0 }],
             });
 
             await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "select_game",
                     data: { gameType: "spicy" },
@@ -330,16 +332,16 @@ describe("Game Logic", () => {
 
         it("ignores game selection from non-hosts", async () => {
             const state = makeRoomState({
-                hostId: "host",
+                hostId: pid("host"),
                 players: [
-                    { id: "host", name: "Host", score: 0 },
-                    { id: "guest", name: "Guest", score: 0 },
+                    { id: pid("host"), name: "Host", score: 0 },
+                    { id: pid("guest"), name: "Guest", score: 0 },
                 ],
             });
 
             await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "guest",
+                    playerId: pid("guest"),
                     playerName: "Guest",
                     type: "select_game",
                     data: { gameType: "poker" },
@@ -352,14 +354,14 @@ describe("Game Logic", () => {
 
         it("does not let the host change the selected game while hibernated", async () => {
             const state = makeRoomState({
-                hostId: "host",
+                hostId: pid("host"),
                 phase: "hibernated",
-                players: [{ id: "host", name: "Host", score: 0 }],
+                players: [{ id: pid("host"), name: "Host", score: 0 }],
             });
 
             await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "select_game",
                     data: { gameType: "poker" },
@@ -372,17 +374,17 @@ describe("Game Logic", () => {
 
         it("starts the selected game instead of trusting the client payload", async () => {
             const state = makeRoomState({
-                hostId: "host",
+                hostId: pid("host"),
                 players: [
-                    { id: "host", name: "Host", score: 0 },
-                    { id: "guest", name: "Guest", score: 0 },
+                    { id: pid("host"), name: "Host", score: 0 },
+                    { id: pid("guest"), name: "Guest", score: 0 },
                 ],
                 selectedGameType: "poker",
             });
 
             const result = await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "start",
                     data: { gameType: "quiz" },
@@ -397,18 +399,18 @@ describe("Game Logic", () => {
 
         it("does not let the host start a hibernated room", async () => {
             const state = makeRoomState({
-                hostId: "host",
+                hostId: pid("host"),
                 phase: "hibernated",
                 players: [
-                    { id: "host", name: "Host", score: 0 },
-                    { id: "guest", name: "Guest", score: 0 },
+                    { id: pid("host"), name: "Host", score: 0 },
+                    { id: pid("guest"), name: "Guest", score: 0 },
                 ],
                 selectedGameType: "poker",
             });
 
             const result = await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "start",
                     data: {},
@@ -423,19 +425,19 @@ describe("Game Logic", () => {
 
         it("marks a player as having left the active game", async () => {
             const state = makeRoomState({
-                hostId: "host",
+                hostId: pid("host"),
                 phase: "playing",
                 activeGameType: "yahtzee",
                 gameSessionId: "session-1",
                 gameParticipants: [
-                    { playerId: "host", status: "active" },
-                    { playerId: "guest", status: "active" },
+                    { playerId: pid("host"), status: "active" },
+                    { playerId: pid("guest"), status: "active" },
                 ],
             });
 
             const result = await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "guest",
+                    playerId: pid("guest"),
                     playerName: "Guest",
                     type: "leave_game",
                     data: {},
@@ -446,20 +448,20 @@ describe("Game Logic", () => {
             expect(result).toEqual({
                 kind: "leave_game",
                 gameType: "yahtzee",
-                playerId: "guest",
+                playerId: pid("guest"),
             });
             expect(state.gameParticipants).toEqual([
-                { playerId: "host", status: "active" },
-                { playerId: "guest", status: "left_game" },
+                { playerId: pid("host"), status: "active" },
+                { playerId: pid("guest"), status: "left_game" },
             ]);
         });
 
         it("does not start poker above the max player count", async () => {
             const state = makeRoomState({
-                hostId: "host",
+                hostId: pid("host"),
                 selectedGameType: "poker",
                 players: Array.from({ length: 9 }, (_, index) => ({
-                    id: `p${index}`,
+                    id: pid(`p${index}`),
                     name: `P${index}`,
                     score: 0,
                 })),
@@ -467,7 +469,7 @@ describe("Game Logic", () => {
 
             const result = await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "start",
                     data: {},
@@ -482,17 +484,17 @@ describe("Game Logic", () => {
 
         it("starts backwards poker using the selected game type", async () => {
             const state = makeRoomState({
-                hostId: "host",
+                hostId: pid("host"),
                 players: [
-                    { id: "host", name: "Host", score: 0 },
-                    { id: "guest", name: "Guest", score: 0 },
+                    { id: pid("host"), name: "Host", score: 0 },
+                    { id: pid("guest"), name: "Guest", score: 0 },
                 ],
                 selectedGameType: "backwards_poker",
             });
 
             const result = await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "start",
                     data: {},
@@ -510,17 +512,17 @@ describe("Game Logic", () => {
 
         it("starts lying yahtzee using the selected game type", async () => {
             const state = makeRoomState({
-                hostId: "host",
+                hostId: pid("host"),
                 players: [
-                    { id: "host", name: "Host", score: 0 },
-                    { id: "guest", name: "Guest", score: 0 },
+                    { id: pid("host"), name: "Host", score: 0 },
+                    { id: pid("guest"), name: "Guest", score: 0 },
                 ],
                 selectedGameType: "lying_yahtzee",
             });
 
             const result = await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "start",
                     data: {},
@@ -538,18 +540,18 @@ describe("Game Logic", () => {
 
         it("does not start lying yahtzee above two players", async () => {
             const state = makeRoomState({
-                hostId: "host",
+                hostId: pid("host"),
                 selectedGameType: "lying_yahtzee",
                 players: [
-                    { id: "host", name: "Host", score: 0 },
-                    { id: "guest-1", name: "Guest 1", score: 0 },
-                    { id: "guest-2", name: "Guest 2", score: 0 },
+                    { id: pid("host"), name: "Host", score: 0 },
+                    { id: pid("guest-1"), name: "Guest 1", score: 0 },
+                    { id: pid("guest-2"), name: "Guest 2", score: 0 },
                 ],
             });
 
             const result = await server(state).processMessage(
                 JSON.stringify({
-                    playerId: "host",
+                    playerId: pid("host"),
                     playerName: "Host",
                     type: "start",
                     data: {},

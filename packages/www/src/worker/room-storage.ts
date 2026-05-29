@@ -9,7 +9,9 @@ import type {
     GameParticipant,
     GameParticipantStatus,
     GameState,
+    PlayerId,
 } from "~/game";
+import { nullablePlayerIdSchema, playerIdSchema } from "~/game/shared/branded-ids";
 import type { BlackjackState } from "~/game/blackjack";
 import type { CheeseThiefState } from "~/game/cheese-thief";
 import type { CockroachPokerState } from "~/game/cockroach-poker";
@@ -131,7 +133,7 @@ const persistedParticipantRowSchema = Schema.Struct({
 
 const roomStateSchema = Schema.Struct({
     players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
-    hostId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    hostId: Schema.mutableKey(nullablePlayerIdSchema),
     answers: Schema.mutableKey(Schema.Record(Schema.String, Schema.String)),
     phase: Schema.mutableKey(roomPhaseSchema),
     selectedGameType: Schema.mutableKey(gameTypeSchema),
@@ -147,7 +149,7 @@ const partialRoomStateSchema = Schema.Struct({
         Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
     ),
     hostId: Schema.optionalKey(
-        Schema.mutableKey(Schema.NullOr(Schema.String)),
+        Schema.mutableKey(nullablePlayerIdSchema),
     ),
     answers: Schema.optionalKey(
         Schema.mutableKey(Schema.Record(Schema.String, Schema.String)),
@@ -384,7 +386,7 @@ function readParticipants(
         ),
         Effect.map((rows) =>
             rows.map((row) => ({
-                playerId: row.player_id,
+                playerId: row.player_id as PlayerId,
                 status: row.status,
             })),
         ),

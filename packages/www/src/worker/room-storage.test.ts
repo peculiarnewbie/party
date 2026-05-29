@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { initGame } from "~/game/poker";
 import { makeState } from "~/game/yahtzee/test-helpers";
 import { runObservedSync } from "~/effect/runtime";
+import type { PlayerId } from "~/game";
 import {
     createDefaultState,
     GAME_SNAPSHOT_KEY,
@@ -22,6 +23,8 @@ function roomStub() {
     const id = env.WS.idFromName(`room-storage-test-${roomCounter++}`);
     return env.WS.get(id);
 }
+
+const pid = (s: string) => s as PlayerId;
 
 function withRoom<R>(
     callback: (ctx: DurableObjectState, instance: GameRoom) => Promise<R>,
@@ -46,14 +49,14 @@ describe("room-storage", () => {
         await withRoom(async (ctx) => {
             const roomState = {
                 ...createDefaultState(),
-                players: [{ id: "p1", name: "Alice", score: 4 }],
-                hostId: "p1",
+                players: [{ id: pid("p1"), name: "Alice", score: 4 }],
+                hostId: pid("p1"),
                 phase: "playing" as const,
                 selectedGameType: "yahtzee" as const,
                 activeGameType: "yahtzee" as const,
                 gameSessionId: "session-1",
                 gameParticipants: [
-                    { playerId: "p1", status: "active" as const },
+                    { playerId: pid("p1"), status: "active" as const },
                 ],
             };
 
@@ -95,7 +98,7 @@ describe("room-storage", () => {
                 gameType: "poker" as const,
                 state: initGame(
                     [
-                        { id: "p1", name: "Alice" },
+                        { id: pid("p1"), name: "Alice" },
                         { id: "p2", name: "Bob" },
                     ],
                     noShuffle,
@@ -230,8 +233,8 @@ describe("room-storage", () => {
                 ...createDefaultState(),
                 gameSessionId: "session-2",
                 gameParticipants: [
-                    { playerId: "p1", status: "active" as const },
-                    { playerId: "p2", status: "disconnected" as const },
+                    { playerId: pid("p1"), status: "active" as const },
+                    { playerId: pid("p2"), status: "disconnected" as const },
                 ],
             };
 

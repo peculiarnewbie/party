@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { RoomLobby } from "./room-lobby";
-import type { Player } from "~/game";
+import type { Player, PlayerId } from "~/game";
+
+const pid = (s: string) => s as PlayerId;
 
 function makeProps(overrides: Partial<Parameters<typeof RoomLobby>[0]> = {}) {
     const base: Parameters<typeof RoomLobby>[0] = {
@@ -55,7 +57,7 @@ describe("RoomLobby", () => {
             name: "Alice",
             isJoined: true,
             isHost: false,
-            players: [{ id: "p1", name: "Alice" }],
+            players: [{ id: pid("p1"), name: "Alice" }],
         });
         const { getByRole, queryByRole } = render(() => <RoomLobby {...props} />);
         expect(
@@ -66,8 +68,8 @@ describe("RoomLobby", () => {
 
     it("shows YOU ARE HOST and a Start button when the player is host", () => {
         const players: Player[] = [
-            { id: "p1", name: "Alice" },
-            { id: "p2", name: "Bob" },
+            { id: pid("p1"), name: "Alice" },
+            { id: pid("p2"), name: "Bob" },
         ];
         const props = makeProps({
             name: "Alice",
@@ -88,7 +90,7 @@ describe("RoomLobby", () => {
             name: "Alice",
             isJoined: true,
             isHost: true,
-            players: [{ id: "p1", name: "Alice" }],
+            players: [{ id: pid("p1"), name: "Alice" }],
             selectedGameType: "yahtzee",
         });
         const { getByRole } = render(() => <RoomLobby {...props} />);
@@ -102,8 +104,8 @@ describe("RoomLobby", () => {
             isJoined: true,
             isHost: true,
             players: [
-                { id: "p1", name: "Alice" },
-                { id: "p2", name: "Bob" },
+                { id: pid("p1"), name: "Alice" },
+                { id: pid("p2"), name: "Bob" },
             ],
             selectedGameType: "yahtzee",
             onStart,
@@ -120,8 +122,8 @@ describe("RoomLobby", () => {
             isJoined: true,
             isHost: true,
             players: [
-                { id: "p1", name: "Alice" },
-                { id: "p2", name: "Bob" },
+                { id: pid("p1"), name: "Alice" },
+                { id: pid("p2"), name: "Bob" },
             ],
             selectedGameType: "yahtzee",
             onSelectGame,
@@ -137,8 +139,8 @@ describe("RoomLobby", () => {
             isJoined: true,
             isHost: false,
             players: [
-                { id: "p1", name: "Alice" },
-                { id: "p2", name: "Bob" },
+                { id: pid("p1"), name: "Alice" },
+                { id: pid("p2"), name: "Bob" },
             ],
             selectedGameType: "yahtzee",
         });

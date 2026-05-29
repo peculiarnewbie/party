@@ -1,40 +1,33 @@
+import { Effect } from "effect";
 import { createFileRoute } from '@tanstack/solid-router'
 import { getRequestHeaders } from '@tanstack/solid-start/server'
 import { createMiddleware, json } from '@tanstack/solid-start'
 import type { User } from '~/utils/users'
 
 const userLoggerMiddleware = createMiddleware().server(async ({ next }) => {
-  console.info('In: /users')
-  console.info('Request Headers:', getRequestHeaders())
+  Effect.runSync(Effect.logInfo("In: /users").pipe(Effect.annotateLogs({ component: "route", route: "/api/users" })));
+  Effect.runSync(Effect.logInfo("Request Headers").pipe(Effect.annotateLogs({ component: "route", route: "/api/users", headers: JSON.stringify(getRequestHeaders()) })));
   const result = await next()
   result.response.headers.set('x-users', 'true')
-  console.info('Out: /users')
+  Effect.runSync(Effect.logInfo("Out: /users").pipe(Effect.annotateLogs({ component: "route", route: "/api/users" })));
   return result
 })
 
 const testParentMiddleware = createMiddleware().server(async ({ next }) => {
-  console.info('In: testParentMiddleware')
+  Effect.runSync(Effect.logInfo("In: testParentMiddleware").pipe(Effect.annotateLogs({ component: "route", middleware: "testParent" })));
   const result = await next()
   result.response.headers.set('x-test-parent', 'true')
-  console.info('Out: testParentMiddleware')
+  Effect.runSync(Effect.logInfo("Out: testParentMiddleware").pipe(Effect.annotateLogs({ component: "route", middleware: "testParent" })));
   return result
 })
 
 const testMiddleware = createMiddleware()
   .middleware([testParentMiddleware])
   .server(async ({ next }) => {
-    console.info('In: testMiddleware')
+    Effect.runSync(Effect.logInfo("In: testMiddleware").pipe(Effect.annotateLogs({ component: "route", middleware: "test" })));
     const result = await next()
     result.response.headers.set('x-test', 'true')
-
-    // if (Math.random() > 0.5) {
-    //   throw new Response(null, {
-    //     status: 302,
-    //     headers: { Location: 'https://www.google.com' },
-    //   })
-    // }
-
-    console.info('Out: testMiddleware')
+    Effect.runSync(Effect.logInfo("Out: testMiddleware").pipe(Effect.annotateLogs({ component: "route", middleware: "test" })));
     return result
   })
 
@@ -43,10 +36,10 @@ export const Route = createFileRoute('/api/users')({
     middleware: [testMiddleware, userLoggerMiddleware],
     handlers: {
       GET: async ({ request, context }) => {
-        console.info('GET /api/users @', request.url)
-        console.info('Fetching users... @', request.url)
+        Effect.runSync(Effect.logInfo("GET /api/users").pipe(Effect.annotateLogs({ component: "route", route: "/api/users", url: request.url })));
         const res = await fetch('https://jsonplaceholder.typicode.com/users')
         if (!res.ok) {
+          Effect.runSync(Effect.logError("Failed to fetch users").pipe(Effect.annotateLogs({ component: "route", route: "/api/users", status: res.status })));
           throw new Error('Failed to fetch users')
         }
 
