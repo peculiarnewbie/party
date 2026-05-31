@@ -10,7 +10,7 @@ declare namespace Cloudflare {
 		BUCKET: R2Bucket;
 		DB: D1Database;
 		MY_VAR: "Hello from Cloudflare";
-		CLOUDFLARE_API_TOKEN: string;
+		CLOUDFALRE_API_TOKEN: string;
 		WS: DurableObjectNamespace<import("./src/worker/index").GameRoom>;
 	}
 }
@@ -19,7 +19,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "MY_VAR" | "CLOUDFLARE_API_TOKEN">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "MY_VAR" | "CLOUDFALRE_API_TOKEN">> {}
 }
 
 // Begin runtime types

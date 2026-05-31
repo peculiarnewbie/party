@@ -38,6 +38,7 @@
         "@testing-library/jest-dom": "^6.9.1",
         "@types/luxon": "^3.7.1",
         "@types/node": "^22.5.4",
+        "fast-check": "^4.8.0",
         "happy-dom": "^20.9.0",
         "playwright": "^1.59.1",
         "tailwindcss": "^4.1.18",

@@ -308,51 +308,15 @@ export const clientMessageSchema = Schema.Union([
     }),
 ]);
 
-const playerListPayloadSchema = Schema.Struct({
-    players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
-});
-
-const hostAssignedPayloadSchema = Schema.Struct({
-    hostId: Schema.mutableKey(nullablePlayerIdSchema),
-});
-
-const gameTypePayloadSchema = Schema.Struct({
-    gameType: Schema.mutableKey(gameTypeSchema),
-});
-
 const playerAnsweredPayloadSchema = Schema.Struct({
     players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
     answers: Schema.mutableKey(Schema.Record(Schema.String, Schema.String)),
 });
 
-const gameEndedPayloadSchema = Schema.Struct({
-    gameType: Schema.mutableKey(Schema.NullOr(gameTypeSchema)),
-});
-
 export const serverMessageSchema = Schema.Union([
-    Schema.Struct({
-        type: Schema.mutableKey(Schema.Literal("player_list")),
-        data: Schema.mutableKey(playerListPayloadSchema),
-    }),
-    Schema.Struct({
-        type: Schema.mutableKey(Schema.Literal("host_assigned")),
-        data: Schema.mutableKey(hostAssignedPayloadSchema),
-    }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("room_state")),
         data: Schema.mutableKey(roomStatePayloadSchema),
-    }),
-    Schema.Struct({
-        type: Schema.mutableKey(Schema.Literal("game_selected")),
-        data: Schema.mutableKey(gameTypePayloadSchema),
-    }),
-    Schema.Struct({
-        type: Schema.mutableKey(Schema.Literal("game_started")),
-        data: Schema.mutableKey(gameTypePayloadSchema),
-    }),
-    Schema.Struct({
-        type: Schema.mutableKey(Schema.Literal("game_ended")),
-        data: Schema.mutableKey(gameEndedPayloadSchema),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("player_answered")),
@@ -440,13 +404,6 @@ export const server = (state: GameState) => {
         return state.hostId;
     };
 
-    const broadcastServerMessage = (
-        broadcast: (msg: string) => void,
-        message: ServerMessage,
-    ) => {
-        broadcast(encodeServerMessage(message));
-    };
-
     const processClientMessage = async (
         parsed: ClientMessage,
         broadcast: (msg: string) => void,
@@ -465,33 +422,14 @@ export const server = (state: GameState) => {
         }
 
         if (type === "join") {
-            const players = s.addPlayer(playerId, playerName);
-            const hostId = s.getOrSetHost(playerId);
-
-            broadcastServerMessage(broadcast, {
-                type: "player_list",
-                data: { players },
-            });
-
-            broadcastServerMessage(broadcast, {
-                type: "host_assigned",
-                data: { hostId },
-            });
-
+            s.addPlayer(playerId, playerName);
+            s.getOrSetHost(playerId);
             broadcastRoomState(broadcast);
             return { kind: "none" };
         }
 
         if (type === "leave") {
-            const players = s.removePlayer(playerId);
-            broadcastServerMessage(broadcast, {
-                type: "player_list",
-                data: { players },
-            });
-            broadcastServerMessage(broadcast, {
-                type: "host_assigned",
-                data: { hostId: state.hostId },
-            });
+            s.removePlayer(playerId);
             broadcastRoomState(broadcast);
             return { kind: "none" };
         }
@@ -502,10 +440,6 @@ export const server = (state: GameState) => {
             }
 
             state.selectedGameType = parsed.data.gameType;
-            broadcastServerMessage(broadcast, {
-                type: "game_selected",
-                data: { gameType: state.selectedGameType },
-            });
             broadcastRoomState(broadcast);
             return { kind: "none" };
         }
@@ -529,10 +463,6 @@ export const server = (state: GameState) => {
             if (session) {
                 s.setGameSession(session.gameSessionId, session.participants);
             }
-            broadcastServerMessage(broadcast, {
-                type: "game_started",
-                data: { gameType: state.activeGameType },
-            });
             broadcastRoomState(broadcast);
             return { kind: "start", gameType: state.activeGameType };
         }
@@ -542,10 +472,6 @@ export const server = (state: GameState) => {
                 return { kind: "none" };
             }
 
-            broadcastServerMessage(broadcast, {
-                type: "game_ended",
-                data: { gameType: state.activeGameType },
-            });
             return { kind: "end", gameType: state.activeGameType };
         }
 
@@ -583,13 +509,15 @@ export const server = (state: GameState) => {
 
         if (type === "answer") {
             s.saveAnswer(playerId, parsed.data.answer);
-            broadcastServerMessage(broadcast, {
-                type: "player_answered",
-                data: {
-                    players: s.getPlayers(),
-                    answers: s.getAnswers(),
-                },
-            });
+            broadcast(
+                encodeServerMessage({
+                    type: "player_answered",
+                    data: {
+                        players: s.getPlayers(),
+                        answers: s.getAnswers(),
+                    },
+                }),
+            );
         }
 
         return { kind: "none" };

@@ -41,6 +41,8 @@ export class GameRoom extends DurableObject {
     gameStateHolder: { current: unknown };
     clearGameTimer: (() => void) | null;
     ready: Promise<void>;
+    cachedAdapter: GameAdapter | null;
+    cachedAdapterGameType: string | null;
 
     constructor(ctx: DurableObjectState, env: Env) {
         super(ctx, env);
@@ -48,6 +50,8 @@ export class GameRoom extends DurableObject {
         this.state = createDefaultState();
         this.gameStateHolder = { current: null };
         this.clearGameTimer = null;
+        this.cachedAdapter = null;
+        this.cachedAdapterGameType = null;
         this.ready = this.ctx.blockConcurrencyWhile(async () => {
             const exit = await runObservedPromiseExit(
                 ensureSchema(this.ctx).pipe(
@@ -74,7 +78,22 @@ export class GameRoom extends DurableObject {
     activeAdapter(adapterCtx?: GameAdapterContext): GameAdapter | null {
         const gameType = this.state.activeGameType;
         if (!gameType || gameType === "quiz") return null;
-        return createGameAdapter(gameType, this.gameStateHolder, adapterCtx);
+
+        if (this.cachedAdapter && this.cachedAdapterGameType === gameType) {
+            return this.cachedAdapter;
+        }
+
+        const adapter = createGameAdapter(gameType, this.gameStateHolder, adapterCtx);
+        this.cachedAdapter = adapter;
+        this.cachedAdapterGameType = gameType;
+        return adapter;
+    }
+
+    clearCachedAdapter() {
+        this.clearGameTimer?.();
+        this.clearGameTimer = null;
+        this.cachedAdapter = null;
+        this.cachedAdapterGameType = null;
     }
 
     roomId() {
@@ -187,8 +206,7 @@ export class GameRoom extends DurableObject {
     }
 
     resetRoom() {
-        this.clearGameTimer?.();
-        this.clearGameTimer = null;
+        this.clearCachedAdapter();
         this.gameStateHolder.current = null;
         this.state = createDefaultState();
     }
@@ -340,7 +358,7 @@ export class GameRoom extends DurableObject {
 
         const adapterCtx: GameAdapterContext = {
             endGameAndPersist: (broadcast, sendTo) => {
-                const adapter = this.activeAdapter(adapterCtx);
+                const adapter = getAdapter();
                 if (adapter) {
                     adapter.endGame(broadcast, sendTo);
                 }
@@ -350,6 +368,8 @@ export class GameRoom extends DurableObject {
                 this.clearGameTimer = clearFn;
             },
         };
+
+        const getAdapter = () => this.activeAdapter(adapterCtx);
 
         sendRoomStateToSocket(serverWs);
 
@@ -543,7 +563,7 @@ export class GameRoom extends DurableObject {
                 }
 
                 // Game-specific message routing via adapter
-                const adapter = this.activeAdapter(adapterCtx);
+                const adapter = getAdapter();
                 if (
                     adapter &&
                     typeof messageType === "string" &&
@@ -610,7 +630,7 @@ export class GameRoom extends DurableObject {
                         broadcastRoomState();
                     }
 
-                    const joinAdapter = this.activeAdapter(adapterCtx);
+                    const joinAdapter = getAdapter();
                     const isReconnect = !!participant || wasSeatedPokerPlayer;
 
                     if (joinAdapter?.onPlayerJoin) {
@@ -640,10 +660,7 @@ export class GameRoom extends DurableObject {
                     this.clearGameTimer = null;
                     this.gameStateHolder.current = null;
 
-                    const gameAdapter = createGameAdapter(
-                        processResult.gameType,
-                        this.gameStateHolder,
-                    );
+                    const gameAdapter = this.activeAdapter(adapterCtx);
 
                     if (gameAdapter) {
                         const players = this.state.players.map((player) => ({
@@ -672,16 +689,12 @@ export class GameRoom extends DurableObject {
 
                 if (processResult.kind === "end") {
                     if (processResult.gameType) {
-                        const endAdapter = createGameAdapter(
-                            processResult.gameType,
-                            this.gameStateHolder,
-                        );
+                        const endAdapter = getAdapter();
                         if (endAdapter) {
-                            this.clearGameTimer?.();
-                            this.clearGameTimer = null;
                             endAdapter.endGame(broadcast, sendTo);
                         }
                     }
+                    this.clearCachedAdapter();
 
                     this.persistAllState();
                     yield* Effect.logInfo("game-room.message.processed").pipe(
@@ -695,7 +708,7 @@ export class GameRoom extends DurableObject {
                 }
 
                 if (processResult.kind === "leave_game") {
-                    const leaveAdapter = this.activeAdapter(adapterCtx);
+                    const leaveAdapter = getAdapter();
                     if (leaveAdapter) {
                         leaveAdapter.removePlayer(
                             processResult.playerId,
@@ -716,8 +729,7 @@ export class GameRoom extends DurableObject {
 
                 if (processResult.kind === "return_to_lobby") {
                     yield* Effect.promise(() => this.clearHibernationCleanup());
-                    this.clearGameTimer?.();
-                    this.clearGameTimer = null;
+                    this.clearCachedAdapter();
                     this.gameStateHolder.current = null;
                     this.persistAllState();
                     yield* Effect.logInfo("game-room.message.processed").pipe(
@@ -765,8 +777,12 @@ export class GameRoom extends DurableObject {
                         "disconnected",
                     );
 
+                    // Poker folds disconnected players' hands immediately.
+                    // Other games keep disconnected players in the game so they
+                    // can reconnect. Consider adding an adapter.onPlayerDisconnect
+                    // hook to move this logic into each game's adapter.
                     if (didChange && isPokerGameType(this.state.activeGameType)) {
-                        const adapter = this.activeAdapter(adapterCtx);
+                        const adapter = getAdapter();
                         if (adapter) {
                             adapter.removePlayer(
                                 session.playerId,

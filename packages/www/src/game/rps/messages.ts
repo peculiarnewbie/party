@@ -35,6 +35,17 @@ export const rpsClientMessageSchema = Schema.Union([
             }),
         ),
     }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("rps:sync")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                lastSnapshotIndex: Schema.mutableKey(Schema.Number),
+                lastEventIndex: Schema.mutableKey(Schema.Number),
+            }),
+        ),
+    }),
 ]);
 
 export type RpsClientMessage = SchemaType<typeof rpsClientMessageSchema>;

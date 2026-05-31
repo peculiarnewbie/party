@@ -11,13 +11,10 @@ export type {
     RpsPhase,
 } from "./types";
 export {
-    initGame,
-    processAction,
-    removePlayer,
     resolveThrow,
     winsNeeded,
-    endGameByHost,
-} from "./engine";
+    initGame,
+} from "./mechanics";
 export type {
     RpsPlayerView,
     RpsMatchView,
@@ -26,7 +23,7 @@ export type {
     RpsThrowView,
 } from "./views";
 export { getPlayerView, getRoundLabel } from "./views";
-export type { RpsClientMessage, RpsServerMessage } from "./messages";
+export type { RpsClientMessage } from "./messages";
 export {
     decodeRpsClientMessage,
     rpsClientMessageSchema,
@@ -39,4 +36,3 @@ export {
     rpsStateSchema,
     rpsPlayerViewSchema,
 } from "./schemas";
-export { rpsServer } from "./server";

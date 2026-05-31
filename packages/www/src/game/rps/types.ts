@@ -15,4 +15,5 @@ export type {
 export type RpsAction =
     | { type: "throw"; playerId: string; choice: RpsChoice }
     | { type: "next_round"; playerId: string }
-    | { type: "set_best_of"; bestOf: BestOf };
+    | { type: "set_best_of"; playerId: string; bestOf: BestOf }
+    | { type: "sync"; playerId: string; lastSnapshotIndex: number; lastEventIndex: number };

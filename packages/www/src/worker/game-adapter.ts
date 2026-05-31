@@ -3,7 +3,7 @@ import { pokerRegistration } from "~/game/poker/adapter";
 import { blackjackRegistration } from "~/game/blackjack/adapter";
 import { yahtzeeRegistration } from "~/game/yahtzee/adapter";
 import { perudoRegistration } from "~/game/perudo/adapter";
-import { rpsRegistration } from "~/game/rps/adapter";
+import { rpsEngineRegistration as rpsRegistration } from "~/game/rps/engine-adapter";
 import { herdRegistration } from "~/game/herd/adapter";
 import { funFactsRegistration } from "~/game/fun-facts/adapter";
 import { cheeseThiefRegistration } from "~/game/cheese-thief/adapter";

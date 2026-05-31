@@ -20,6 +20,7 @@ export default defineProject({
             "src/worker/room-storage.test.ts",
             "src/worker/poker-room.test.ts",
             "src/worker/yahtzee-room.test.ts",
+            "src/worker/rps-room.test.ts",
         ],
     },
 });

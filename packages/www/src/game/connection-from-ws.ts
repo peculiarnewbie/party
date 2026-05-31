@@ -1,6 +1,6 @@
 import type { Schema } from "effect";
 import { createSignal, onCleanup } from "solid-js";
-import { decodeJsonMessage } from "~/effect/schema-helpers";
+import { decodeUnknownSync } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
 import type { GameConnection } from "./connection";
 
@@ -30,14 +30,22 @@ export function createGameConnection<
     const handlers = new Set<(event: TEvent) => void>();
 
     const handleMessage = (event: MessageEvent) => {
-        let message: SchemaType<ServerSchema> & { type: string };
+        let raw: Record<string, unknown>;
         try {
-            message = decodeJsonMessage(options.serverMessageSchema, event.data) as SchemaType<ServerSchema> & { type: string };
+            raw = JSON.parse(event.data as string) as Record<string, unknown>;
         } catch {
             return;
         }
 
-        if (!message.type.startsWith(options.prefix)) return;
+        if (typeof raw.type !== "string") return;
+        if (!raw.type.startsWith(options.prefix)) return;
+
+        let message: SchemaType<ServerSchema> & { type: string };
+        try {
+            message = decodeUnknownSync(options.serverMessageSchema, raw) as SchemaType<ServerSchema> & { type: string };
+        } catch {
+            return;
+        }
 
         if (message.type === options.stateType) {
             const data = (message as unknown as { data: SchemaType<ViewSchema> })

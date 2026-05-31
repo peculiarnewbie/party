@@ -97,11 +97,9 @@ import { SkullRoom } from "~/components/skull/skull-room";
 import { SpicyRoom } from "~/components/spicy/spicy-room";
 import {
     type GameType,
-    type GameParticipant,
     type GameParticipantStatus,
     type MessageType,
-    type Player,
-    type RoomPhase,
+    type RoomStatePayload,
     isGameWireMessageType,
     isPokerGameType,
     serverMessageSchema,
@@ -120,17 +118,21 @@ function RouteComponent() {
 
     const [playerId, setPlayerId] = createSignal<string | null>(null);
     const [name, setName] = createSignal("");
-    const [players, setPlayers] = createSignal<Player[]>([]);
-    const [isHost, setIsHost] = createSignal(false);
-    const [roomPhase, setRoomPhase] = createSignal<RoomPhase>("lobby");
-    const [selectedGameType, setSelectedGameType] =
-        createSignal<GameType>("quiz");
-    const [activeGameType, setActiveGameType] = createSignal<GameType | null>(
-        null,
-    );
-    const [gameParticipants, setGameParticipants] = createSignal<
-        GameParticipant[]
-    >([]);
+    const [roomState, setRoomState] = createSignal<RoomStatePayload>({
+        players: [],
+        hostId: null,
+        phase: "lobby",
+        selectedGameType: "quiz",
+        activeGameType: null,
+        gameSessionId: null,
+        gameParticipants: [],
+    });
+    const players = createMemo(() => roomState().players);
+    const isHost = createMemo(() => roomState().hostId === playerId());
+    const roomPhase = createMemo(() => roomState().phase);
+    const selectedGameType = createMemo(() => roomState().selectedGameType);
+    const activeGameType = createMemo(() => roomState().activeGameType);
+    const gameParticipants = createMemo(() => roomState().gameParticipants);
 
     const refreshPlayerId = () => {
         const existingId = getCookie("playerId");
@@ -238,60 +240,15 @@ function RouteComponent() {
             }
 
             if (parsed.type === "room_state") {
-                const {
-                    players: nextPlayers,
-                    hostId,
-                    phase,
-                    selectedGameType: nextSelectedGameType,
-                    activeGameType: nextActiveGameType,
-                    gameParticipants: nextGameParticipants,
-                } = parsed.data;
+                setRoomState(parsed.data);
 
-                setPlayers(nextPlayers);
-                setIsHost(hostId === playerId());
-                setRoomPhase(phase);
-                setSelectedGameType(nextSelectedGameType);
-                setActiveGameType(nextActiveGameType);
-                setGameParticipants(nextGameParticipants);
-
-                const currentPlayer = nextPlayers.find(
+                const currentPlayer = parsed.data.players.find(
                     (player) => player.id === playerId(),
                 );
                 if (currentPlayer) {
                     setName(currentPlayer.name);
                     persistName(currentPlayer.name);
                 }
-            }
-
-            if (parsed.type === "player_list") {
-                const nextPlayers = parsed.data.players;
-                setPlayers(nextPlayers);
-
-                const currentPlayer = nextPlayers.find(
-                    (player) => player.id === playerId(),
-                );
-                if (currentPlayer) {
-                    setName(currentPlayer.name);
-                    persistName(currentPlayer.name);
-                }
-            }
-
-            if (parsed.type === "host_assigned") {
-                setIsHost(parsed.data.hostId === playerId());
-            }
-
-            if (parsed.type === "game_selected") {
-                setSelectedGameType(parsed.data.gameType);
-            }
-
-            if (parsed.type === "game_started") {
-                setActiveGameType(parsed.data.gameType);
-                setRoomPhase("playing");
-            }
-
-            if (parsed.type === "game_ended") {
-                setActiveGameType(parsed.data.gameType);
-                setRoomPhase("playing");
             }
         };
     });

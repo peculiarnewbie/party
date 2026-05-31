@@ -3,18 +3,17 @@ import { Schema } from "effect";
 import { decodeUnknownSync } from "~/effect/schema-helpers";
 import type { SchemaType } from "~/effect/schema-types";
 import {
-    buildGameServerMessageSchema,
     createPlayerViewDecoder,
     encodeGameServerMessage,
+    gameErrorPayloadSchema,
     type GameErrorPayload,
 } from "~/game/shared/game-wire";
+import { nonNegativeIntSchema, serverMessageWithData } from "~/game/shared/wire-schemas";
+import { rpsEventSchema, type RpsEvent, type RpsHiddenData } from "./events";
+import { rpsChoices, rpsBestOfValues, rpsPhases, rpsChoiceSchema, rpsBestOfSchema } from "./constants";
 
-export const rpsChoices = ["rock", "paper", "scissors"] as const;
-export const rpsBestOfValues = [1, 3, 5] as const;
-export const rpsPhases = ["throwing", "round_results", "tournament_over"] as const;
+export { rpsChoices, rpsBestOfValues, rpsChoiceSchema, rpsBestOfSchema } from "./constants";
 
-const rpsChoiceSchema = Schema.Literals(rpsChoices);
-const rpsBestOfSchema = Schema.Literals(rpsBestOfValues);
 const rpsPhaseSchema = Schema.Literals(rpsPhases);
 const matchStatusSchema = Schema.Literals(["active", "complete"] as const);
 
@@ -136,12 +135,56 @@ export const rpsGameOverPayloadSchema = Schema.Struct({
     winnerId: Schema.mutableKey(Schema.String),
 });
 
-export const rpsServerMessageSchema = buildGameServerMessageSchema({
-    prefix: "rps",
-    playerViewSchema: rpsPlayerViewSchema,
-    actionSchema: rpsResultSchema,
-    gameOverSchema: rpsGameOverPayloadSchema,
+const rpsHiddenDataWireSchema = Schema.Struct({
+    type: Schema.mutableKey(Schema.Literal("throw_choice")),
+    choice: Schema.mutableKey(rpsChoiceSchema),
 });
+
+const rpsSnapshotMessageSchema = Schema.Struct({
+    type: Schema.mutableKey(Schema.Literal("rps:snapshot")),
+    index: Schema.mutableKey(nonNegativeIntSchema),
+    data: Schema.mutableKey(rpsStateSchema),
+});
+
+const rpsEventMessageSchema = Schema.Struct({
+    type: Schema.mutableKey(Schema.Literal("rps:event")),
+    index: Schema.mutableKey(nonNegativeIntSchema),
+    data: Schema.mutableKey(rpsEventSchema),
+});
+
+const rpsHiddenMessageSchema = Schema.Struct({
+    type: Schema.mutableKey(Schema.Literal("rps:hidden")),
+    index: Schema.mutableKey(nonNegativeIntSchema),
+    data: Schema.mutableKey(rpsHiddenDataWireSchema),
+});
+
+const rpsSyncResponseMessageSchema = Schema.Struct({
+    type: Schema.mutableKey(Schema.Literal("rps:sync_response")),
+    snapshot: Schema.mutableKey(Schema.Struct({
+        index: Schema.mutableKey(nonNegativeIntSchema),
+        data: Schema.mutableKey(rpsStateSchema),
+    })),
+    events: Schema.mutableKey(Schema.mutable(Schema.Array(Schema.Struct({
+        index: Schema.mutableKey(nonNegativeIntSchema),
+        type: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(rpsEventSchema),
+    })))),
+    hidden: Schema.mutableKey(Schema.mutable(Schema.Array(Schema.Struct({
+        index: Schema.mutableKey(nonNegativeIntSchema),
+        data: Schema.mutableKey(rpsHiddenDataWireSchema),
+    })))),
+});
+
+export const rpsServerMessageSchema = Schema.Union([
+    serverMessageWithData("rps:state", rpsPlayerViewSchema),
+    serverMessageWithData("rps:action", rpsResultSchema),
+    serverMessageWithData("rps:error", gameErrorPayloadSchema),
+    serverMessageWithData("rps:game_over", rpsGameOverPayloadSchema),
+    rpsSnapshotMessageSchema,
+    rpsEventMessageSchema,
+    rpsHiddenMessageSchema,
+    rpsSyncResponseMessageSchema,
+]);
 
 export type RpsChoice = SchemaType<typeof rpsChoiceSchema>;
 export type BestOf = SchemaType<typeof rpsBestOfSchema>;
@@ -162,7 +205,11 @@ export type RpsServerMessage = SchemaType<typeof rpsServerMessageSchema>;
 export type RpsSideMessage =
     | { type: "rps:action"; data: RpsResult }
     | { type: "rps:error"; data: GameErrorPayload }
-    | { type: "rps:game_over"; data: RpsGameOverPayload };
+    | { type: "rps:game_over"; data: RpsGameOverPayload }
+    | { type: "rps:snapshot"; index: number; data: RpsState }
+    | { type: "rps:event"; index: number; data: RpsEvent }
+    | { type: "rps:hidden"; index: number; data: RpsHiddenData }
+    | { type: "rps:sync_response"; snapshot: { index: number; data: RpsState }; events: { index: number; type: string; data: RpsEvent }[]; hidden: { index: number; data: RpsHiddenData }[] };
 
 export const decodeRpsPlayerView = createPlayerViewDecoder(rpsPlayerViewSchema);
 export function decodeRpsSideMessage(raw: unknown): RpsSideMessage | null {
@@ -189,6 +236,25 @@ export function decodeRpsSideMessage(raw: unknown): RpsSideMessage | null {
                 type: "rps:game_over",
                 data: message.data as RpsGameOverPayload,
             };
+        }
+
+        if (message.type === "rps:snapshot") {
+            const ledgerMessage = message as unknown as { index: number; data: RpsState };
+            return { type: "rps:snapshot", index: ledgerMessage.index, data: ledgerMessage.data };
+        }
+
+        if (message.type === "rps:event") {
+            const ledgerMessage = message as unknown as { index: number; data: RpsEvent };
+            return { type: "rps:event", index: ledgerMessage.index, data: ledgerMessage.data };
+        }
+
+        if (message.type === "rps:hidden") {
+            const ledgerMessage = message as unknown as { index: number; data: RpsHiddenData };
+            return { type: "rps:hidden", index: ledgerMessage.index, data: ledgerMessage.data };
+        }
+
+        if (message.type === "rps:sync_response") {
+            return message as RpsSideMessage;
         }
 
         return null;

@@ -22,6 +22,11 @@ const E2E_SUITES: Record<string, E2eSuite> = {
         workerFiles: ["src/worker/yahtzee-room.test.ts"],
         browserScripts: ["e2e/yahtzee-seeded.spec.ts"],
     },
+    rps: {
+        description:
+            "Real workerd room-sequence coverage for 8-player RPS tournament, disconnect, and reconnection",
+        workerFiles: ["src/worker/rps-room.test.ts"],
+    },
 };
 
 function printUsage() {
