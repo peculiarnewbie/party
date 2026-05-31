@@ -1,0 +1,40 @@
+{
+    "name": "quiz-manager",
+    "private": true,
+    "sideEffects": false,
+    "type": "module",
+    "scripts": {
+        "dev": "vite dev",
+        "build": "vite build && tsc --noEmit",
+        "typecheck": "tsc --noEmit",
+        "preview": "vite preview",
+        "deploy": "npm run build && wrangler deploy",
+        "cf-typegen": "wrangler types",
+        "postinstall": "npm run cf-typegen && node -e \"const fs=require('fs');let c=fs.readFileSync('worker-configuration.d.ts','utf8');if(!c.includes('ADMIN_PASSWORD')){c=c.replace('DB: D1Database;','DB: D1Database;\\n\\t\\tADMIN_PASSWORD: string;\\n\\t\\tSESSION_SECRET: string;');fs.writeFileSync('worker-configuration.d.ts',c)}\"",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "wrangler d1 migrations apply quiz-manager",
+        "seed:herd": "node --import tsx scripts/seed-herd.ts",
+        "test:unit": "vitest run"
+    },
+    "dependencies": {
+        "@tanstack/solid-router": "^1.141.8",
+        "@tanstack/solid-start": "^1.142.5",
+        "drizzle-orm": "^0.38.0",
+        "effect": "4.0.0-beta.50",
+        "nanoid": "^5.1.6",
+        "solid-js": "^1.9.10"
+    },
+    "devDependencies": {
+        "@cloudflare/vite-plugin": "^1.13.7",
+        "@tailwindcss/vite": "^4.1.18",
+        "drizzle-kit": "^0.31.0",
+        "tailwindcss": "^4.1.18",
+        "tsx": "^4.21.0",
+        "typescript": "^5.7.2",
+        "vite": "^7.1.7",
+        "vite-plugin-solid": "^2.11.10",
+        "vite-tsconfig-paths": "^5.1.4",
+        "vitest": "^4.1.4",
+        "wrangler": "^4.81.1"
+    }
+}
