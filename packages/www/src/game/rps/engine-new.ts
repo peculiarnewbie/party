@@ -13,6 +13,7 @@ import { rpsEventSchema } from "./events";
 import { initGame, validateNextRound, getCurrentRound, checkRoundComplete, collectRoundWinners, winsNeeded, resolveThrow, findActiveMatch, getPlayerMatchPosition } from "./mechanics";
 import { reduce } from "./reduce";
 import { rpsClientMessageSchema } from "./messages";
+import { encodeRpsServerMessage, type RpsServerMessage } from "./schemas";
 import { decodeUnknownSync } from "~/effect/schema-helpers";
 
 interface RpsEngineConfig {
@@ -251,14 +252,14 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
 
     function sendSyncResponse(playerId: string, lastSnapshotIndex: number, lastEventIndex: number) {
         const response = buildSyncResponse(playerId, lastSnapshotIndex, lastEventIndex);
-        config.sendTo(playerId, JSON.stringify({ type: "rps:sync_response", ...response }));
+        config.sendTo(playerId, encodeRpsServerMessage({ type: "rps:sync_response", ...response } as RpsServerMessage));
     }
 
     function sendError(playerId: string, message: string): Effect.Effect<void> {
         return Effect.sync(() => {
             config.sendTo(
                 playerId,
-                JSON.stringify({ type: "rps:error", data: { message } }),
+                encodeRpsServerMessage({ type: "rps:error", data: { message } }),
             );
         });
     }
