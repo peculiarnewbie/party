@@ -63,8 +63,20 @@ pnpm --filter www test:unit
 # Run a specific test file
 pnpm --filter www test:unit src/game/game.test.ts
 
-# Run browser (E2E) tests — Playwright + Stagehand
-pnpm --filter www test:browser:yahtzee
+# Run E2E tests (workerd worker tests)
+pnpm test:e2e -- all
+
+# Run browser E2E tests (Playwright)
+pnpm test:e2e -- --browser all
+pnpm test:e2e -- --browser rps
+pnpm test:e2e -- --browser rps --headed
+pnpm test:e2e -- --browser rps --ui
+
+# View HTML report
+pnpm report
+
+# View traces
+pnpm trace
 
 # Run everything
 pnpm --filter www test:all
@@ -74,6 +86,9 @@ pnpm --filter www test:all
 - Test files use `.test.ts` or `.test.tsx` extension
 - Import test APIs from `vitest`: `import { describe, it, expect, vi } from "vitest"`
 - Vitest config lives at `packages/www/vitest.config.ts`
+- Browser E2E tests use Playwright Test (`@playwright/test`)
+- Playwright config lives at `packages/www/playwright.config.ts`
+- HTML reports are generated in `packages/www/playwright-report/`
 
 ## TypeScript Configuration
 

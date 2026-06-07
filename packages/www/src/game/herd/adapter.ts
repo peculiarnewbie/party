@@ -1,11 +1,10 @@
 import type { HerdState } from "./types";
-import type { HerdClientMessage } from "./messages";
-import { herdClientMessageSchema } from "./messages";
+import { herdClientMessageSchema, type HerdClientMessage } from "./messages";
 import { herdServer } from "./server";
 import { decodeGameClientMessageOrNull } from "~/effect/schema-helpers";
 import type { GameAdapterRegistration } from "~/game/shared/game-adapter-types";
 
-export const herdRegistration: GameAdapterRegistration = {
+export const herdRegistration: GameAdapterRegistration<HerdClientMessage> = {
     gameTypes: ["herd"],
     create: (_gameType, stateRef, _adapterCtx) => {
         const ref = stateRef as { current: HerdState | null };
@@ -17,7 +16,7 @@ export const herdRegistration: GameAdapterRegistration = {
                     component: "herd-transport",
                 }),
             processMessage: (msg, broadcast, sendTo) =>
-                herdServer(ref).processMessage(msg as HerdClientMessage, broadcast, sendTo),
+                herdServer(ref).processMessage(msg, broadcast, sendTo),
             sendStateToPlayer: (playerId, sendTo) =>
                 herdServer(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, hostId, broadcast, sendTo) => {

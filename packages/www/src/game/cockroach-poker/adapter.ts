@@ -1,11 +1,10 @@
 import type { CockroachPokerState } from "./types";
-import type { CockroachPokerClientMessage } from "./messages";
-import { cockroachPokerClientMessageSchema } from "./messages";
+import { cockroachPokerClientMessageSchema, type CockroachPokerClientMessage } from "./messages";
 import { cockroachPokerServer } from "./server";
 import { decodeGameClientMessageOrNull } from "~/effect/schema-helpers";
 import type { GameAdapterRegistration } from "~/game/shared/game-adapter-types";
 
-export const cockroachPokerRegistration: GameAdapterRegistration = {
+export const cockroachPokerRegistration: GameAdapterRegistration<CockroachPokerClientMessage> = {
     gameTypes: ["cockroach_poker"],
     create: (_gameType, stateRef, _adapterCtx) => {
         const ref = stateRef as { current: CockroachPokerState | null };
@@ -17,7 +16,7 @@ export const cockroachPokerRegistration: GameAdapterRegistration = {
                     component: "cockroach-poker-transport",
                 }),
             processMessage: (msg, broadcast, sendTo) =>
-                cockroachPokerServer(ref).processMessage(msg as CockroachPokerClientMessage, broadcast, sendTo),
+                cockroachPokerServer(ref).processMessage(msg, broadcast, sendTo),
             sendStateToPlayer: (playerId, sendTo) =>
                 cockroachPokerServer(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, _hostId, broadcast, sendTo) =>

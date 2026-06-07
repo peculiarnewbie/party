@@ -1,11 +1,10 @@
 import type { PerudoState } from "./types";
-import type { PerudoClientMessage } from "./messages";
-import { perudoClientMessageSchema } from "./messages";
+import { perudoClientMessageSchema, type PerudoClientMessage } from "./messages";
 import { perudoServer } from "./server";
 import { decodeGameClientMessageOrNull } from "~/effect/schema-helpers";
 import type { GameAdapterRegistration } from "~/game/shared/game-adapter-types";
 
-export const perudoRegistration: GameAdapterRegistration = {
+export const perudoRegistration: GameAdapterRegistration<PerudoClientMessage> = {
     gameTypes: ["perudo"],
     create: (_gameType, stateRef, _adapterCtx) => {
         const ref = stateRef as { current: PerudoState | null };
@@ -17,7 +16,7 @@ export const perudoRegistration: GameAdapterRegistration = {
                     component: "perudo-transport",
                 }),
             processMessage: (msg, broadcast, sendTo) =>
-                perudoServer(ref).processMessage(msg as PerudoClientMessage, broadcast, sendTo),
+                perudoServer(ref).processMessage(msg, broadcast, sendTo),
             sendStateToPlayer: (playerId, sendTo) =>
                 perudoServer(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, _hostId, broadcast, sendTo) =>

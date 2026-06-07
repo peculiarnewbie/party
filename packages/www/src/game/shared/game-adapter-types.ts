@@ -5,11 +5,11 @@ type SendToFn = (playerId: string, msg: string) => void;
 
 export type { BroadcastFn, SendToFn };
 
-export interface GameAdapter {
+export interface GameAdapter<TMessage = unknown> {
     messagePrefix: string;
-    decodeMessage(json: Record<string, unknown>): Effect.Effect<unknown, never, never>;
+    decodeMessage(json: Record<string, unknown>): Effect.Effect<TMessage | null, never, never>;
     processMessage(
-        message: unknown,
+        message: TMessage,
         broadcast: BroadcastFn,
         sendTo: SendToFn,
     ): void;
@@ -43,11 +43,11 @@ export interface GameAdapterContext {
     setGameTimer: (clearFn: (() => void) | null) => void;
 }
 
-export interface GameAdapterRegistration {
+export interface GameAdapterRegistration<TMessage = unknown> {
     gameTypes: string[];
     create(
         gameType: string,
         stateRef: { current: unknown },
         adapterCtx?: GameAdapterContext,
-    ): GameAdapter;
+    ): GameAdapter<TMessage>;
 }

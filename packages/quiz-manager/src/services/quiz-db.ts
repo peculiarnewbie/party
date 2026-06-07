@@ -6,8 +6,7 @@ import type {
     QuizSummary,
     QuizWithQuestions,
     TagWithCount,
-    QuestionType,
-    MatchType,
+    QuestionInput,
 } from "~/schemas";
 import {
     DatabaseError,
@@ -17,17 +16,6 @@ import {
     DuplicateTagError,
 } from "~/errors";
 import { nanoid } from "nanoid";
-
-export interface QuestionInput {
-    type: QuestionType;
-    text: string;
-    options?: { text: string; isCorrect: boolean }[];
-    acceptedAnswers?: {
-        pattern: string;
-        matchType: MatchType;
-        caseInsensitive: boolean;
-    }[];
-}
 
 interface QuizDbShape {
     readonly getQuiz: (

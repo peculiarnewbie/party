@@ -18,8 +18,9 @@ import type {
 } from "~/game/shared/game-adapter-types";
 
 export type { GameAdapter, GameAdapterContext };
+export type { GameAdapterRegistration };
 
-const REGISTRATIONS: GameAdapterRegistration[] = [
+const REGISTRATIONS = [
     goFishRegistration,
     pokerRegistration,
     blackjackRegistration,
@@ -33,7 +34,7 @@ const REGISTRATIONS: GameAdapterRegistration[] = [
     flip7Registration,
     skullRegistration,
     spicyRegistration,
-];
+] as const;
 
 const REGISTRY: Record<
     string,
@@ -46,7 +47,11 @@ const REGISTRY: Record<
 
 for (const reg of REGISTRATIONS) {
     for (const gt of reg.gameTypes) {
-        REGISTRY[gt] = reg.create;
+        REGISTRY[gt] = reg.create as (
+            gameType: string,
+            stateRef: { current: unknown },
+            adapterCtx?: GameAdapterContext,
+        ) => GameAdapter;
     }
 }
 

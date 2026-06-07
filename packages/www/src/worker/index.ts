@@ -1,9 +1,12 @@
 import handler from "@tanstack/solid-start/server-entry";
 import { GameRoom } from "./ws";
 
-export default {
-    async fetch(request) {
+const worker = {
+    async fetch(request: Request) {
         return handler.fetch(request);
     },
-} as ExportedHandler<Env>;
+    GameRoom,
+} as ExportedHandler<Env> & { GameRoom: typeof GameRoom };
+
+export default worker;
 export { GameRoom };

@@ -1,11 +1,10 @@
 import type { Flip7State } from "./types";
-import type { Flip7ClientMessage } from "./messages";
-import { flip7ClientMessageSchema } from "./messages";
+import { flip7ClientMessageSchema, type Flip7ClientMessage } from "./messages";
 import { flip7Server } from "./server";
 import { decodeGameClientMessageOrNull } from "~/effect/schema-helpers";
 import type { GameAdapterRegistration } from "~/game/shared/game-adapter-types";
 
-export const flip7Registration: GameAdapterRegistration = {
+export const flip7Registration: GameAdapterRegistration<Flip7ClientMessage> = {
     gameTypes: ["flip_7"],
     create: (_gameType, stateRef, _adapterCtx) => {
         const ref = stateRef as { current: Flip7State | null };
@@ -17,7 +16,7 @@ export const flip7Registration: GameAdapterRegistration = {
                     component: "flip-7-transport",
                 }),
             processMessage: (msg, broadcast, sendTo) =>
-                flip7Server(ref).processMessage(msg as Flip7ClientMessage, broadcast, sendTo),
+                flip7Server(ref).processMessage(msg, broadcast, sendTo),
             sendStateToPlayer: (playerId, sendTo) =>
                 flip7Server(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, hostId, broadcast, sendTo) => {

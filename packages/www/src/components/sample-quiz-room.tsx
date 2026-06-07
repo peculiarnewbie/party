@@ -28,6 +28,7 @@ const AnswerButton: Component<{
 
     return (
         <button
+            data-testid={`quiz-answer-${props.answer}`}
             onClick={() => props.onSubmit(props.answer)}
             disabled={isAnswered()}
             style={{
@@ -48,7 +49,7 @@ const AnswerButton: Component<{
                 Answer {cfg().label}
             </span>
             <Show when={isSelected()}>
-                <span class="ml-auto font-bebas text-[.75rem] tracking-[.18em] opacity-80">
+                <span data-testid="quiz-locked-label" class="ml-auto font-bebas text-[.75rem] tracking-[.18em] opacity-80">
                     LOCKED
                 </span>
             </Show>
@@ -91,14 +92,14 @@ export const SampleQuizRoom: Component<{
     };
 
     return (
-        <div class="min-h-screen grid grid-cols-[2fr_1fr] bg-[#ddd5c4] font-karla overflow-hidden max-sm:grid-cols-1">
+        <div data-testid="quiz-room" class="min-h-screen grid grid-cols-[2fr_1fr] bg-[#ddd5c4] font-karla overflow-hidden max-sm:grid-cols-1">
             {/* ── Left: question + answers ── */}
             <div class="pt-12 pr-10 pb-20 pl-12 flex flex-col justify-center min-h-screen relative z-[1] max-sm:px-6 max-sm:py-10">
-                <div class="inline-block self-start font-bebas text-[.95rem] tracking-[.18em] bg-[#1a3a6e] text-[#ddd5c4] px-4 py-1 mb-6">
+                <div data-testid="quiz-round-label" class="inline-block self-start font-bebas text-[.95rem] tracking-[.18em] bg-[#1a3a6e] text-[#ddd5c4] px-4 py-1 mb-6">
                     Round 1
                 </div>
 
-                <h1 class="font-bebas text-[clamp(2rem,4vw,3.5rem)] text-[#1a1a1a] leading-[1.05] tracking-[.02em] m-0 mb-6">
+                <h1 data-testid="quiz-question" class="font-bebas text-[clamp(2rem,4vw,3.5rem)] text-[#1a1a1a] leading-[1.05] tracking-[.02em] m-0 mb-6">
                     This is a sample question
                 </h1>
 
@@ -123,7 +124,7 @@ export const SampleQuizRoom: Component<{
                 </div>
 
                 <Show when={playerAnswer()}>
-                    <div class="mt-8 flex items-center gap-3">
+                    <div data-testid="quiz-waiting" class="mt-8 flex items-center gap-3">
                         <div class="h-[2px] w-8 bg-[#b8ae9e]" />
                         <span class="font-bebas text-[.75rem] tracking-[.2em] text-[#9a9080]">
                             WAITING FOR RESULTS
@@ -155,6 +156,7 @@ export const SampleQuizRoom: Component<{
                         when={playerAnswer()}
                         fallback={
                             <div
+                                data-testid="quiz-choose-prompt"
                                 class="absolute top-[38%] left-1/2 text-center"
                                 style={{ transform: "translateX(-50%)", animation: "bob1 4s ease-in-out infinite" }}
                             >
@@ -167,6 +169,7 @@ export const SampleQuizRoom: Component<{
                         }
                     >
                         <div
+                            data-testid="quiz-my-answer"
                             class="absolute top-[32%] left-1/2 text-center"
                             style={{ transform: "translateX(-50%)", animation: "bob2 4s ease-in-out infinite" }}
                         >
@@ -182,7 +185,7 @@ export const SampleQuizRoom: Component<{
 
                 {/* Host: see all player answers */}
                 <Show when={props.isHost}>
-                    <div class="absolute inset-0 flex flex-col justify-center pl-16 pr-8 overflow-y-auto">
+                    <div data-testid="quiz-host-answers" class="absolute inset-0 flex flex-col justify-center pl-16 pr-8 overflow-y-auto">
                         <div class="font-bebas text-[.6rem] tracking-[.28em] text-[#ddd5c4] opacity-45 mb-4">
                             PLAYER ANSWERS
                         </div>
@@ -203,6 +206,7 @@ export const SampleQuizRoom: Component<{
                         </For>
                         <Show when={playerAnswers().length === 0}>
                             <div
+                                data-testid="quiz-host-waiting"
                                 class="font-bebas text-[.8rem] tracking-[.12em] text-[#ddd5c4] opacity-30"
                                 style={{ animation: "bob1 4s ease-in-out infinite" }}
                             >

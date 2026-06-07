@@ -1,12 +1,6 @@
-import assert from "node:assert/strict";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { test, expect, chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { nanoid } from "nanoid";
-import { startLocalApp } from "./helpers/browser-session";
-import {
-    STAGEHAND_BASE_URL,
-    STAGEHAND_EXECUTABLE_PATH,
-    STAGEHAND_VIEWPORT,
-} from "./stagehand.config";
+import { E2E_BASE_URL, E2E_VIEWPORT } from "./helpers/e2e.config";
 
 type PlayerSession = {
     context: BrowserContext;
@@ -14,13 +8,6 @@ type PlayerSession = {
     name: string;
     playerId: string;
 };
-
-async function createBrowser() {
-    return chromium.launch({
-        executablePath: STAGEHAND_EXECUTABLE_PATH,
-        headless: process.env.E2E_HEADLESS !== "0",
-    });
-}
 
 function createRoomId(prefix: string) {
     return `${prefix}-${nanoid(6).toLowerCase()}`;
@@ -32,10 +19,10 @@ async function createPlayer(
     name: string,
 ): Promise<PlayerSession> {
     const context = await browser.newContext({
-        viewport: STAGEHAND_VIEWPORT,
+        viewport: E2E_VIEWPORT,
     });
     const page = await context.newPage();
-    await page.goto(new URL(`/room/${roomId}`, STAGEHAND_BASE_URL).toString(), {
+    await page.goto(new URL(`/room/${roomId}`, E2E_BASE_URL).toString(), {
         waitUntil: "networkidle",
     });
     await page.waitForSelector('[data-testid="room-lobby"]');
@@ -50,13 +37,13 @@ async function createPlayer(
 
     const cookies = await context.cookies();
     const playerId = cookies.find((cookie) => cookie.name === "playerId")?.value;
-    assert(playerId, `Missing playerId cookie for ${name}`);
+    expect(playerId).toBeTruthy();
 
     return {
         context,
         page,
         name,
-        playerId,
+        playerId: playerId!,
     };
 }
 
@@ -105,101 +92,76 @@ async function closePlayers(players: PlayerSession[]) {
     await Promise.all(players.map((player) => player.context.close()));
 }
 
-async function runFoldPropagation(browser: Browser) {
-    process.stdout.write("Running live-fold-propagation...\n");
-    const roomId = createRoomId("poker-live-fold");
-    const alice = await createPlayer(browser, roomId, "Alice");
-    const bob = await createPlayer(browser, roomId, "Bob");
+test.describe("poker-live", () => {
+    test("fold propagation", async ({ browser }) => {
+        const roomId = createRoomId("poker-live-fold");
+        const alice = await createPlayer(browser, roomId, "Alice");
+        const bob = await createPlayer(browser, roomId, "Bob");
 
-    try {
-        await startPoker(alice);
-        await waitForPokerRoom(bob);
-
-        await alice.page.waitForFunction(() => {
-            const banner = document.querySelector('[data-testid="poker-turn-banner"]');
-            return banner?.textContent?.includes("YOUR TURN");
-        });
-
-        await alice.page.locator('[data-testid="poker-fold-button"]').click();
-
-        await Promise.all([
-            waitForSeatStatus(alice.page, alice.playerId, "folded"),
-            waitForSeatStatus(bob.page, alice.playerId, "folded"),
-            waitForStreet(alice.page, "HAND OVER"),
-            waitForStreet(bob.page, "HAND OVER"),
-        ]);
-
-        assert.equal(
-            await alice.page.locator('[data-testid="poker-call-button"]').isDisabled(),
-            true,
-        );
-        assert.equal(
-            await bob.page.locator('[data-testid="poker-call-button"]').isDisabled(),
-            true,
-        );
-    } finally {
-        await closePlayers([alice, bob]);
-    }
-}
-
-async function runSpectatorJoin(browser: Browser) {
-    process.stdout.write("Running live-spectator-join...\n");
-    const roomId = createRoomId("poker-live-spectator");
-    const alice = await createPlayer(browser, roomId, "Alice");
-    const bob = await createPlayer(browser, roomId, "Bob");
-
-    try {
-        await startPoker(alice);
-        await waitForPokerRoom(bob);
-
-        const dana = await createPlayer(browser, roomId, "Dana");
         try {
-            await waitForPokerRoom(dana);
+            await startPoker(alice);
+            await waitForPokerRoom(bob);
 
-            await dana.page.waitForFunction(() => {
-                const hand = document.querySelector('[data-testid="poker-hero-hand"]');
-                return hand?.getAttribute("data-spectator") === "true";
+            await alice.page.waitForFunction(() => {
+                const banner = document.querySelector('[data-testid="poker-turn-banner"]');
+                return banner?.textContent?.includes("YOUR TURN");
             });
 
-            assert.equal(
-                await dana.page.locator('[data-testid="poker-fold-button"]').count(),
-                0,
-            );
-            assert.match(
-                await text(dana.page, "poker-hero-status"),
-                /SPECTATING/,
-            );
-            assert.match(
-                await text(alice.page, "poker-spectator-list"),
-                /Dana/,
-            );
-            assert.equal(
-                await getAttr(dana.page, "poker-hero-hand", "data-visible-card-count"),
-                "0",
-            );
+            await alice.page.locator('[data-testid="poker-fold-button"]').click();
+
+            await Promise.all([
+                waitForSeatStatus(alice.page, alice.playerId, "folded"),
+                waitForSeatStatus(bob.page, alice.playerId, "folded"),
+                waitForStreet(alice.page, "HAND OVER"),
+                waitForStreet(bob.page, "HAND OVER"),
+            ]);
+
+            await expect(
+                alice.page.locator('[data-testid="poker-call-button"]'),
+            ).toBeDisabled();
+            await expect(
+                bob.page.locator('[data-testid="poker-call-button"]'),
+            ).toBeDisabled();
         } finally {
-            await closePlayers([dana]);
+            await closePlayers([alice, bob]);
         }
-    } finally {
-        await closePlayers([alice, bob]);
-    }
-}
+    });
 
-async function main() {
-    const server = await startLocalApp();
-    const browser = await createBrowser();
+    test("spectator join", async ({ browser }) => {
+        const roomId = createRoomId("poker-live-spectator");
+        const alice = await createPlayer(browser, roomId, "Alice");
+        const bob = await createPlayer(browser, roomId, "Bob");
 
-    try {
-        await runFoldPropagation(browser);
-        await runSpectatorJoin(browser);
-        process.stdout.write("Passed 2 live browser poker room checks.\n");
-    } finally {
-        await browser.close();
-        await server.stop();
-    }
-}
+        try {
+            await startPoker(alice);
+            await waitForPokerRoom(bob);
 
-main().catch((error) => {
-    console.error(error);
-    process.exit(1);
+            const dana = await createPlayer(browser, roomId, "Dana");
+            try {
+                await waitForPokerRoom(dana);
+
+                await dana.page.waitForFunction(() => {
+                    const hand = document.querySelector('[data-testid="poker-hero-hand"]');
+                    return hand?.getAttribute("data-spectator") === "true";
+                });
+
+                await expect(
+                    dana.page.locator('[data-testid="poker-fold-button"]'),
+                ).toHaveCount(0);
+                expect(await text(dana.page, "poker-hero-status")).toMatch(
+                    /SPECTATING/,
+                );
+                expect(await text(alice.page, "poker-spectator-list")).toMatch(
+                    /Dana/,
+                );
+                expect(
+                    await getAttr(dana.page, "poker-hero-hand", "data-visible-card-count"),
+                ).toBe("0");
+            } finally {
+                await closePlayers([dana]);
+            }
+        } finally {
+            await closePlayers([alice, bob]);
+        }
+    });
 });

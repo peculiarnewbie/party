@@ -199,54 +199,37 @@ const persistedGameSnapshotJsonSchema = Schema.fromJsonString(
     persistedGameSnapshotSchema,
 );
 
+const gameStateSchemaMap: Record<string, Schema.Top> = {
+    go_fish: goFishStateSchema,
+    poker: pokerStateSchema,
+    backwards_poker: pokerStateSchema,
+    blackjack: blackjackStateSchema,
+    yahtzee: yahtzeeStateSchema,
+    lying_yahtzee: yahtzeeStateSchema,
+    perudo: perudoStateSchema,
+    rps: rpsStateSchema,
+    herd: herdStateSchema,
+    fun_facts: funFactsStateSchema,
+    cheese_thief: cheeseThiefStateSchema,
+    cockroach_poker: cockroachPokerStateSchema,
+    flip_7: flip7StateSchema,
+    skull: skullStateSchema,
+    spicy: spicyStateSchema,
+};
+
 function getStateSchemaFor(
-    activeGameType: GameState["activeGameType"],
+    activeGameType: string | null,
 ): Schema.Top | null {
-    switch (activeGameType) {
-        case "go_fish":
-            return goFishStateSchema;
-        case "poker":
-        case "backwards_poker":
-            return pokerStateSchema;
-        case "blackjack":
-            return blackjackStateSchema;
-        case "yahtzee":
-        case "lying_yahtzee":
-            return yahtzeeStateSchema;
-        case "perudo":
-            return perudoStateSchema;
-        case "rps":
-            return rpsStateSchema;
-        case "herd":
-            return herdStateSchema;
-        case "fun_facts":
-            return funFactsStateSchema;
-        case "cheese_thief":
-            return cheeseThiefStateSchema;
-        case "cockroach_poker":
-            return cockroachPokerStateSchema;
-        case "flip_7":
-            return flip7StateSchema;
-        case "skull":
-            return skullStateSchema;
-        case "spicy":
-            return spicyStateSchema;
-        default:
-            return null;
-    }
+    return activeGameType ? gameStateSchemaMap[activeGameType] ?? null : null;
 }
 
 function getSnapshotSchemaFor(
-    activeGameType: GameState["activeGameType"],
+    activeGameType: string | null,
 ): Schema.Top | null {
-    if (!activeGameType) {
-        return null;
-    }
+    if (!activeGameType) return null;
 
     const stateSchema = getStateSchemaFor(activeGameType);
-    if (!stateSchema) {
-        return null;
-    }
+    if (!stateSchema) return null;
 
     return Schema.Union([
         createTypedSnapshotSchema(
@@ -345,6 +328,7 @@ function decodePersistedValue<A>(
                 return fallback;
             }),
         ),
+    // TODO: remove cast when Effect Schema v4 narrows Schema.Top through generics
     ) as Effect.Effect<A, never>;
 }
 

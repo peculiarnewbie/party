@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/solid-start";
 import { Effect } from "effect";
 import { env } from "cloudflare:workers";
 import { QuizDb } from "~/services/quiz-db";
-import type { QuestionInput } from "~/services/quiz-db";
+import type { QuestionInput } from "~/schemas";
 
 const dbLayer = QuizDb.layer(env.DB);
 

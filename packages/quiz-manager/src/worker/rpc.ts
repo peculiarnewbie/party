@@ -1,8 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Effect } from "effect";
 import { QuizDb } from "~/services/quiz-db";
-import type { QuizSummary, QuizWithQuestions, TagWithCount } from "~/schemas";
-import type { QuestionInput } from "~/services/quiz-db";
+import type { QuizSummary, QuizWithQuestions, TagWithCount, QuestionInput } from "~/schemas";
 
 export class QuizManager extends WorkerEntrypoint<Env> {
     private run<A>(effect: Effect.Effect<A, never>): Promise<A> {

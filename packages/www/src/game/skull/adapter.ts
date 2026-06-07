@@ -1,11 +1,10 @@
 import type { SkullState } from "./types";
-import type { SkullClientMessage } from "./messages";
-import { skullClientMessageSchema } from "./messages";
+import { skullClientMessageSchema, type SkullClientMessage } from "./messages";
 import { skullServer } from "./server";
 import { decodeGameClientMessageOrNull } from "~/effect/schema-helpers";
 import type { GameAdapterRegistration } from "~/game/shared/game-adapter-types";
 
-export const skullRegistration: GameAdapterRegistration = {
+export const skullRegistration: GameAdapterRegistration<SkullClientMessage> = {
     gameTypes: ["skull"],
     create: (_gameType, stateRef, _adapterCtx) => {
         const ref = stateRef as { current: SkullState | null };
@@ -17,7 +16,7 @@ export const skullRegistration: GameAdapterRegistration = {
                     component: "skull-transport",
                 }),
             processMessage: (msg, broadcast, sendTo) =>
-                skullServer(ref).processMessage(msg as SkullClientMessage, broadcast, sendTo),
+                skullServer(ref).processMessage(msg, broadcast, sendTo),
             sendStateToPlayer: (playerId, sendTo) =>
                 skullServer(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, _hostId, broadcast, sendTo) =>

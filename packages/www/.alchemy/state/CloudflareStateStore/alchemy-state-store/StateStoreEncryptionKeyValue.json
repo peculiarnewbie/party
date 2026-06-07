@@ -1,0 +1,21 @@
+{
+  "status": "created",
+  "fqn": "StateStoreEncryptionKeyValue",
+  "logicalId": "StateStoreEncryptionKeyValue",
+  "instanceId": "4ff6bf61cd44168613ec70f0e7aa9af0",
+  "resourceType": "Alchemy.Random",
+  "props": {
+    "bytes": 32
+  },
+  "attr": {
+    "text": {
+      "__redacted__": "8bc4440852b75760fba40c13d4be44bb300018abe830abf8c322bb3adf08e402"
+    }
+  },
+  "bindings": [],
+  "providerVersion": 0,
+  "downstream": [
+    "StateStoreEncryptionKey"
+  ],
+  "removalPolicy": "destroy"
+}

@@ -70,3 +70,23 @@ export class TagWithCount extends Schema.Class<TagWithCount>("TagWithCount")({
     slug: Schema.String,
     quizCount: Schema.Number,
 }) {}
+
+const optionInputSchema = Schema.Struct({
+    text: Schema.String,
+    isCorrect: Schema.Boolean,
+});
+
+const acceptedAnswerInputSchema = Schema.Struct({
+    pattern: Schema.String,
+    matchType: MatchType,
+    caseInsensitive: Schema.Boolean,
+});
+
+export const questionInputSchema = Schema.Struct({
+    type: QuestionType,
+    text: Schema.String,
+    options: Schema.optional(Schema.Array(optionInputSchema)),
+    acceptedAnswers: Schema.optional(Schema.Array(acceptedAnswerInputSchema)),
+});
+
+export type QuestionInput = typeof questionInputSchema.Type;

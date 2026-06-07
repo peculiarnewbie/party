@@ -1,22 +1,12 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { Page } from "@playwright/test";
 import type { YahtzeeFixtureId } from "../../src/game/yahtzee/fixtures";
-import {
-    createStagehandSession,
-    startLocalApp,
-    type LocalServerHandle,
-} from "./browser-session";
-import {
-    STAGEHAND_BASE_URL,
-    getStagehandArtifactDir,
-} from "../stagehand.config";
-
-export { createStagehandSession, startLocalApp };
-export type { LocalServerHandle };
+import { E2E_BASE_URL, getE2eArtifactDir } from "./e2e.config";
 
 export class YahtzeeFixturePage {
-    constructor(private readonly page: any) {}
+    constructor(private readonly page: Page) {}
 
     async gotoFixture(
         fixtureId: YahtzeeFixtureId,
@@ -25,7 +15,7 @@ export class YahtzeeFixturePage {
             step?: number;
         } = {},
     ) {
-        const url = new URL("/dev/yahtzee", STAGEHAND_BASE_URL);
+        const url = new URL("/dev/yahtzee", E2E_BASE_URL);
         url.searchParams.set("fixture", fixtureId);
         url.searchParams.set("island", "hidden");
         if (options.playerId) {
@@ -100,7 +90,7 @@ export class YahtzeeFixturePage {
         const mode = process.env.E2E_UPDATE_SCREENSHOTS === "1"
             ? "baseline"
             : "current";
-        const outputDir = path.join(getStagehandArtifactDir("yahtzee"), mode);
+        const outputDir = path.join(getE2eArtifactDir("yahtzee"), mode);
         await fs.mkdir(outputDir, { recursive: true });
         const outputPath = path.join(outputDir, `${name}.png`);
 

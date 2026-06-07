@@ -17,10 +17,11 @@
         "test:unit": "vitest run"
     },
     "dependencies": {
+        "@party/effect-utils": "workspace:*",
         "@tanstack/solid-router": "^1.141.8",
         "@tanstack/solid-start": "^1.142.5",
         "drizzle-orm": "^0.38.0",
-        "effect": "4.0.0-beta.50",
+        "effect": "4.0.0-beta.70",
         "nanoid": "^5.1.6",
         "solid-js": "^1.9.10"
     },

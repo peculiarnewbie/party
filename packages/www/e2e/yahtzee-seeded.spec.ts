@@ -1,256 +1,148 @@
-import assert from "node:assert/strict";
-import {
-    YahtzeeFixturePage,
-    createStagehandSession,
-    startLocalApp,
-} from "./helpers/yahtzee-fixture-page";
+import { test, expect } from "@playwright/test";
+import { YahtzeeFixturePage } from "./helpers/yahtzee-fixture-page";
 
-type TestCase = {
-    name: string;
-    run: (fixturePage: YahtzeeFixturePage) => Promise<void>;
-};
+test.describe("yahtzee-seeded", () => {
+    test("standard-my-turn-pre-roll", async ({ page }) => {
+        const fixture = new YahtzeeFixturePage(page);
+        await fixture.gotoFixture("standard-my-turn-pre-roll");
 
-const testCases: TestCase[] = [
-    {
-        name: "standard-my-turn-pre-roll",
-        run: async (fixturePage) => {
-            await fixturePage.gotoFixture("standard-my-turn-pre-roll");
+        await expect(page.getByTestId("yahtzee-title")).toContainText(/YAHTZEE/);
+        await expect(page.getByTestId("yahtzee-round")).toHaveText(
+            "ROUND 3 / 13",
+        );
+        await expect(page.getByTestId("yahtzee-roll-button")).toBeEnabled();
+        await expect(page.getByTestId("scorecard-cell-p1-chance")).toHaveText("");
 
-            assert.match(
-                (await fixturePage.textContent("yahtzee-title")) ?? "",
-                /YAHTZEE/,
-            );
-            assert.equal(
-                await fixturePage.textContent("yahtzee-round"),
-                "ROUND 3 / 13",
-            );
-            assert.equal(
-                await fixturePage.isEnabled("yahtzee-roll-button"),
-                true,
-            );
-            assert.equal(
-                await fixturePage.textContent("scorecard-cell-p1-chance"),
-                "",
-            );
-
-            for (const index of [0, 1, 2, 3, 4]) {
-                assert.equal(
-                    await fixturePage.getAttribute(
-                        `yahtzee-die-${index}`,
-                        "data-has-value",
-                    ),
-                    "false",
-                );
-            }
-
-            await fixturePage.takeScreenshot("standard-my-turn-pre-roll-full");
-            await fixturePage.takeScreenshot(
-                "standard-my-turn-pre-roll-dice",
-                "yahtzee-room",
-            );
-        },
-    },
-    {
-        name: "standard-my-turn-after-roll",
-        run: async (fixturePage) => {
-            await fixturePage.gotoFixture("standard-my-turn-after-roll");
-
-            assert.equal(
-                await fixturePage.textContent("yahtzee-my-score"),
-                "30 PTS",
-            );
-            assert.equal(
-                await fixturePage.textContent("yahtzee-roll-button"),
-                "ROLL (1 LEFT)",
-            );
-            assert.equal(
-                await fixturePage.textContent("scorecard-cell-p1-three_of_a_kind"),
-                "26",
-            );
-            assert.equal(
-                await fixturePage.getAttribute(
-                    "scorecard-cell-p1-three_of_a_kind",
-                    "data-suggested",
-                ),
-                "true",
-            );
-            assert.equal(
-                await fixturePage.getAttribute(
-                    "scorecard-cell-p1-chance",
-                    "data-suggested",
-                ),
-                "true",
-            );
-            assert.equal(
-                await fixturePage.getAttribute("yahtzee-die-0", "data-held"),
-                "true",
-            );
-            assert.equal(
-                await fixturePage.getAttribute("yahtzee-die-2", "data-held"),
-                "true",
-            );
-
-            await fixturePage.takeScreenshot("standard-my-turn-after-roll-full");
-            await fixturePage.takeScreenshot(
-                "standard-my-turn-after-roll-scorecard",
-                "yahtzee-scorecard",
-            );
-        },
-    },
-    {
-        name: "lying-opponent-awaiting-response",
-        run: async (fixturePage) => {
-            await fixturePage.gotoFixture("lying-opponent-awaiting-response", {
-                playerId: "p2",
-            });
-
-            assert.equal(
-                await fixturePage.isVisible("yahtzee-pending-claim"),
-                true,
-            );
-            assert.equal(
-                await fixturePage.isEnabled("yahtzee-believe-button"),
-                true,
-            );
-            assert.equal(
-                await fixturePage.isEnabled("yahtzee-liar-button"),
-                true,
-            );
-            assert.equal(
-                await fixturePage.count("yahtzee-claim-panel"),
-                0,
-            );
-            assert.equal(
-                await fixturePage.getAttribute("yahtzee-die-0", "data-has-value"),
+        for (const index of [0, 1, 2, 3, 4]) {
+            await expect(page.getByTestId(`yahtzee-die-${index}`)).toHaveAttribute(
+                "data-has-value",
                 "false",
             );
-
-            await fixturePage.takeScreenshot("lying-opponent-awaiting-response-full");
-            await fixturePage.takeScreenshot(
-                "lying-opponent-awaiting-response-panel",
-                "yahtzee-pending-claim",
-            );
-
-            await fixturePage.click("yahtzee-believe-button");
-            const sentMessages = await fixturePage.sentMessages();
-            assert.deepEqual(sentMessages, [
-                {
-                    type: "yahtzee:accept_claim",
-                    playerId: "p2",
-                    playerName: "",
-                    data: {},
-                },
-            ]);
-        },
-    },
-    {
-        name: "lying-reveal-caught-lying",
-        run: async (fixturePage) => {
-            await fixturePage.gotoFixture("lying-reveal-caught-lying", {
-                playerId: "p2",
-            });
-
-            await fixturePage.waitForVisible("yahtzee-announcement");
-
-            assert.match(
-                (await fixturePage.textContent("yahtzee-announcement")) ?? "",
-                /ALICE GOT CAUGHT LYING/,
-            );
-            assert.equal(
-                await fixturePage.textContent("scorecard-cell-p1-full_house"),
-                "-25",
-            );
-            assert.equal(
-                await fixturePage.isEnabled("yahtzee-roll-button"),
-                true,
-            );
-            assert.equal(
-                await fixturePage.isVisible("yahtzee-last-turn-reveal"),
-                true,
-            );
-
-            await fixturePage.takeScreenshot("lying-reveal-caught-lying-full");
-            await fixturePage.takeScreenshot(
-                "lying-reveal-caught-lying-reveal",
-                "yahtzee-last-turn-reveal",
-            );
-        },
-    },
-    {
-        name: "standard-game-over",
-        run: async (fixturePage) => {
-            await fixturePage.gotoFixture("standard-game-over");
-
-            assert.equal(
-                await fixturePage.isVisible("yahtzee-game-over"),
-                true,
-            );
-            assert.equal(
-                await fixturePage.isVisible("yahtzee-return-button"),
-                true,
-            );
-            assert.equal(
-                await fixturePage.count("yahtzee-roll-button"),
-                0,
-            );
-            const gameOverText =
-                ((await fixturePage.textContent("yahtzee-game-over")) ?? "").replace(
-                    /\s+/g,
-                    "",
-                );
-            assert.match(gameOverText, /GAMEOVERALICE421WINNERBOB197RETURNTOLOBBY/);
-
-            await fixturePage.takeScreenshot("standard-game-over-full");
-            await fixturePage.takeScreenshot(
-                "standard-game-over-panel",
-                "yahtzee-game-over",
-            );
-
-            await fixturePage.click("yahtzee-return-button");
-            const hostActions = await fixturePage.hostActions();
-            assert.deepEqual(hostActions, ["return_to_lobby"]);
-        },
-    },
-];
-
-async function main() {
-    const failures: string[] = [];
-    const server = await startLocalApp();
-
-    try {
-        const { stagehand, page } = await createStagehandSession();
-        const fixturePage = new YahtzeeFixturePage(page);
-
-        try {
-            for (const testCase of testCases) {
-                process.stdout.write(`Running ${testCase.name}...\n`);
-                try {
-                    await testCase.run(fixturePage);
-                } catch (error) {
-                    failures.push(
-                        `${testCase.name}: ${
-                            error instanceof Error ? error.stack ?? error.message : String(error)
-                        }`,
-                    );
-                }
-            }
-        } finally {
-            await stagehand.close();
         }
-    } finally {
-        await server.stop();
-    }
 
-    if (failures.length > 0) {
-        throw new Error(failures.join("\n\n"));
-    }
+        await fixture.takeScreenshot("standard-my-turn-pre-roll-full");
+        await fixture.takeScreenshot(
+            "standard-my-turn-pre-roll-dice",
+            "yahtzee-room",
+        );
+    });
 
-    process.stdout.write(
-        `Passed ${testCases.length} Stagehand seeded Yahtzee checks.\n`,
-    );
-}
+    test("standard-my-turn-after-roll", async ({ page }) => {
+        const fixture = new YahtzeeFixturePage(page);
+        await fixture.gotoFixture("standard-my-turn-after-roll");
 
-main().catch((error) => {
-    console.error(error);
-    process.exit(1);
+        await expect(page.getByTestId("yahtzee-my-score")).toHaveText("30 PTS");
+        await expect(page.getByTestId("yahtzee-roll-button")).toHaveText(
+            "ROLL (1 LEFT)",
+        );
+        await expect(
+            page.getByTestId("scorecard-cell-p1-three_of_a_kind"),
+        ).toHaveText("26");
+        await expect(
+            page.getByTestId("scorecard-cell-p1-three_of_a_kind"),
+        ).toHaveAttribute("data-suggested", "true");
+        await expect(
+            page.getByTestId("scorecard-cell-p1-chance"),
+        ).toHaveAttribute("data-suggested", "true");
+        await expect(page.getByTestId("yahtzee-die-0")).toHaveAttribute(
+            "data-held",
+            "true",
+        );
+        await expect(page.getByTestId("yahtzee-die-2")).toHaveAttribute(
+            "data-held",
+            "true",
+        );
+
+        await fixture.takeScreenshot("standard-my-turn-after-roll-full");
+        await fixture.takeScreenshot(
+            "standard-my-turn-after-roll-scorecard",
+            "yahtzee-scorecard",
+        );
+    });
+
+    test("lying-opponent-awaiting-response", async ({ page }) => {
+        const fixture = new YahtzeeFixturePage(page);
+        await fixture.gotoFixture("lying-opponent-awaiting-response", {
+            playerId: "p2",
+        });
+
+        await expect(page.getByTestId("yahtzee-pending-claim")).toBeVisible();
+        await expect(page.getByTestId("yahtzee-believe-button")).toBeEnabled();
+        await expect(page.getByTestId("yahtzee-liar-button")).toBeEnabled();
+        await expect(page.getByTestId("yahtzee-claim-panel")).toHaveCount(0);
+        await expect(page.getByTestId("yahtzee-die-0")).toHaveAttribute(
+            "data-has-value",
+            "false",
+        );
+
+        await fixture.takeScreenshot("lying-opponent-awaiting-response-full");
+        await fixture.takeScreenshot(
+            "lying-opponent-awaiting-response-panel",
+            "yahtzee-pending-claim",
+        );
+
+        await page.getByTestId("yahtzee-believe-button").click();
+
+        const sentMessages = await page.evaluate(
+            () => window.__YAHTZEE_FIXTURE__?.sentMessages ?? [],
+        );
+        expect(sentMessages).toEqual([
+            {
+                type: "yahtzee:accept_claim",
+                data: {},
+            },
+        ]);
+    });
+
+    test("lying-reveal-caught-lying", async ({ page }) => {
+        const fixture = new YahtzeeFixturePage(page);
+        await fixture.gotoFixture("lying-reveal-caught-lying", {
+            playerId: "p2",
+        });
+
+        await page.waitForSelector('[data-testid="yahtzee-announcement"]');
+        await expect(page.getByTestId("yahtzee-announcement")).toContainText(
+            /ALICE GOT CAUGHT LYING/,
+        );
+        await expect(
+            page.getByTestId("scorecard-cell-p1-full_house"),
+        ).toHaveText("-25");
+        await expect(page.getByTestId("yahtzee-roll-button")).toBeEnabled();
+        await expect(
+            page.getByTestId("yahtzee-last-turn-reveal"),
+        ).toBeVisible();
+
+        await fixture.takeScreenshot("lying-reveal-caught-lying-full");
+        await fixture.takeScreenshot(
+            "lying-reveal-caught-lying-reveal",
+            "yahtzee-last-turn-reveal",
+        );
+    });
+
+    test("standard-game-over", async ({ page }) => {
+        const fixture = new YahtzeeFixturePage(page);
+        await fixture.gotoFixture("standard-game-over");
+
+        await expect(page.getByTestId("yahtzee-game-over")).toBeVisible();
+        await expect(page.getByTestId("yahtzee-return-button")).toBeVisible();
+        await expect(page.getByTestId("yahtzee-roll-button")).toHaveCount(0);
+
+        const gameOverText = (
+            (await page.getByTestId("yahtzee-game-over").textContent()) ?? ""
+        ).replace(/\s+/g, "");
+        expect(gameOverText).toMatch(/GAMEOVERALICE421WINNERBOB197RETURNTOLOBBY/);
+
+        await fixture.takeScreenshot("standard-game-over-full");
+        await fixture.takeScreenshot(
+            "standard-game-over-panel",
+            "yahtzee-game-over",
+        );
+
+        await page.getByTestId("yahtzee-return-button").click();
+
+        const hostActions = await page.evaluate(
+            () => window.__YAHTZEE_FIXTURE__?.hostActions ?? [],
+        );
+        expect(hostActions).toEqual(["return_to_lobby"]);
+    });
 });

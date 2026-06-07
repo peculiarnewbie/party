@@ -1,11 +1,83 @@
 import assert from "node:assert/strict";
+import { spawn, type ChildProcess } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
 import { customAlphabet } from "nanoid";
-import {
-    startLocalApp,
-    type LocalServerHandle,
-} from "../e2e/helpers/browser-session";
-import { STAGEHAND_EXECUTABLE_PATH } from "../e2e/stagehand.config";
+import { E2E_BASE_URL, E2E_VIEWPORT, E2E_EXECUTABLE_PATH } from "../e2e/helpers/e2e.config";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export interface LocalServerHandle {
+    process: ChildProcess;
+    stop: () => Promise<void>;
+}
+
+export async function startLocalApp(): Promise<LocalServerHandle> {
+    const logState = { stdout: "", stderr: "" };
+    const baseUrl = new URL(E2E_BASE_URL);
+    const host = baseUrl.hostname;
+    const port = baseUrl.port || "3000";
+    const child = spawn(
+        "pnpm",
+        ["run", "dev:vite", "--", "--host", host, "--port", port],
+        {
+            cwd: path.resolve(__dirname, ".."),
+            stdio: ["ignore", "pipe", "pipe"],
+            env: {
+                ...process.env,
+                FORCE_COLOR: "0",
+                NO_COLOR: "1",
+            },
+        },
+    );
+
+    child.stdout?.on("data", (chunk) => {
+        logState.stdout += chunk.toString();
+    });
+    child.stderr?.on("data", (chunk) => {
+        logState.stderr += chunk.toString();
+    });
+
+    await waitForServerReady(baseUrl, logState);
+
+    return {
+        process: child,
+        stop: async () => {
+            if (child.exitCode !== null) return;
+            child.kill("SIGTERM");
+            await new Promise<void>((resolve) => {
+                child.once("exit", () => resolve());
+                setTimeout(() => {
+                    if (child.exitCode === null) {
+                        child.kill("SIGKILL");
+                    }
+                }, 5_000);
+            });
+        },
+    };
+}
+
+async function waitForServerReady(
+    baseUrl: URL,
+    logState: { stdout: string; stderr: string },
+) {
+    const timeoutAt = Date.now() + 30_000;
+
+    while (Date.now() < timeoutAt) {
+        try {
+            const response = await fetch(new URL("/", baseUrl));
+            if (response.ok) return;
+        } catch {}
+
+        await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+
+    throw new Error(
+        `Timed out waiting for dev server at ${baseUrl.toString()}\nstdout:\n${logState.stdout}\nstderr:\n${logState.stderr}`,
+    );
+}
 
 type CliArgs = {
     players: number;
@@ -192,7 +264,7 @@ async function launchPlayer({
     headless: boolean;
 }): Promise<PlayerSession> {
     const browser = await chromium.launch({
-        executablePath: STAGEHAND_EXECUTABLE_PATH,
+        executablePath: E2E_EXECUTABLE_PATH,
         headless,
         args: [
             `--window-position=${rect.x},${rect.y}`,

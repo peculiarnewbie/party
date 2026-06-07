@@ -1,0 +1,184 @@
+{
+  "status": "updating",
+  "fqn": "Api",
+  "logicalId": "Api",
+  "instanceId": "7e81311a48cc55b936663eede4686106",
+  "resourceType": "Cloudflare.Worker",
+  "props": {
+    "name": "alchemy-state-store",
+    "main": "/home/bolt/git/web/party/node_modules/.pnpm/alchemy@2.0.0-beta.43_@effect+platform-bun@4.0.0-beta.74_bufferutil@4.1.0_effect@4.0.0-_20650178e282240e7ccc2885a0e23e92/node_modules/alchemy/lib/Cloudflare/StateStore/Api.js",
+    "url": true,
+    "compatibility": {
+      "flags": [
+        "nodejs_compat"
+      ],
+      "date": "2026-03-17"
+    },
+    "env": {},
+    "exports": {
+      "Store": {
+        "kind": "durableObject",
+        "constructor": {},
+        "services": {
+          "mapUnsafe": {},
+          "mutable": false
+        }
+      },
+      "default": {}
+    }
+  },
+  "attr": {
+    "workerId": "alchemy-state-store",
+    "workerName": "alchemy-state-store",
+    "logpush": false,
+    "url": "https://alchemy-state-store.peculiarnewbie.workers.dev",
+    "tags": [
+      "alchemy:stack:CloudflareStateStore",
+      "alchemy:stage:alchemy-state-store",
+      "alchemy:id:Api",
+      "alchemy:do:Store:Store"
+    ],
+    "durableObjectNamespaces": {
+      "Store": "0588a8d1a6274a059dc87dfe66dd9a38"
+    },
+    "accountId": "3a855f7ef3ac127682a419eddeb9f884",
+    "domains": [],
+    "crons": [],
+    "hash": {
+      "bundle": "6ce6fd3a1d1fc0345d956f6ddde24f3ab094c6acae0eef0744363589d6f8d69e"
+    }
+  },
+  "providerVersion": 0,
+  "bindings": [
+    {
+      "sid": "AlchemyStateStoreToken",
+      "data": {
+        "bindings": [
+          {
+            "type": "secrets_store_secret",
+            "name": "AlchemyStateStoreToken",
+            "secretName": "AlchemyStateStoreToken",
+            "storeId": "206d23ae34f74dcca4530f253b4c5b9e"
+          }
+        ]
+      }
+    },
+    {
+      "sid": "Store",
+      "data": {
+        "bindings": [
+          {
+            "type": "durable_object_namespace",
+            "name": "Store",
+            "className": "Store"
+          }
+        ]
+      }
+    },
+    {
+      "sid": "StateStoreEncryptionKey",
+      "data": {
+        "bindings": [
+          {
+            "type": "secrets_store_secret",
+            "name": "StateStoreEncryptionKey",
+            "secretName": "AlchemyStateStoreEncryptionKey",
+            "storeId": "206d23ae34f74dcca4530f253b4c5b9e"
+          }
+        ]
+      }
+    }
+  ],
+  "downstream": [],
+  "old": {
+    "status": "updated",
+    "fqn": "Api",
+    "logicalId": "Api",
+    "instanceId": "7e81311a48cc55b936663eede4686106",
+    "resourceType": "Cloudflare.Worker",
+    "props": {
+      "name": "alchemy-state-store",
+      "main": "/home/bolt/git/web/party/node_modules/.pnpm/alchemy@2.0.0-beta.43_@effect+platform-bun@4.0.0-beta.74_bufferutil@4.1.0_effect@4.0.0-_20650178e282240e7ccc2885a0e23e92/node_modules/alchemy/lib/Cloudflare/StateStore/Api.js",
+      "url": true,
+      "compatibility": {
+        "flags": [
+          "nodejs_compat"
+        ],
+        "date": "2026-03-17"
+      },
+      "env": {},
+      "exports": {
+        "Store": {
+          "kind": "durableObject",
+          "constructor": {},
+          "services": {
+            "mapUnsafe": {},
+            "mutable": false
+          }
+        },
+        "default": {}
+      }
+    },
+    "attr": {
+      "workerId": "alchemy-state-store",
+      "workerName": "alchemy-state-store",
+      "logpush": false,
+      "url": "https://alchemy-state-store.peculiarnewbie.workers.dev",
+      "tags": [
+        "alchemy:stack:CloudflareStateStore",
+        "alchemy:stage:alchemy-state-store",
+        "alchemy:id:Api",
+        "alchemy:do:Store:Store"
+      ],
+      "durableObjectNamespaces": {
+        "Store": "0588a8d1a6274a059dc87dfe66dd9a38"
+      },
+      "accountId": "3a855f7ef3ac127682a419eddeb9f884",
+      "domains": [],
+      "crons": [],
+      "hash": {
+        "bundle": "6ce6fd3a1d1fc0345d956f6ddde24f3ab094c6acae0eef0744363589d6f8d69e"
+      }
+    },
+    "bindings": [
+      {
+        "sid": "AlchemyStateStoreToken",
+        "data": {
+          "bindings": [
+            {
+              "type": "secrets_store_secret",
+              "name": "AlchemyStateStoreToken"
+            }
+          ]
+        }
+      },
+      {
+        "sid": "Store",
+        "data": {
+          "bindings": [
+            {
+              "type": "durable_object_namespace",
+              "name": "Store",
+              "className": "Store"
+            }
+          ]
+        }
+      },
+      {
+        "sid": "StateStoreEncryptionKey",
+        "data": {
+          "bindings": [
+            {
+              "type": "secrets_store_secret",
+              "name": "StateStoreEncryptionKey"
+            }
+          ]
+        }
+      }
+    ],
+    "providerVersion": 0,
+    "downstream": [],
+    "removalPolicy": "destroy"
+  },
+  "removalPolicy": "destroy"
+}

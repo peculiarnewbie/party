@@ -6,12 +6,21 @@
         "packages/*"
     ],
     "scripts": {
-        "deploy": "pnpm --filter www run deploy",
+        "deploy": "pnpm --filter party run deploy",
+        "destroy": "pnpm --filter party run destroy",
         "prepare": "effect-language-service patch",
-        "typecheck": "pnpm --filter ./packages/www run typecheck"
+        "typecheck": "pnpm --filter ./packages/www run typecheck",
+        "test:unit": "pnpm --filter party test:unit",
+        "test:e2e": "pnpm --filter party test:e2e",
+        "test:all": "pnpm --filter party test:all",
+        "trace": "pnpm --filter party trace",
+        "report": "pnpm --filter party report"
     },
     "devDependencies": {
+        "@cloudflare/vite-plugin": "^1.32.3",
         "@effect/language-service": "^0.85.1",
+        "@effect/platform-node": "4.0.0-beta.70",
+        "alchemy": "2.0.0-beta.43",
         "effect-solutions": "^0.5.2",
         "prettier": "^3.7.4",
         "typescript": "^5.7.2"
@@ -19,5 +28,8 @@
     "peerDependencies": {
         "typescript": "^5"
     },
-    "packageManager": "pnpm@10.33.0"
+    "packageManager": "pnpm@10.33.0",
+    "dependencies": {
+        "effect": "4.0.0-beta.70"
+    }
 }

@@ -1,22 +1,12 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { Page } from "@playwright/test";
 import type { PokerFixtureId } from "../../src/game/poker/fixtures";
-import {
-    createStagehandSession,
-    startLocalApp,
-    type LocalServerHandle,
-} from "./browser-session";
-import {
-    STAGEHAND_BASE_URL,
-    getStagehandArtifactDir,
-} from "../stagehand.config";
-
-export { createStagehandSession, startLocalApp };
-export type { LocalServerHandle };
+import { E2E_BASE_URL, getE2eArtifactDir } from "./e2e.config";
 
 export class PokerFixturePage {
-    constructor(private readonly page: any) {}
+    constructor(private readonly page: Page) {}
 
     async gotoFixture(
         fixtureId: PokerFixtureId,
@@ -24,7 +14,7 @@ export class PokerFixturePage {
             playerId?: string;
         } = {},
     ) {
-        const url = new URL("/dev/poker", STAGEHAND_BASE_URL);
+        const url = new URL("/dev/poker", E2E_BASE_URL);
         url.searchParams.set("fixture", fixtureId);
         url.searchParams.set("island", "hidden");
         if (options.playerId) {
@@ -96,7 +86,7 @@ export class PokerFixturePage {
         const mode = process.env.E2E_UPDATE_SCREENSHOTS === "1"
             ? "baseline"
             : "current";
-        const outputDir = path.join(getStagehandArtifactDir("poker"), mode);
+        const outputDir = path.join(getE2eArtifactDir("poker"), mode);
         await fs.mkdir(outputDir, { recursive: true });
         const outputPath = path.join(outputDir, `${name}.png`);
 

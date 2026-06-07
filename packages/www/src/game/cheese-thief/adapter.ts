@@ -1,11 +1,10 @@
 import type { CheeseThiefState } from "./types";
-import type { CheeseThiefClientMessage } from "./messages";
-import { cheeseThiefClientMessageSchema } from "./messages";
+import { cheeseThiefClientMessageSchema, type CheeseThiefClientMessage } from "./messages";
 import { cheeseThiefServer } from "./server";
 import { decodeGameClientMessageOrNull } from "~/effect/schema-helpers";
 import type { GameAdapterRegistration } from "~/game/shared/game-adapter-types";
 
-export const cheeseThiefRegistration: GameAdapterRegistration = {
+export const cheeseThiefRegistration: GameAdapterRegistration<CheeseThiefClientMessage> = {
     gameTypes: ["cheese_thief"],
     create: (_gameType, stateRef, _adapterCtx) => {
         const ref = stateRef as { current: CheeseThiefState | null };
@@ -17,7 +16,7 @@ export const cheeseThiefRegistration: GameAdapterRegistration = {
                     component: "cheese-thief-transport",
                 }),
             processMessage: (msg, broadcast, sendTo) =>
-                cheeseThiefServer(ref).processMessage(msg as CheeseThiefClientMessage, broadcast, sendTo),
+                cheeseThiefServer(ref).processMessage(msg, broadcast, sendTo),
             sendStateToPlayer: (playerId, sendTo) =>
                 cheeseThiefServer(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, hostId, broadcast, sendTo) => {

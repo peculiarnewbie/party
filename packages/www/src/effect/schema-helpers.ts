@@ -93,6 +93,7 @@ export function decodeWithSchema<S extends Schema.Top, E>(
 ): Effect.Effect<SchemaType<S>, E> {
     return Schema.decodeUnknownEffect(schema)(raw).pipe(
         Effect.mapError((error) => mapError(formatUnknownError(error), raw)),
+        // TODO: remove cast when Effect Schema v4 narrows Schema.Top through generics
     ) as Effect.Effect<SchemaType<S>, E>;
 }
 
@@ -100,6 +101,7 @@ export function encodeWithSchema<S extends Schema.Top>(
     schema: S,
     value: SchemaType<S>,
 ): S["Encoded"] {
+    // TODO: remove casts when Effect Schema v4 narrows Schema.Top through generics
     return Schema.encodeUnknownSync(
         schema as unknown as Schema.Encoder<unknown>,
     )(value) as S["Encoded"];
@@ -116,6 +118,7 @@ export function decodeJsonMessage<S extends Schema.Top>(
     schema: S,
     raw: string,
 ): SchemaType<S> {
+    // TODO: remove casts when Effect Schema v4 narrows Schema.Top through generics
     return Schema.decodeUnknownSync(
         Schema.fromJsonString(schema) as unknown as Schema.Decoder<unknown>,
     )(raw) as SchemaType<S>;
@@ -125,6 +128,7 @@ export function decodeUnknownSync<S extends Schema.Top>(
     schema: S,
     raw: unknown,
 ): SchemaType<S> {
+    // TODO: remove casts when Effect Schema v4 narrows Schema.Top through generics
     return Schema.decodeUnknownSync(
         schema as unknown as Schema.Decoder<unknown>,
     )(raw) as SchemaType<S>;

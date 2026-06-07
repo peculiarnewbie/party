@@ -1,210 +1,71 @@
-import assert from "node:assert/strict";
-import {
-    PokerFixturePage,
-    createStagehandSession,
-    startLocalApp,
-} from "./helpers/poker-fixture-page";
+import { test, expect } from "@playwright/test";
+import { PokerFixturePage } from "./helpers/poker-fixture-page";
 
-type TestCase = {
-    name: string;
-    run: (fixturePage: PokerFixturePage) => Promise<void>;
-};
+test.describe("poker-seeded", () => {
+    test("standard-my-turn", async ({ page }) => {
+        const fixture = new PokerFixturePage(page);
+        await fixture.gotoFixture("standard-my-turn");
 
-const testCases: TestCase[] = [
-    {
-        name: "standard-my-turn",
-        run: async (fixturePage) => {
-            await fixturePage.gotoFixture("standard-my-turn");
+        await expect(page.getByTestId("poker-title")).toHaveText("TEXAS HOLD'EM");
+        await expect(page.getByTestId("poker-hand-number")).toHaveText("HAND 7");
+        await expect(page.getByTestId("poker-street")).toHaveText("TURN");
+        await expect(page.getByTestId("poker-turn-banner")).toHaveText("YOUR TURN");
+        expect(await fixture.isEnabled("poker-call-button")).toBe(true);
+        expect(await fixture.isEnabled("poker-raise-button")).toBe(true);
 
-            assert.equal(
-                await fixturePage.textContent("poker-title"),
-                "TEXAS HOLD'EM",
-            );
-            assert.equal(
-                await fixturePage.textContent("poker-hand-number"),
-                "HAND 7",
-            );
-            assert.equal(
-                await fixturePage.textContent("poker-street"),
-                "TURN",
-            );
-            assert.equal(
-                await fixturePage.textContent("poker-turn-banner"),
-                "YOUR TURN",
-            );
-            assert.equal(
-                await fixturePage.getAttribute(
-                    "poker-hero-hand",
-                    "data-visible-card-count",
-                ),
-                "2",
-            );
-            assert.equal(
-                await fixturePage.isEnabled("poker-call-button"),
-                true,
-            );
-            assert.equal(
-                await fixturePage.isEnabled("poker-raise-button"),
-                true,
-            );
+        await page.getByTestId("poker-call-button").click();
 
-            await fixturePage.click("poker-call-button");
-            assert.deepEqual(await fixturePage.sentMessages(), [
-                {
-                    type: "poker:act",
-                    playerId: "p1",
-                    playerName: "",
-                    data: { type: "call" },
-                },
-            ]);
+        expect(await fixture.sentMessages()).toEqual([
+            {
+                type: "poker:act",
+                playerId: "p1",
+                playerName: "",
+                data: { type: "call" },
+            },
+        ]);
 
-            await fixturePage.takeScreenshot("standard-my-turn-full");
-            await fixturePage.takeScreenshot("standard-my-turn-table", "poker-room");
-        },
-    },
-    {
-        name: "spectator-active-hand",
-        run: async (fixturePage) => {
-            await fixturePage.gotoFixture("spectator-active-hand");
+        await fixture.takeScreenshot("standard-my-turn-full");
+        await fixture.takeScreenshot("standard-my-turn-table", "poker-room");
+    });
 
-            assert.equal(
-                await fixturePage.getAttribute("poker-hero-hand", "data-spectator"),
-                "true",
-            );
-            assert.match(
-                (await fixturePage.textContent("poker-hero-status")) ?? "",
-                /SPECTATING/,
-            );
-            assert.equal(
-                await fixturePage.isVisible("poker-spectator-copy"),
-                true,
-            );
-            assert.equal(
-                await fixturePage.count("poker-fold-button"),
-                0,
-            );
-            assert.match(
-                (await fixturePage.textContent("poker-spectator-list")) ?? "",
-                /Dana/,
-            );
+    test("spectator-active-hand", async ({ page }) => {
+        const fixture = new PokerFixturePage(page);
+        await fixture.gotoFixture("spectator-active-hand");
 
-            await fixturePage.takeScreenshot("spectator-active-hand-full");
-            await fixturePage.takeScreenshot(
-                "spectator-active-hand-panel",
-                "poker-action-controls",
-            );
-        },
-    },
-    {
-        name: "backwards-visible-opponents",
-        run: async (fixturePage) => {
-            await fixturePage.gotoFixture("backwards-visible-opponents");
+        await expect(page.getByTestId("poker-hero-status")).toContainText(/SPECTATING/);
+        await expect(page.getByTestId("poker-spectator-copy")).toBeVisible();
+        await expect(page.getByTestId("poker-fold-button")).toHaveCount(0);
+        await expect(page.getByTestId("poker-spectator-list")).toContainText(/Dana/);
 
-            assert.equal(
-                await fixturePage.textContent("poker-title"),
-                "BACKWARDS POKER",
-            );
-            assert.equal(
-                await fixturePage.getAttribute(
-                    "poker-hero-hand",
-                    "data-visible-card-count",
-                ),
-                "0",
-            );
-            assert.equal(
-                await fixturePage.getAttribute(
-                    "poker-hero-hand",
-                    "data-card-count",
-                ),
-                "2",
-            );
-            assert.equal(
-                await fixturePage.getAttribute(
-                    "poker-seat-p2",
-                    "data-visible-card-count",
-                ),
-                "2",
-            );
-            assert.equal(
-                await fixturePage.getAttribute(
-                    "poker-seat-p3",
-                    "data-visible-card-count",
-                ),
-                "2",
-            );
+        await fixture.takeScreenshot("spectator-active-hand-full");
+        await fixture.takeScreenshot("spectator-active-hand-panel", "poker-action-controls");
+    });
 
-            await fixturePage.takeScreenshot("backwards-visible-opponents-full");
-            await fixturePage.takeScreenshot(
-                "backwards-visible-opponents-seat",
-                "poker-seat-p2",
-            );
-        },
-    },
-    {
-        name: "tournament-over-host",
-        run: async (fixturePage) => {
-            await fixturePage.gotoFixture("tournament-over-host");
+    test("backwards-visible-opponents", async ({ page }) => {
+        const fixture = new PokerFixturePage(page);
+        await fixture.gotoFixture("backwards-visible-opponents");
 
-            await fixturePage.waitForVisible("poker-results-overlay");
-            assert.equal(
-                await fixturePage.isVisible("poker-return-button"),
-                true,
-            );
-            assert.match(
-                (await fixturePage.textContent("poker-results-title")) ?? "",
-                /ALICE LEADS/,
-            );
+        await expect(page.getByTestId("poker-title")).toHaveText("BACKWARDS POKER");
+        expect(await fixture.getAttribute("poker-seat-p2", "data-visible-card-count")).toBe("2");
+        expect(await fixture.getAttribute("poker-seat-p3", "data-visible-card-count")).toBe("2");
 
-            await fixturePage.takeScreenshot("tournament-over-host-full");
-            await fixturePage.takeScreenshot(
-                "tournament-over-host-overlay",
-                "poker-results-overlay",
-            );
+        await fixture.takeScreenshot("backwards-visible-opponents-full");
+        await fixture.takeScreenshot("backwards-visible-opponents-seat", "poker-seat-p2");
+    });
 
-            await fixturePage.click("poker-return-button");
-            assert.deepEqual(await fixturePage.hostActions(), ["return_to_lobby"]);
-        },
-    },
-];
+    test("tournament-over-host", async ({ page }) => {
+        const fixture = new PokerFixturePage(page);
+        await fixture.gotoFixture("tournament-over-host");
 
-async function main() {
-    const failures: string[] = [];
-    const server = await startLocalApp();
+        await page.waitForSelector('[data-testid="poker-results-overlay"]');
+        await expect(page.getByTestId("poker-results-overlay")).toBeVisible();
+        await expect(page.getByTestId("poker-return-button")).toBeVisible();
+        await expect(page.getByTestId("poker-results-title")).toContainText(/ALICE LEADS/);
 
-    try {
-        const { stagehand, page } = await createStagehandSession();
-        const fixturePage = new PokerFixturePage(page);
+        await fixture.takeScreenshot("tournament-over-host-full");
+        await fixture.takeScreenshot("tournament-over-host-overlay", "poker-results-overlay");
 
-        try {
-            for (const testCase of testCases) {
-                process.stdout.write(`Running ${testCase.name}...\n`);
-                try {
-                    await testCase.run(fixturePage);
-                } catch (error) {
-                    failures.push(
-                        `${testCase.name}: ${
-                            error instanceof Error ? error.stack ?? error.message : String(error)
-                        }`,
-                    );
-                }
-            }
-        } finally {
-            await stagehand.close();
-        }
-    } finally {
-        await server.stop();
-    }
-
-    if (failures.length > 0) {
-        throw new Error(failures.join("\n\n"));
-    }
-
-    process.stdout.write(
-        `Passed ${testCases.length} Stagehand seeded poker checks.\n`,
-    );
-}
-
-main().catch((error) => {
-    console.error(error);
-    process.exit(1);
+        await page.getByTestId("poker-return-button").click();
+        expect(await fixture.hostActions()).toEqual(["return_to_lobby"]);
+    });
 });

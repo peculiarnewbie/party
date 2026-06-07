@@ -160,14 +160,14 @@ export const RpsRoom: Component<RpsRoomProps> = (props) => {
     });
 
     return (
-        <div class="min-h-screen bg-[#12121e] font-karla flex flex-col">
+        <div data-testid="rps-room" class="min-h-screen bg-[#12121e] font-karla flex flex-col">
             <div class="flex items-center justify-between px-4 py-3 bg-[#0c0c18] border-b-2 border-[#e8c547]/40">
                 <div class="flex items-center gap-3">
-                    <span class="font-bebas text-[1.1rem] tracking-[.12em] text-[#e8c547]">
+                    <span data-testid="rps-title" class="font-bebas text-[1.1rem] tracking-[.12em] text-[#e8c547]">
                         RPS TOURNAMENT
                     </span>
                     <Show when={gameView()}>
-                        <span class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8e0d0]/60">
+                        <span data-testid="rps-round-label" class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8e0d0]/60">
                             {getRoundLabel(currentRound(), totalRounds())}
                         </span>
                     </Show>
@@ -176,7 +176,7 @@ export const RpsRoom: Component<RpsRoomProps> = (props) => {
                     <Show
                         when={props.isHost}
                         fallback={
-                            <span class="font-bebas text-[.65rem] tracking-[.15em] text-[#e8e0d0]/40">
+                            <span data-testid="rps-best-of-label" class="font-bebas text-[.65rem] tracking-[.15em] text-[#e8e0d0]/40">
                                 BO{bestOf()}
                             </span>
                         }
@@ -188,6 +188,7 @@ export const RpsRoom: Component<RpsRoomProps> = (props) => {
                     </Show>
                     <Show when={props.isHost}>
                         <button
+                            data-testid="rps-end-button"
                             class="font-bebas text-[.7rem] tracking-[.15em] text-[#c0261a] border border-[#c0261a]/40 px-2 py-0.5 hover:bg-[#c0261a]/10 transition-colors"
                             onClick={props.onEndGame}
                         >
@@ -333,8 +334,8 @@ function ActiveMatchScreen(props: {
     };
 
     return (
-        <div class="flex flex-col items-center gap-5 py-4">
-            <div class="font-bebas text-[.7rem] tracking-[.22em] text-[#e8c547]/70">
+        <div data-testid="rps-active-match" class="flex flex-col items-center gap-5 py-4">
+            <div data-testid="rps-match-round-label" class="font-bebas text-[.7rem] tracking-[.22em] text-[#e8c547]/70">
                 {props.roundLabel}
             </div>
 
@@ -363,6 +364,7 @@ function ActiveMatchScreen(props: {
             <Show when={lastThrowResult()}>
                 {(result) => (
                     <div
+                        data-testid="rps-last-throw"
                         class={`border-2 rounded-lg px-6 py-3 text-center ${
                             result().draw
                                 ? "border-[#e8e0d0]/30 bg-[#1a1a2e]"
@@ -403,13 +405,14 @@ function ActiveMatchScreen(props: {
 
             <Show when={needsToThrow()}>
                 <div class="flex flex-col items-center gap-3">
-                    <span class="font-bebas text-[.8rem] tracking-[.18em] text-[#e8e0d0]/70">
+                    <span data-testid="rps-throw-prompt" class="font-bebas text-[.8rem] tracking-[.18em] text-[#e8e0d0]/70">
                         MAKE YOUR THROW
                     </span>
                     <div class="flex gap-3">
                         <For each={["rock", "paper", "scissors"] as RpsChoice[]}>
                             {(choice) => (
                                 <button
+                                    data-testid={`rps-throw-${choice}`}
                                     class="font-bebas text-[1.1rem] tracking-[.1em] bg-[#e8c547] text-[#12121e] border-2 border-[#12121e] px-5 py-3 shadow-[3px_3px_0_#2a2a4e] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#2a2a4e] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
                                     onClick={() => props.onThrow(choice)}
                                 >
@@ -422,7 +425,7 @@ function ActiveMatchScreen(props: {
             </Show>
 
             <Show when={myChoice()}>
-                <div class="flex flex-col items-center gap-2 py-3">
+                <div data-testid="rps-my-choice" class="flex flex-col items-center gap-2 py-3">
                     <div class="flex items-center gap-2">
                         <span class="font-bebas text-[1rem] tracking-[.1em] text-[#e8c547]">
                             {CHOICE_LABEL[myChoice()!]}
@@ -431,12 +434,12 @@ function ActiveMatchScreen(props: {
                     <Show
                         when={props.match.opponentHasThrown}
                         fallback={
-                            <span class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8e0d0]/40 animate-pulse">
+                            <span data-testid="rps-waiting-opponent" class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8e0d0]/40 animate-pulse">
                                 WAITING FOR OPPONENT...
                             </span>
                         }
                     >
-                        <span class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8e0d0]/40">
+                        <span data-testid="rps-resolving" class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8e0d0]/40">
                             RESOLVING...
                         </span>
                     </Show>
@@ -476,8 +479,9 @@ function MatchCompleteWaiting(props: {
         isP1() ? props.match.player2 : props.match.player1;
 
     return (
-        <div class="flex flex-col items-center gap-4 py-8">
+        <div data-testid="rps-match-complete" class="flex flex-col items-center gap-4 py-8">
             <span
+                data-testid="rps-match-result"
                 class={`font-bebas text-[1.5rem] tracking-[.1em] ${
                     won() ? "text-[#4caf50]" : "text-[#c0261a]"
                 }`}
@@ -496,8 +500,8 @@ function MatchCompleteWaiting(props: {
 
 function ByeScreen() {
     return (
-        <div class="flex flex-col items-center gap-3 py-8">
-            <span class="font-bebas text-[1.2rem] tracking-[.12em] text-[#e8c547]">
+        <div data-testid="rps-bye" class="flex flex-col items-center gap-3 py-8">
+            <span data-testid="rps-bye-title" class="font-bebas text-[1.2rem] tracking-[.12em] text-[#e8c547]">
                 BYE
             </span>
             <span class="font-karla text-[.9rem] text-[#e8e0d0]/60">
@@ -512,8 +516,8 @@ function ByeScreen() {
 
 function EliminatedScreen() {
     return (
-        <div class="flex flex-col items-center gap-3 py-8">
-            <span class="font-bebas text-[1.2rem] tracking-[.12em] text-[#c0261a]">
+        <div data-testid="rps-eliminated" class="flex flex-col items-center gap-3 py-8">
+            <span data-testid="rps-eliminated-title" class="font-bebas text-[1.2rem] tracking-[.12em] text-[#c0261a]">
                 ELIMINATED
             </span>
             <span class="font-karla text-[.9rem] text-[#e8e0d0]/60">
@@ -530,8 +534,8 @@ function RoundResultsScreen(props: {
     onNextRound: () => void;
 }) {
     return (
-        <div class="flex flex-col items-center gap-4 py-4">
-            <span class="font-bebas text-[1.2rem] tracking-[.15em] text-[#e8c547]">
+        <div data-testid="rps-round-results" class="flex flex-col items-center gap-4 py-4">
+            <span data-testid="rps-results-title" class="font-bebas text-[1.2rem] tracking-[.15em] text-[#e8c547]">
                 {props.round.label} RESULTS
             </span>
             <div class="w-full max-w-md space-y-2">
@@ -555,6 +559,7 @@ function RoundResultsScreen(props: {
                 }
             >
                 <button
+                    data-testid="rps-next-round-button"
                     class="font-bebas text-[1rem] tracking-[.14em] bg-[#e8c547] text-[#12121e] border-2 border-[#12121e] px-8 py-3 shadow-[3px_3px_0_#2a2a4e] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#2a2a4e] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none mt-2"
                     onClick={props.onNextRound}
                 >
@@ -605,15 +610,16 @@ function TournamentOverScreen(props: {
             : "NOBODY";
 
     return (
-        <div class="flex flex-col items-center gap-4 py-8">
-            <span class="font-bebas text-[.8rem] tracking-[.25em] text-[#e8c547]/60">
+        <div data-testid="rps-tournament-over" class="flex flex-col items-center gap-4 py-8">
+            <span data-testid="rps-champion-label" class="font-bebas text-[.8rem] tracking-[.25em] text-[#e8c547]/60">
                 TOURNAMENT CHAMPION
             </span>
-            <span class="font-bebas text-[2.2rem] tracking-[.1em] text-[#e8c547]">
+            <span data-testid="rps-champion-name" class="font-bebas text-[2.2rem] tracking-[.1em] text-[#e8c547]">
                 {winnerName()}
             </span>
             <Show when={props.isHost}>
                 <button
+                    data-testid="rps-return-button"
                     class="font-bebas text-[.9rem] tracking-[.12em] text-[#e8e0d0] border border-[#e8c547]/40 px-5 py-2 hover:bg-[#e8c547]/10 transition-colors mt-4"
                     onClick={props.onReturnToLobby}
                 >
@@ -631,8 +637,8 @@ function BracketDisplay(props: {
     playerId: string;
 }) {
     return (
-        <div class="mt-4 border-t border-[#e8e0d0]/10 pt-4">
-            <div class="font-bebas text-[.7rem] tracking-[.2em] text-[#e8e0d0]/40 mb-3">
+        <div data-testid="rps-bracket" class="mt-4 border-t border-[#e8e0d0]/10 pt-4">
+            <div data-testid="rps-bracket-title" class="font-bebas text-[.7rem] tracking-[.2em] text-[#e8e0d0]/40 mb-3">
                 BRACKET
             </div>
             <div class="space-y-3">

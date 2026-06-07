@@ -1,10 +1,9 @@
 import type { PokerState } from "./types";
-import type { PokerClientMessage } from "./messages";
-import { pokerClientMessageSchema } from "./messages";
+import { pokerClientMessageSchema, type PokerClientMessage } from "./messages";
 import { pokerServer } from "./server";
 import { decodeGameClientMessageOrNull } from "~/effect/schema-helpers";
 import { createGameTimer } from "~/game/shared/game-timer";
-import type { GameAdapterRegistration, GameAdapterContext } from "~/game/shared/game-adapter-types";
+import type { GameAdapterRegistration } from "~/game/shared/game-adapter-types";
 
 const POKER_NEXT_HAND_DELAY_MS = 4500;
 
@@ -12,14 +11,13 @@ function getPokerVisibilityMode(gameType: string): "standard" | "backwards" {
     return gameType === "backwards_poker" ? "backwards" : "standard";
 }
 
-export const pokerRegistration: GameAdapterRegistration = {
+export const pokerRegistration: GameAdapterRegistration<PokerClientMessage> = {
     gameTypes: ["poker", "backwards_poker"],
     create: (gameType, stateRef, adapterCtx) => {
         const ref = stateRef as { current: PokerState | null };
         const vis = getPokerVisibilityMode(gameType);
-        const ctx = adapterCtx as GameAdapterContext | undefined;
-        const gameTimer = createGameTimer(ctx, POKER_NEXT_HAND_DELAY_MS, (broadcast, sendTo) => {
-            ctx!.endGameAndPersist(broadcast, sendTo);
+        const gameTimer = createGameTimer(adapterCtx, POKER_NEXT_HAND_DELAY_MS, (broadcast, sendTo) => {
+            adapterCtx!.endGameAndPersist(broadcast, sendTo);
         });
         const opts = { visibilityMode: vis, scheduleNextHand: gameTimer.schedule };
         return {
@@ -30,7 +28,7 @@ export const pokerRegistration: GameAdapterRegistration = {
                     component: "poker-transport",
                 }),
             processMessage: (msg, broadcast, sendTo) =>
-                pokerServer(ref, opts).processMessage(msg as PokerClientMessage, broadcast, sendTo),
+                pokerServer(ref, opts).processMessage(msg, broadcast, sendTo),
             sendStateToPlayer: () => {},
             initGame: (players, _hostId, broadcast, sendTo) =>
                 pokerServer(ref, opts).initGame(players, broadcast, sendTo),

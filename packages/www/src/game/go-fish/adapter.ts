@@ -1,11 +1,10 @@
 import type { GoFishState } from "./types";
-import type { GoFishClientMessage } from "./messages";
-import { goFishClientMessageSchema } from "./messages";
+import { goFishClientMessageSchema, type GoFishClientMessage } from "./messages";
 import { goFishServer } from "./server";
 import { decodeGameClientMessageOrNull } from "~/effect/schema-helpers";
 import type { GameAdapterRegistration } from "~/game/shared/game-adapter-types";
 
-export const goFishRegistration: GameAdapterRegistration = {
+export const goFishRegistration: GameAdapterRegistration<GoFishClientMessage> = {
     gameTypes: ["go_fish"],
     create: (_gameType, stateRef, _adapterCtx) => {
         const ref = stateRef as { current: GoFishState | null };
@@ -17,7 +16,7 @@ export const goFishRegistration: GameAdapterRegistration = {
                     component: "go-fish-transport",
                 }),
             processMessage: (msg, broadcast, sendTo) =>
-                goFishServer(ref).processMessage(msg as GoFishClientMessage, broadcast, sendTo),
+                goFishServer(ref).processMessage(msg, broadcast, sendTo),
             sendStateToPlayer: (playerId, sendTo) =>
                 goFishServer(ref).sendStateToPlayer(playerId, sendTo),
             initGame: (players, _hostId, broadcast, sendTo) =>
