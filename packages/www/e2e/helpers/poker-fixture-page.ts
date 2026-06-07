@@ -22,7 +22,8 @@ export class PokerFixturePage {
         }
 
         await this.page.goto(url.toString(), {
-            waitUntil: "networkidle",
+            waitUntil: "domcontentloaded",
+            timeout: 30000,
         });
         await this.page.waitForSelector('[data-testid="poker-room"]');
         await this.waitForWindowState();
@@ -103,11 +104,11 @@ export class PokerFixturePage {
                 };
             }, `[data-testid="${testId}"]`);
             assert(clip, `Could not find ${testId} for screenshot`);
-            await this.page.screenshot({ path: outputPath, clip });
+            await this.page.screenshot({ path: outputPath, clip, timeout: 30000 });
             return outputPath;
         }
 
-        await this.page.screenshot({ path: outputPath, fullPage: true });
+        await this.page.screenshot({ path: outputPath, fullPage: true, timeout: 30000 });
         return outputPath;
     }
 
