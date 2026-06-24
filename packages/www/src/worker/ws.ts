@@ -452,14 +452,44 @@ export class GameRoom extends DurableObject {
                       )
                     : null;
 
-                if (
-                    sharedMessage &&
-                    (sharedMessage.type === "identify" ||
-                        sharedMessage.type === "join")
-                ) {
-                    const session = this.sessions.get(serverWs);
-                    if (session) {
-                        session.playerId = sharedMessage.playerId;
+                const session = this.sessions.get(serverWs);
+                if (!session) {
+                    return;
+                }
+
+                const isIdentityMessage =
+                    sharedMessage?.type === "identify" ||
+                    sharedMessage?.type === "join";
+
+                if (messagePlayerId) {
+                    if (session.playerId === null) {
+                        if (!isIdentityMessage) {
+                            yield* Effect.logWarning(
+                                "game-room.identity.unbound",
+                            ).pipe(
+                                Effect.annotateLogs({
+                                    component: "game-room",
+                                    operation: "game-room.identity.unbound",
+                                    messageType: messageType ?? "unknown",
+                                    playerId: messagePlayerId,
+                                }),
+                            );
+                            return;
+                        }
+                        session.playerId = messagePlayerId;
+                    } else if (session.playerId !== messagePlayerId) {
+                        yield* Effect.logWarning(
+                            "game-room.identity.mismatch",
+                        ).pipe(
+                            Effect.annotateLogs({
+                                component: "game-room",
+                                operation: "game-room.identity.mismatch",
+                                messageType: messageType ?? "unknown",
+                                boundPlayerId: session.playerId,
+                                messagePlayerId,
+                            }),
+                        );
+                        return;
                     }
                 }
 
@@ -768,27 +798,32 @@ export class GameRoom extends DurableObject {
         serverWs.addEventListener("close", () => {
             void (async () => {
                 const session = this.sessions.get(serverWs);
+                const closedPlayerId = session?.playerId ?? null;
                 this.sessions.delete(serverWs);
 
                 let didChange = false;
-                if (session?.playerId) {
-                    didChange = this.setGameParticipantStatus(
-                        session.playerId,
-                        "disconnected",
+                if (closedPlayerId) {
+                    const stillConnected = [...this.sessions.values()].some(
+                        (entry) => entry.playerId === closedPlayerId,
                     );
+                    if (!stillConnected) {
+                        didChange = this.setGameParticipantStatus(
+                            closedPlayerId,
+                            "disconnected",
+                        );
 
-                    // Poker folds disconnected players' hands immediately.
-                    // Other games keep disconnected players in the game so they
-                    // can reconnect. Consider adding an adapter.onPlayerDisconnect
-                    // hook to move this logic into each game's adapter.
-                    if (didChange && isPokerGameType(this.state.activeGameType)) {
-                        const adapter = getAdapter();
-                        if (adapter) {
-                            adapter.removePlayer(
-                                session.playerId,
-                                broadcast,
-                                sendTo,
-                            );
+                        if (
+                            didChange &&
+                            isPokerGameType(this.state.activeGameType)
+                        ) {
+                            const adapter = getAdapter();
+                            if (adapter) {
+                                adapter.removePlayer(
+                                    closedPlayerId,
+                                    broadcast,
+                                    sendTo,
+                                );
+                            }
                         }
                     }
                 }

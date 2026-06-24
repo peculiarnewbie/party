@@ -17,7 +17,6 @@ import type {
 import type { RpsChoice, BestOf } from "~/game/rps";
 import { getRoundLabel } from "~/game/rps";
 import type { RpsConnection } from "~/game/rps/connection";
-import { createRpsFold } from "~/game/rps/client-fold";
 
 interface RpsRoomProps {
     roomId: string;
@@ -35,8 +34,7 @@ const CHOICE_LABEL: Record<RpsChoice, string> = {
 };
 
 export const RpsRoom: Component<RpsRoomProps> = (props) => {
-    const fold = createRpsFold(props.playerId ?? "");
-    const gameView = () => fold.view() ?? props.connection.view();
+    const gameView = () => props.connection.view();
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
     const [announcementKey, setAnnouncementKey] = createSignal(0);
 
@@ -57,23 +55,7 @@ export const RpsRoom: Component<RpsRoomProps> = (props) => {
 
     onCleanup(
         props.connection.subscribe((event) => {
-            if (event.type === "rps:snapshot") {
-                fold.applySnapshot(event.index, event.data);
-                return;
-            }
-
             if (event.type === "rps:event") {
-                const syncInfo = fold.syncInfo();
-                if (event.index > syncInfo.lastEventIndex + 1) {
-                    props.connection.send({
-                        type: "rps:sync",
-                        data: syncInfo,
-                    });
-                    return;
-                }
-
-                fold.processEvent(event.index, event.data);
-
                 if (event.data.type === "round_advanced") {
                     showAnnouncement(
                         getRoundLabel(
@@ -85,16 +67,6 @@ export const RpsRoom: Component<RpsRoomProps> = (props) => {
                 if (event.data.type === "best_of_changed") {
                     showAnnouncement(`BEST OF ${event.data.bestOf}`);
                 }
-                return;
-            }
-
-            if (event.type === "rps:hidden") {
-                fold.processHidden(event.index, event.data);
-                return;
-            }
-
-            if (event.type === "rps:sync_response") {
-                fold.applySync(event);
                 return;
             }
 

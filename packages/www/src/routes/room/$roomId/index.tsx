@@ -1,19 +1,17 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import {
     createMemo,
-    createSignal,
     onMount,
     Switch,
     Match,
     Show,
+    lazy,
 } from "solid-js";
-import { nanoid } from "nanoid";
-import { Schema } from "effect";
 import { RoomLobby } from "~/components/room-lobby";
 import { SampleQuizRoom } from "~/components/sample-quiz-room";
 import { GoFishRoom } from "~/components/go-fish/go-fish-room";
 import { PokerRoom } from "~/components/poker/poker-room";
-import { createGameConnection } from "~/game/connection-from-ws";
+import { createGameConnectionFromTransport } from "~/game/connection-from-transport";
 import type { PokerConnection } from "~/game/poker/connection";
 import {
     pokerPlayerViewSchema,
@@ -35,10 +33,6 @@ import {
     perudoPlayerViewSchema,
     perudoServerMessageSchema,
 } from "~/game/perudo";
-import {
-    rpsPlayerViewSchema,
-    rpsServerMessageSchema,
-} from "~/game/rps";
 import {
     herdPlayerViewSchema,
     herdServerMessageSchema,
@@ -100,12 +94,31 @@ import {
     type GameParticipantStatus,
     type MessageType,
     type RoomStatePayload,
-    isGameWireMessageType,
     isPokerGameType,
-    serverMessageSchema,
 } from "~/game";
-import { getCookie, setCookie } from "~/utils/cookies";
+import { setCookie } from "~/utils/cookies";
 import { normalizeRoomId } from "~/utils/room-id";
+import { createRpsGameConnection } from "~/game/rps/create-game-connection";
+import {
+    createRoomClientPool,
+} from "~/room/room-client-pool";
+import { installPartyDevtoolsApi } from "~/room/devtools-api";
+
+const MultiplayerDevtools = lazy(() =>
+    import("~/components/dev/multiplayer-devtools").then((module) => ({
+        default: module.MultiplayerDevtools,
+    })),
+);
+
+const defaultRoomState = (): RoomStatePayload => ({
+    players: [],
+    hostId: null,
+    phase: "lobby",
+    selectedGameType: "quiz",
+    activeGameType: null,
+    gameSessionId: null,
+    gameParticipants: [],
+});
 
 export const Route = createFileRoute("/room/$roomId/")({
     component: RouteComponent,
@@ -114,19 +127,23 @@ export const Route = createFileRoute("/room/$roomId/")({
 function RouteComponent() {
     const params = Route.useParams();
     const roomId = () => normalizeRoomId(params().roomId);
-    let ws: WebSocket;
 
-    const [playerId, setPlayerId] = createSignal<string | null>(null);
-    const [name, setName] = createSignal("");
-    const [roomState, setRoomState] = createSignal<RoomStatePayload>({
-        players: [],
-        hostId: null,
-        phase: "lobby",
-        selectedGameType: "quiz",
-        activeGameType: null,
-        gameSessionId: null,
-        gameParticipants: [],
+    onMount(() => {
+        if (roomId() !== params().roomId) {
+            window.location.replace(`/room/${roomId()}`);
+        }
     });
+
+    const pool = createRoomClientPool({ roomId: roomId() });
+
+    onMount(() => {
+        installPartyDevtoolsApi(pool);
+    });
+
+    const client = () => pool.activeClient();
+    const playerId = () => client().identity().id;
+    const name = () => client().identity().name;
+    const roomState = () => client().roomState() ?? defaultRoomState();
     const players = createMemo(() => roomState().players);
     const isHost = createMemo(() => roomState().hostId === playerId());
     const roomPhase = createMemo(() => roomState().phase);
@@ -134,17 +151,14 @@ function RouteComponent() {
     const activeGameType = createMemo(() => roomState().activeGameType);
     const gameParticipants = createMemo(() => roomState().gameParticipants);
 
-    const refreshPlayerId = () => {
-        const existingId = getCookie("playerId");
-        if (existingId) return existingId;
-
-        const id = nanoid(10);
-        setCookie("playerId", id);
-        return id;
+    const persistName = (nextName: string) => {
+        if (client().identity().origin === "browser") {
+            setCookie("playerName", nextName);
+        }
     };
 
-    const persistName = (nextName: string) => {
-        setCookie("playerName", nextName);
+    const setName = (nextName: string) => {
+        client().rename(nextName);
     };
 
     const send = (
@@ -152,20 +166,12 @@ function RouteComponent() {
         nextName?: string,
         data?: Record<string, unknown>,
     ) => {
-        const pid = playerId();
-        if (!ws || !pid) return;
-        ws.send(
-            JSON.stringify({
-                playerId: pid,
-                playerName: nextName ?? name(),
-                type,
-                data: data ?? {},
-            }),
-        );
+        client().sendRoomMessage(type, data, nextName);
     };
 
     const join = (nextName: string) => {
         persistName(nextName);
+        client().rename(nextName);
         send("join", nextName);
     };
     const leave = () => send("leave");
@@ -179,7 +185,17 @@ function RouteComponent() {
     const restartRoom = () => send("restart_room");
 
     const isJoined = () => players().some((player) => player.id === playerId());
-    const getWs = () => ws;
+    const envelope = () => ({
+        playerId: playerId(),
+        playerName: name(),
+    });
+    const gameConnection = <T,>(
+        key: string,
+        options: Parameters<typeof createGameConnectionFromTransport>[1],
+    ) =>
+        client().getGameConnection(key, () =>
+            createGameConnectionFromTransport(client().transport, options),
+        ) as T;
     const isActivePokerGame = () => isPokerGameType(activeGameType());
     const myGameParticipant = createMemo(
         () =>
@@ -196,62 +212,6 @@ function RouteComponent() {
             (myGameParticipant() !== null && myGameStatus() !== "left_game") ||
             (isActivePokerGame() && isJoined() && myGameStatus() !== "left_game"),
     );
-
-    onMount(() => {
-        if (roomId() !== params().roomId) {
-            window.location.replace(`/room/${roomId()}`);
-            return;
-        }
-
-        const pid = refreshPlayerId();
-        setPlayerId(pid);
-        setName(getCookie("playerName") ?? "");
-
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const host = window.location.host;
-        const wsUrl = `${protocol}//${host}/api/room/${roomId()}`;
-
-        ws = new WebSocket(wsUrl);
-        ws.onopen = () => {
-            ws.send(
-                JSON.stringify({
-                    playerId: pid,
-                    playerName: getCookie("playerName") ?? "",
-                    type: "identify",
-                    data: {},
-                }),
-            );
-        };
-        ws.onmessage = (e) => {
-            const json = JSON.parse(e.data);
-
-            if (
-                typeof json.type === "string" &&
-                isGameWireMessageType(json.type)
-            ) {
-                return;
-            }
-
-            let parsed: typeof serverMessageSchema.Type;
-            try {
-                parsed = Schema.decodeUnknownSync(serverMessageSchema)(json);
-            } catch {
-                return;
-            }
-
-            if (parsed.type === "room_state") {
-                setRoomState(parsed.data);
-
-                const currentPlayer = parsed.data.players.find(
-                    (player) => player.id === playerId(),
-                );
-                if (currentPlayer) {
-                    setName(currentPlayer.name);
-                    persistName(currentPlayer.name);
-                }
-            }
-        };
-    });
 
     return (
         <>
@@ -323,15 +283,12 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: GoFishConnection = createGameConnection(
-                                getWs(),
+                            const connection: GoFishConnection = gameConnection(
+                                "go_fish",
                                 {
                                     stateType: "go_fish:state",
                                     prefix: "go_fish:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: goFishPlayerViewSchema,
                                     serverMessageSchema: goFishServerMessageSchema,
                                 },
@@ -358,15 +315,12 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: PokerConnection = createGameConnection(
-                                getWs(),
+                            const connection: PokerConnection = gameConnection(
+                                "poker",
                                 {
                                     stateType: "poker:state",
                                     prefix: "poker:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: pokerPlayerViewSchema,
                                     serverMessageSchema: pokerServerMessageSchema,
                                 },
@@ -405,17 +359,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: BlackjackConnection =
-                                createGameConnection(getWs(), {
+                            const connection: BlackjackConnection = gameConnection(
+                                "blackjack",
+                                {
                                     stateType: "blackjack:state",
                                     prefix: "blackjack:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: blackjackPlayerViewSchema,
                                     serverMessageSchema: blackjackServerMessageSchema,
-                                });
+                                },
+                            );
                             return (
                                 <BlackjackRoom
                                     roomId={roomId()}
@@ -445,15 +398,12 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: YahtzeeConnection = createGameConnection(
-                                getWs(),
+                            const connection: YahtzeeConnection = gameConnection(
+                                "yahtzee",
                                 {
                                     stateType: "yahtzee:state",
                                     prefix: "yahtzee:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: yahtzeePlayerViewSchema,
                                     serverMessageSchema: yahtzeeServerMessageSchema,
                                 },
@@ -488,15 +438,12 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: YahtzeeConnection = createGameConnection(
-                                getWs(),
+                            const connection: YahtzeeConnection = gameConnection(
+                                "yahtzee",
                                 {
                                     stateType: "yahtzee:state",
                                     prefix: "yahtzee:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: yahtzeePlayerViewSchema,
                                     serverMessageSchema: yahtzeeServerMessageSchema,
                                 },
@@ -531,15 +478,12 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: PerudoConnection = createGameConnection(
-                                getWs(),
+                            const connection: PerudoConnection = gameConnection(
+                                "perudo",
                                 {
                                     stateType: "perudo:state",
                                     prefix: "perudo:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: perudoPlayerViewSchema,
                                     serverMessageSchema: perudoServerMessageSchema,
                                 },
@@ -572,18 +516,9 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: RpsConnection = createGameConnection(
-                                getWs(),
-                                {
-                                    stateType: "rps:state",
-                                    prefix: "rps:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
-                                    playerViewSchema: rpsPlayerViewSchema,
-                                    serverMessageSchema: rpsServerMessageSchema,
-                                },
+                            const connection: RpsConnection = client().getGameConnection(
+                                "rps",
+                                () => createRpsGameConnection(client().transport, envelope),
                             );
                             return (
                                 <RpsRoom
@@ -613,15 +548,12 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: HerdConnection = createGameConnection(
-                                getWs(),
+                            const connection: HerdConnection = gameConnection(
+                                "herd",
                                 {
                                     stateType: "herd:state",
                                     prefix: "herd:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: herdPlayerViewSchema,
                                     serverMessageSchema: herdServerMessageSchema,
                                 },
@@ -655,17 +587,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: FunFactsConnection =
-                                createGameConnection(getWs(), {
+                            const connection: FunFactsConnection = gameConnection(
+                                "fun_facts",
+                                {
                                     stateType: "fun_facts:state",
                                     prefix: "fun_facts:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: funFactsPlayerViewSchema,
                                     serverMessageSchema: funFactsServerMessageSchema,
-                                });
+                                },
+                            );
                             return (
                                 <FunFactsRoom
                                     roomId={roomId()}
@@ -695,17 +626,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: CheeseThiefConnection =
-                                createGameConnection(getWs(), {
+                            const connection: CheeseThiefConnection = gameConnection(
+                                "cheese_thief",
+                                {
                                     stateType: "cheese_thief:state",
                                     prefix: "cheese_thief:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: cheeseThiefPlayerViewSchema,
                                     serverMessageSchema: cheeseThiefServerMessageSchema,
-                                });
+                                },
+                            );
                             return (
                                 <CheeseThiefRoom
                                     roomId={roomId()}
@@ -735,17 +665,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: CockroachPokerConnection =
-                                createGameConnection(getWs(), {
+                            const connection: CockroachPokerConnection = gameConnection(
+                                "cockroach_poker",
+                                {
                                     stateType: "cockroach_poker:state",
                                     prefix: "cockroach_poker:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: cockroachPokerPlayerViewSchema,
                                     serverMessageSchema: cockroachPokerServerMessageSchema,
-                                });
+                                },
+                            );
                             return (
                                 <CockroachPokerRoom
                                     roomId={roomId()}
@@ -775,17 +704,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: Flip7Connection =
-                                createGameConnection(getWs(), {
+                            const connection: Flip7Connection = gameConnection(
+                                "flip_7",
+                                {
                                     stateType: "flip_7:state",
                                     prefix: "flip_7:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: flip7PlayerViewSchema,
                                     serverMessageSchema: flip7ServerMessageSchema,
-                                });
+                                },
+                            );
                             return (
                                 <Flip7Room
                                     roomId={roomId()}
@@ -815,17 +743,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: SkullConnection =
-                                createGameConnection(getWs(), {
+                            const connection: SkullConnection = gameConnection(
+                                "skull",
+                                {
                                     stateType: "skull:state",
                                     prefix: "skull:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: skullPlayerViewSchema,
                                     serverMessageSchema: skullServerMessageSchema,
-                                });
+                                },
+                            );
                             return (
                                 <SkullRoom
                                     roomId={roomId()}
@@ -855,17 +782,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: SpicyConnection =
-                                createGameConnection(getWs(), {
+                            const connection: SpicyConnection = gameConnection(
+                                "spicy",
+                                {
                                     stateType: "spicy:state",
                                     prefix: "spicy:",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: spicyPlayerViewSchema,
                                     serverMessageSchema: spicyServerMessageSchema,
-                                });
+                                },
+                            );
                             return (
                                 <SpicyRoom
                                     roomId={roomId()}
@@ -894,17 +820,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: QuizConnection =
-                                createGameConnection(getWs(), {
+                            const connection: QuizConnection = gameConnection(
+                                "quiz",
+                                {
                                     stateType: "__quiz_no_state__",
                                     prefix: "player_answered",
-                                    envelope: () => ({
-                                        playerId: playerId(),
-                                        playerName: name(),
-                                    }),
+                                    envelope,
                                     playerViewSchema: quizPlayerViewSchema,
                                     serverMessageSchema: quizServerMessageSchema,
-                                });
+                                },
+                            );
                             return (
                                 <SampleQuizRoom
                                     roomId={roomId()}
@@ -931,6 +856,9 @@ function RouteComponent() {
                 >
                     LEAVE GAME
                 </button>
+            </Show>
+            <Show when={import.meta.env.DEV}>
+                <MultiplayerDevtools pool={pool} />
             </Show>
         </>
     );

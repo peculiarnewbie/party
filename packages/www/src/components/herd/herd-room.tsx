@@ -24,7 +24,7 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
     const [answerInput, setAnswerInput] = createSignal("");
     const [customQuestionInput, setCustomQuestionInput] = createSignal("");
     const [selectedGroups, setSelectedGroups] = createSignal<string[]>([]);
-    const [submitted, setSubmitted] = createSignal(false);
+    const [editingAnswer, setEditingAnswer] = createSignal(false);
 
     onCleanup(
         props.connection.subscribe((event) => {
@@ -35,7 +35,7 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                     action.type === "round_advanced"
                 ) {
                     setAnswerInput("");
-                    setSubmitted(false);
+                    setEditingAnswer(false);
                     setSelectedGroups([]);
                 }
             }
@@ -72,7 +72,7 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
             type: "herd:submit_answer",
             data: { answer },
         });
-        setSubmitted(true);
+        setEditingAnswer(false);
     };
 
     const handleNextQuestion = () => {
@@ -164,9 +164,12 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                             view={v}
                                             answerInput={answerInput()}
                                             setAnswerInput={setAnswerInput}
-                                            submitted={submitted()}
+                                            editingAnswer={editingAnswer()}
                                             onSubmit={handleSubmitAnswer}
-                                            onChangeAnswer={() => setSubmitted(false)}
+                                            onChangeAnswer={() => {
+                                                setAnswerInput(v.myAnswer ?? "");
+                                                setEditingAnswer(true);
+                                            }}
                                             onCloseAnswers={handleCloseAnswers}
                                         />
                                     </Match>
@@ -298,11 +301,13 @@ const AnsweringPhase: Component<{
     view: HerdPlayerView;
     answerInput: string;
     setAnswerInput: (v: string) => void;
-    submitted: boolean;
+    editingAnswer: boolean;
     onSubmit: () => void;
     onChangeAnswer: () => void;
     onCloseAnswers: () => void;
 }> = (props) => {
+    const showForm = () =>
+        !props.view.hasAnswered || props.editingAnswer;
     return (
         <div>
             <div class="border-2 border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] p-6 shadow-[4px_4px_0_#1a1a1a] mb-4">
@@ -319,7 +324,7 @@ const AnsweringPhase: Component<{
                 fallback={
                     <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] p-6 shadow-[4px_4px_0_#1a1a1a]">
                         <Show
-                            when={!props.submitted}
+                            when={showForm()}
                             fallback={
                                 <div class="text-center">
                                     <div class="font-bebas text-[1.2rem] tracking-[.1em] text-[#1a3a6e] mb-2">
