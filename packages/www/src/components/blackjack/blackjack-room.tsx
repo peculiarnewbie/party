@@ -193,7 +193,7 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
     }
 
     return (
-        <div class="min-h-screen bg-[#1a5c2e] font-karla flex flex-col">
+        <div data-testid="blackjack-room" class="min-h-screen bg-[#1a5c2e] font-karla flex flex-col">
             {/* Top bar */}
             <div class="flex items-center justify-between px-4 py-2 bg-[#0d3d1a] border-b-[3px] border-[#0a2e13]">
                 <div class="flex items-center gap-3">
@@ -593,6 +593,8 @@ function PlayerArea(props: {
 
     return (
         <div
+            data-testid={`blackjack-player-${props.player.id}`}
+            data-current-turn={props.isCurrentTurn ? "true" : "false"}
             class={`rounded px-3 py-2 transition-all ${
                 props.isCurrentTurn
                     ? "bg-[#2d8a4e]/30 ring-1 ring-[#7ab889]"
@@ -616,7 +618,12 @@ function PlayerArea(props: {
 
             <For each={props.player.hands}>
                 {(hand, handIdx) => (
-                    <div class="mb-1">
+                    <div
+                        class="mb-1"
+                        data-testid={`blackjack-hand-${props.player.id}-${handIdx()}`}
+                        data-card-count={hand.cards.length}
+                        data-value={handValueLabel(hand)}
+                    >
                         <Show when={props.player.hands.length > 1}>
                             <div class="font-bebas text-[.5rem] tracking-[.2em] text-[#7ab889]/50 mb-0.5">
                                 HAND {handIdx() + 1}

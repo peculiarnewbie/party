@@ -32,6 +32,12 @@ const E2E_SUITES: Record<string, E2eSuite> = {
         workerFiles: [],
         browserProjects: ["quiz-seeded"],
     },
+    blackjack: {
+        description:
+            "Browser coverage for blackjack seeded states and live multiplayer devtools flow",
+        workerFiles: [],
+        browserProjects: ["blackjack-seeded", "blackjack-live"],
+    },
 };
 
 function printUsage() {

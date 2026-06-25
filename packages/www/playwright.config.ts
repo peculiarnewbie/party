@@ -44,8 +44,18 @@ export default defineConfig({
             use: { viewport: { width: 1440, height: 1200 } },
         },
         {
+            name: "blackjack-seeded",
+            testMatch: "blackjack-seeded.spec.ts",
+            use: { viewport: { width: 1440, height: 1200 } },
+        },
+        {
             name: "poker-live",
             testMatch: "poker-live.spec.ts",
+            use: { viewport: { width: 1440, height: 1200 } },
+        },
+        {
+            name: "blackjack-live",
+            testMatch: "blackjack-live.spec.ts",
             use: { viewport: { width: 1440, height: 1200 } },
         },
     ],
