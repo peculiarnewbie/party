@@ -1,7 +1,4 @@
-import {
-    createSignal,
-    type Accessor,
-} from "solid-js";
+import { createSignal, type Accessor } from "solid-js";
 import type { ConnectionStatus, TransportMessage } from "./types";
 
 const MESSAGE_LOG_LIMIT = 500;
@@ -48,9 +45,9 @@ export function createWebSocketRoomTransport(
     const latestByType = new Map<string, unknown>();
 
     const [status, setStatus] = createSignal<ConnectionStatus>("disconnected");
-    const [messageLog, setMessageLog] = createSignal<readonly TransportMessage[]>(
-        [],
-    );
+    const [messageLog, setMessageLog] = createSignal<
+        readonly TransportMessage[]
+    >([]);
 
     const appendLog = (entry: Omit<TransportMessage, "id">) => {
         const next: TransportMessage = { ...entry, id: ++messageId };
@@ -77,7 +74,11 @@ export function createWebSocketRoomTransport(
 
     const connect = () => {
         if (disposed) return;
-        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        if (
+            ws &&
+            (ws.readyState === WebSocket.OPEN ||
+                ws.readyState === WebSocket.CONNECTING)
+        ) {
             return;
         }
 
@@ -92,38 +93,45 @@ export function createWebSocketRoomTransport(
                 type: "identify",
                 data: {},
             };
-            ws?.send(JSON.stringify(identify));
-            appendLog({
-                direction: "out",
-                timestamp: Date.now(),
-                type: "identify",
-                payload: identify,
-                byteSize: JSON.stringify(identify).length,
-            });
+            const payload = JSON.stringify(identify);
+            ws?.send(payload);
+            if (import.meta.env.DEV) {
+                appendLog({
+                    direction: "out",
+                    timestamp: Date.now(),
+                    type: "identify",
+                    payload: identify,
+                    byteSize: payload.length,
+                });
+            }
         };
 
         ws.onmessage = (event) => {
             const raw = typeof event.data === "string" ? event.data : "";
             const message = parseMessage(raw);
             if (!message) {
-                appendLog({
-                    direction: "in",
-                    timestamp: Date.now(),
-                    type: "malformed",
-                    payload: raw,
-                    byteSize: raw.length,
-                    decodeError: "invalid_json",
-                });
+                if (import.meta.env.DEV) {
+                    appendLog({
+                        direction: "in",
+                        timestamp: Date.now(),
+                        type: "malformed",
+                        payload: raw,
+                        byteSize: raw.length,
+                        decodeError: "invalid_json",
+                    });
+                }
                 return;
             }
 
-            appendLog({
-                direction: "in",
-                timestamp: Date.now(),
-                type: messageType(message),
-                payload: message,
-                byteSize: raw.length,
-            });
+            if (import.meta.env.DEV) {
+                appendLog({
+                    direction: "in",
+                    timestamp: Date.now(),
+                    type: messageType(message),
+                    payload: message,
+                    byteSize: raw.length,
+                });
+            }
             publish(message);
         };
 
@@ -153,14 +161,16 @@ export function createWebSocketRoomTransport(
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
         const payload = JSON.stringify(message);
         ws.send(payload);
-        const parsed = parseMessage(payload);
-        appendLog({
-            direction: "out",
-            timestamp: Date.now(),
-            type: parsed ? messageType(parsed) : "unknown",
-            payload: parsed ?? message,
-            byteSize: payload.length,
-        });
+        if (import.meta.env.DEV) {
+            const parsed = parseMessage(payload);
+            appendLog({
+                direction: "out",
+                timestamp: Date.now(),
+                type: parsed ? messageType(parsed) : "unknown",
+                payload: parsed ?? message,
+                byteSize: payload.length,
+            });
+        }
     };
 
     const subscribe = (handler: (message: Record<string, unknown>) => void) => {
