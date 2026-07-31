@@ -33,6 +33,7 @@ type LoggedEntry = {
 
 class FakeWebSocket {
     sent: string[] = [];
+    attachment: unknown = null;
     listeners: Record<string, Array<(event?: any) => void | Promise<void>>> = {
         message: [],
         close: [],
@@ -40,6 +41,18 @@ class FakeWebSocket {
 
     accept() {
         return undefined;
+    }
+
+    close() {
+        return undefined;
+    }
+
+    serializeAttachment(attachment: unknown) {
+        this.attachment = structuredClone(attachment);
+    }
+
+    deserializeAttachment() {
+        return structuredClone(this.attachment);
     }
 
     addEventListener(
@@ -84,7 +97,10 @@ class WorkerResponse {
     webSocket: unknown;
     body: unknown;
 
-    constructor(body: unknown, init?: { status?: number; webSocket?: unknown }) {
+    constructor(
+        body: unknown,
+        init?: { status?: number; webSocket?: unknown },
+    ) {
         this.body = body;
         this.status = init?.status ?? 200;
         this.webSocket = init?.webSocket;
@@ -94,6 +110,7 @@ class WorkerResponse {
 function createMockContext() {
     const kv = new Map<string, string>();
     const participants = new Map<string, ParticipantRow[]>();
+    const sockets: FakeWebSocket[] = [];
 
     const ctx = {
         id: {
@@ -161,18 +178,15 @@ function createMockContext() {
                     }
 
                     if (
-                        normalized.startsWith(
-                            "INSERT INTO game_participants",
-                        )
+                        normalized.startsWith("INSERT INTO game_participants")
                     ) {
-                        const [sessionId, playerId, status, joinedAt, updatedAt] =
-                            params as [
-                                string,
-                                string,
-                                string,
-                                number,
-                                number,
-                            ];
+                        const [
+                            sessionId,
+                            playerId,
+                            status,
+                            joinedAt,
+                            updatedAt,
+                        ] = params as [string, string, string, number, number];
                         const rows = participants.get(sessionId) ?? [];
                         rows.push({
                             player_id: playerId,
@@ -206,6 +220,12 @@ function createMockContext() {
         blockConcurrencyWhile<T>(fn: () => Promise<T> | T) {
             return Promise.resolve(fn()).then(() => undefined);
         },
+        acceptWebSocket(ws: FakeWebSocket) {
+            sockets.push(ws);
+        },
+        getWebSockets() {
+            return sockets;
+        },
     } as unknown as DurableObjectState;
 
     return { ctx, kv };
@@ -225,6 +245,16 @@ async function createRoom() {
     if (!lastPair) {
         throw new Error("WebSocketPair was not created");
     }
+
+    lastPair.server.addEventListener("message", (event) =>
+        room.webSocketMessage(
+            lastPair!.server as unknown as WebSocket,
+            event?.data,
+        ),
+    );
+    lastPair.server.addEventListener("close", () =>
+        room.webSocketClose(lastPair!.server as unknown as WebSocket, 1000, ""),
+    );
 
     return {
         room,
@@ -279,6 +309,30 @@ afterEach(() => {
 });
 
 describe("GameRoom worker boundary", () => {
+    it("indexes sockets by player for targeted sends and disconnects", async () => {
+        const { room, serverSocket } = await createRoom();
+
+        await serverSocket.dispatch("message", {
+            data: JSON.stringify({
+                type: "identify",
+                playerId: "p1",
+                playerName: "Alice",
+                data: {},
+            }),
+        });
+        await flushEffects();
+
+        expect(room.playerSockets.get("p1")).toEqual(new Set([serverSocket]));
+
+        room.sendTo("p1", "targeted");
+        expect(serverSocket.sent.at(-1)).toBe("targeted");
+
+        await serverSocket.dispatch("close");
+        await flushEffects();
+
+        expect(room.playerSockets.has("p1")).toBe(false);
+    });
+
     it("ignores malformed shared-room messages and emits a structured decode log", async () => {
         const logSpy = vi.spyOn(console, "log").mockImplementation(() => {
             return undefined;
@@ -292,7 +346,10 @@ describe("GameRoom worker boundary", () => {
 
         expect(room.state.players).toEqual([]);
         const logs = readLoggedEntries(logSpy);
-        const decodeLog = findLoggedEntry(logs, "game-room.room-message.decode");
+        const decodeLog = findLoggedEntry(
+            logs,
+            "game-room.room-message.decode",
+        );
 
         expect(decodeLog.level).toBe("WARN");
         expect(decodeLog.annotations).toMatchObject({
@@ -330,7 +387,10 @@ describe("GameRoom worker boundary", () => {
 
         expect(room.gameStateHolder.current).toBeNull();
         const logs = readLoggedEntries(logSpy);
-        const decodeLog = findLoggedEntry(logs, "game-room.poker-message.decode");
+        const decodeLog = findLoggedEntry(
+            logs,
+            "game-room.poker-message.decode",
+        );
 
         expect(decodeLog.level).toBe("WARN");
         expect(decodeLog.annotations).toMatchObject({
@@ -425,7 +485,10 @@ describe("GameRoom worker boundary", () => {
         expect(room.state.activeGameType).toBe("yahtzee");
         expect(room.gameStateHolder.current).toBeNull();
         const logs = readLoggedEntries(logSpy);
-        const decodeLog = findLoggedEntry(logs, "persisted-state.decode-fallback");
+        const decodeLog = findLoggedEntry(
+            logs,
+            "persisted-state.decode-fallback",
+        );
 
         expect(decodeLog.level).toBe("WARN");
         expect(decodeLog.annotations).toMatchObject({

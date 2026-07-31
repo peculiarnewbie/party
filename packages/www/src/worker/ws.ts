@@ -23,10 +23,7 @@ import {
     RoomMessageDecodeError,
     formatUnknownError,
 } from "~/effect/schema-helpers";
-import {
-    runObservedPromiseExit,
-    runObservedSync,
-} from "~/effect/runtime";
+import { runObservedPromiseExit, runObservedSync } from "~/effect/runtime";
 import {
     createGameAdapter,
     type GameAdapter,
@@ -35,8 +32,26 @@ import {
 
 const HIBERNATION_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 
+type RoomSession = {
+    id: string;
+    playerId: string | null;
+};
+
+function isRoomSession(value: unknown): value is RoomSession {
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+
+    const session = value as Record<string, unknown>;
+    return (
+        typeof session.id === "string" &&
+        (session.playerId === null || typeof session.playerId === "string")
+    );
+}
+
 export class GameRoom extends DurableObject {
-    sessions: Map<WebSocket, { id: string; playerId: string | null }>;
+    sessions: Map<WebSocket, RoomSession>;
+    playerSockets: Map<string, Set<WebSocket>>;
     state: GameState;
     gameStateHolder: { current: unknown };
     clearGameTimer: (() => void) | null;
@@ -47,11 +62,24 @@ export class GameRoom extends DurableObject {
     constructor(ctx: DurableObjectState, env: Env) {
         super(ctx, env);
         this.sessions = new Map();
+        this.playerSockets = new Map();
         this.state = createDefaultState();
         this.gameStateHolder = { current: null };
         this.clearGameTimer = null;
         this.cachedAdapter = null;
         this.cachedAdapterGameType = null;
+        for (const ws of this.ctx.getWebSockets()) {
+            const attachment = ws.deserializeAttachment();
+            if (!isRoomSession(attachment)) {
+                ws.close(1011, "Invalid room session");
+                continue;
+            }
+
+            this.sessions.set(ws, attachment);
+            if (attachment.playerId) {
+                this.bindSessionToPlayer(ws, attachment, attachment.playerId);
+            }
+        }
         this.ready = this.ctx.blockConcurrencyWhile(async () => {
             const exit = await runObservedPromiseExit(
                 ensureSchema(this.ctx).pipe(
@@ -83,7 +111,11 @@ export class GameRoom extends DurableObject {
             return this.cachedAdapter;
         }
 
-        const adapter = createGameAdapter(gameType, this.gameStateHolder, adapterCtx);
+        const adapter = createGameAdapter(
+            gameType,
+            this.gameStateHolder,
+            adapterCtx,
+        );
         this.cachedAdapter = adapter;
         this.cachedAdapterGameType = gameType;
         return adapter;
@@ -250,6 +282,124 @@ export class GameRoom extends DurableObject {
         return true;
     }
 
+    bindSessionToPlayer(ws: WebSocket, session: RoomSession, playerId: string) {
+        session.playerId = playerId;
+        ws.serializeAttachment(session);
+        const sockets = this.playerSockets.get(playerId);
+        if (sockets) {
+            sockets.add(ws);
+            return;
+        }
+        this.playerSockets.set(playerId, new Set([ws]));
+    }
+
+    removeSession(ws: WebSocket): RoomSession | null {
+        const session = this.sessions.get(ws) ?? null;
+        this.sessions.delete(ws);
+
+        if (!session?.playerId) {
+            return session;
+        }
+
+        const sockets = this.playerSockets.get(session.playerId);
+        sockets?.delete(ws);
+        if (sockets?.size === 0) {
+            this.playerSockets.delete(session.playerId);
+        }
+
+        return session;
+    }
+
+    broadcast(msg: string) {
+        this.sessions.forEach((_, ws) => ws.send(msg));
+    }
+
+    sendTo(playerId: string, msg: string) {
+        this.playerSockets.get(playerId)?.forEach((ws) => ws.send(msg));
+    }
+
+    createSocketOperations() {
+        const broadcast = (msg: string) => this.broadcast(msg);
+        const sendTo = (playerId: string, msg: string) =>
+            this.sendTo(playerId, msg);
+        const broadcastRoomState = () => {
+            broadcast(this.roomStateMessage());
+        };
+        const sendRoomStateToSocket = (ws: WebSocket) => {
+            ws.send(this.roomStateMessage());
+        };
+        const getStoredPlayerName = (playerId: string) =>
+            this.state.players.find((player) => player.id === playerId)?.name ??
+            "";
+        const canManageHibernatedRoom = (playerId: string) => {
+            const participant = this.getGameParticipant(playerId);
+            return participant !== null && participant.status !== "left_game";
+        };
+        const activateConnectedParticipants = () => {
+            this.sessions.forEach((session) => {
+                if (!session.playerId) {
+                    return;
+                }
+
+                const participant = this.getGameParticipant(session.playerId);
+                if (!participant || participant.status === "left_game") {
+                    return;
+                }
+
+                participant.status = "active";
+            });
+        };
+
+        let getAdapter: () => GameAdapter | null;
+        const adapterCtx: GameAdapterContext = {
+            endGameAndPersist: (broadcast, sendTo) => {
+                const adapter = getAdapter();
+                if (adapter) {
+                    adapter.endGame(broadcast, sendTo);
+                }
+                this.persistGameSnapshot();
+            },
+            setGameTimer: (clearFn) => {
+                this.clearGameTimer = clearFn;
+            },
+        };
+        getAdapter = () => this.activeAdapter(adapterCtx);
+
+        const rehydrateConnectedParticipants = () => {
+            this.sessions.forEach((session) => {
+                if (!session.playerId) {
+                    return;
+                }
+
+                const participant = this.getGameParticipant(session.playerId);
+                if (!participant || participant.status !== "active") {
+                    return;
+                }
+
+                this.rehydratePlayerGameState(
+                    session.playerId,
+                    getStoredPlayerName(session.playerId),
+                    broadcast,
+                    sendTo,
+                    adapterCtx,
+                );
+            });
+        };
+
+        return {
+            activateConnectedParticipants,
+            adapterCtx,
+            broadcast,
+            broadcastRoomState,
+            canManageHibernatedRoom,
+            getAdapter,
+            getStoredPlayerName,
+            rehydrateConnectedParticipants,
+            sendRoomStateToSocket,
+            sendTo,
+        };
+    }
+
     async alarm() {
         await this.ready;
 
@@ -288,108 +438,57 @@ export class GameRoom extends DurableObject {
         const webSocketPair = new WebSocketPair();
         const [client, serverWs] = Object.values(webSocketPair);
 
-        serverWs.accept();
+        this.ctx.acceptWebSocket(serverWs);
 
-        const id = crypto.randomUUID();
-        this.sessions.set(serverWs, { id, playerId: null });
-
-        const sendRoomStateToSocket = (ws: WebSocket) => {
-            ws.send(this.roomStateMessage());
+        const session: RoomSession = {
+            id: crypto.randomUUID(),
+            playerId: null,
         };
+        serverWs.serializeAttachment(session);
+        this.sessions.set(serverWs, session);
 
-        const broadcast = (msg: string) => {
-            this.sessions.forEach((_, ws) => ws.send(msg));
-        };
+        serverWs.send(this.roomStateMessage());
 
-        const broadcastRoomState = () => {
-            broadcast(this.roomStateMessage());
-        };
+        return new Response(null, {
+            status: 101,
+            webSocket: client,
+        });
+    }
 
-        const sendTo = (playerId: string, msg: string) => {
-            this.sessions.forEach((session, ws) => {
-                if (session.playerId === playerId) ws.send(msg);
-            });
-        };
+    async webSocketMessage(serverWs: WebSocket, message: string | ArrayBuffer) {
+        await this.ready;
+        if (typeof message !== "string") {
+            return;
+        }
 
-        const getStoredPlayerName = (playerId: string) =>
-            this.state.players.find((player) => player.id === playerId)?.name ??
-            "";
+        const raw = message;
+        const {
+            activateConnectedParticipants,
+            adapterCtx,
+            broadcast,
+            broadcastRoomState,
+            canManageHibernatedRoom,
+            getAdapter,
+            getStoredPlayerName,
+            rehydrateConnectedParticipants,
+            sendRoomStateToSocket,
+            sendTo,
+        } = this.createSocketOperations();
 
-        const canManageHibernatedRoom = (playerId: string) => {
-            const participant = this.getGameParticipant(playerId);
-            return participant !== null && participant.status !== "left_game";
-        };
-
-        const activateConnectedParticipants = () => {
-            this.sessions.forEach((session) => {
-                if (!session.playerId) {
-                    return;
-                }
-
-                const participant = this.getGameParticipant(session.playerId);
-                if (!participant || participant.status === "left_game") {
-                    return;
-                }
-
-                participant.status = "active";
-            });
-        };
-
-        const rehydrateConnectedParticipants = () => {
-            this.sessions.forEach((session) => {
-                if (!session.playerId) {
-                    return;
-                }
-
-                const participant = this.getGameParticipant(session.playerId);
-                if (!participant || participant.status !== "active") {
-                    return;
-                }
-
-                this.rehydratePlayerGameState(
-                    session.playerId,
-                    getStoredPlayerName(session.playerId),
-                    broadcast,
-                    sendTo,
-                    adapterCtx,
-                );
-            });
-        };
-
-        const adapterCtx: GameAdapterContext = {
-            endGameAndPersist: (broadcast, sendTo) => {
-                const adapter = getAdapter();
-                if (adapter) {
-                    adapter.endGame(broadcast, sendTo);
-                }
-                this.persistGameSnapshot();
-            },
-            setGameTimer: (clearFn) => {
-                this.clearGameTimer = clearFn;
-            },
-        };
-
-        const getAdapter = () => this.activeAdapter(adapterCtx);
-
-        sendRoomStateToSocket(serverWs);
-
-        serverWs.addEventListener("message", (event) => {
-            const raw = event.data as string;
-
-            const program = Effect.gen(() =>
-                (function* (this: GameRoom) {
+        const program = Effect.gen(() =>
+            function* (this: GameRoom) {
                 const json = yield* Effect.try({
                     try: () =>
-                        Schema.decodeUnknownSync(
-                            Schema.UnknownFromJsonString,
-                        )(raw) as Record<string, unknown>,
+                        Schema.decodeUnknownSync(Schema.UnknownFromJsonString)(
+                            raw,
+                        ) as Record<string, unknown>,
                     catch: (error) =>
                         new RoomMessageDecodeError({
                             issue: formatUnknownError(error),
                         }),
                 }).pipe(
                     Effect.catchTag("RoomMessageDecodeError", (error) =>
-                        Effect.gen(function*() {
+                        Effect.gen(function* () {
                             yield* Effect.logWarning(
                                 "game-room.message.invalid-json",
                             ).pipe(
@@ -425,16 +524,19 @@ export class GameRoom extends DurableObject {
                 const sharedMessage = isSharedMessage
                     ? yield* decodeClientMessage(json).pipe(
                           Effect.tap(() =>
-                              Effect.logInfo("game-room.room-message.decode").pipe(
+                              Effect.logInfo(
+                                  "game-room.room-message.decode",
+                              ).pipe(
                                   Effect.annotateLogs({
                                       component: "game-room",
-                                      operation: "game-room.room-message.decode",
+                                      operation:
+                                          "game-room.room-message.decode",
                                       result: "success",
                                   }),
                               ),
                           ),
                           Effect.catchTag("RoomMessageDecodeError", (error) =>
-                              Effect.gen(function*() {
+                              Effect.gen(function* () {
                                   yield* Effect.logWarning(
                                       "game-room.room-message.decode",
                                   ).pipe(
@@ -476,7 +578,11 @@ export class GameRoom extends DurableObject {
                             );
                             return;
                         }
-                        session.playerId = messagePlayerId;
+                        this.bindSessionToPlayer(
+                            serverWs,
+                            session,
+                            messagePlayerId,
+                        );
                     } else if (session.playerId !== messagePlayerId) {
                         yield* Effect.logWarning(
                             "game-room.identity.mismatch",
@@ -560,7 +666,9 @@ export class GameRoom extends DurableObject {
                         broadcastRoomState();
                         rehydrateConnectedParticipants();
                         this.persistGameSnapshot();
-                        yield* Effect.logInfo("game-room.message.processed").pipe(
+                        yield* Effect.logInfo(
+                            "game-room.message.processed",
+                        ).pipe(
                             Effect.annotateLogs({
                                 component: "game-room",
                                 branch: "resume_room",
@@ -578,7 +686,9 @@ export class GameRoom extends DurableObject {
 
                         yield* Effect.promise(() => this.restartRoom());
                         broadcastRoomState();
-                        yield* Effect.logInfo("game-room.message.processed").pipe(
+                        yield* Effect.logInfo(
+                            "game-room.message.processed",
+                        ).pipe(
                             Effect.annotateLogs({
                                 component: "game-room",
                                 branch: "restart_room",
@@ -619,12 +729,16 @@ export class GameRoom extends DurableObject {
                 }
 
                 const wasPoker = isPokerGameType(this.state.activeGameType);
-                const currentPokerState =
-                    wasPoker ? this.gameStateHolder.current as import("~/game/poker").PokerState | null : null;
+                const currentPokerState = wasPoker
+                    ? (this.gameStateHolder.current as
+                          | import("~/game/poker").PokerState
+                          | null)
+                    : null;
                 const wasSeatedPokerPlayer =
                     wasPoker &&
                     !!currentPokerState?.players?.some(
-                        (player: { id: string }) => player.id === sharedMessage.playerId,
+                        (player: { id: string }) =>
+                            player.id === sharedMessage.playerId,
                     );
 
                 const processResult = yield* Effect.promise(() =>
@@ -683,9 +797,7 @@ export class GameRoom extends DurableObject {
                 }
 
                 if (processResult.kind === "start") {
-                    yield* Effect.promise(() =>
-                        this.clearHibernationCleanup(),
-                    );
+                    yield* Effect.promise(() => this.clearHibernationCleanup());
                     this.clearGameTimer?.();
                     this.clearGameTimer = null;
                     this.gameStateHolder.current = null;
@@ -783,72 +895,64 @@ export class GameRoom extends DurableObject {
                         result: "ok",
                     }),
                 );
-                }).call(this),
-            );
+            }.call(this),
+        );
 
-            void runObservedPromiseExit(
-                program as Effect.Effect<void, unknown, never>,
-                "game-room.socket.message",
-                this.roomLogContext({
-                    component: "game-room",
-                }),
-            );
-        });
+        await runObservedPromiseExit(
+            program as Effect.Effect<void, unknown, never>,
+            "game-room.socket.message",
+            this.roomLogContext({
+                component: "game-room",
+            }),
+        );
+    }
 
-        serverWs.addEventListener("close", () => {
-            void (async () => {
-                const session = this.sessions.get(serverWs);
-                const closedPlayerId = session?.playerId ?? null;
-                this.sessions.delete(serverWs);
+    async webSocketClose(serverWs: WebSocket, code: number, reason: string) {
+        await this.ready;
+        await this.handleSocketDisconnect(serverWs);
+        serverWs.close(code, reason);
+    }
 
-                let didChange = false;
-                if (closedPlayerId) {
-                    const stillConnected = [...this.sessions.values()].some(
-                        (entry) => entry.playerId === closedPlayerId,
-                    );
-                    if (!stillConnected) {
-                        didChange = this.setGameParticipantStatus(
-                            closedPlayerId,
-                            "disconnected",
-                        );
+    async webSocketError(serverWs: WebSocket) {
+        await this.ready;
+        await this.handleSocketDisconnect(serverWs);
+    }
 
-                        if (
-                            didChange &&
-                            isPokerGameType(this.state.activeGameType)
-                        ) {
-                            const adapter = getAdapter();
-                            if (adapter) {
-                                adapter.removePlayer(
-                                    closedPlayerId,
-                                    broadcast,
-                                    sendTo,
-                                );
-                            }
-                        }
+    async handleSocketDisconnect(serverWs: WebSocket) {
+        const { broadcast, broadcastRoomState, getAdapter, sendTo } =
+            this.createSocketOperations();
+        const session = this.removeSession(serverWs);
+        const closedPlayerId = session?.playerId ?? null;
+
+        let didChange = false;
+        if (closedPlayerId) {
+            const stillConnected = this.playerSockets.has(closedPlayerId);
+            if (!stillConnected) {
+                didChange = this.setGameParticipantStatus(
+                    closedPlayerId,
+                    "disconnected",
+                );
+
+                if (didChange && isPokerGameType(this.state.activeGameType)) {
+                    const adapter = getAdapter();
+                    if (adapter) {
+                        adapter.removePlayer(closedPlayerId, broadcast, sendTo);
                     }
                 }
+            }
+        }
 
-                if (
-                    this.sessions.size === 0 &&
-                    this.state.phase === "playing"
-                ) {
-                    await this.hibernateRoom();
-                    return;
-                }
+        if (this.sessions.size === 0 && this.state.phase === "playing") {
+            await this.hibernateRoom();
+            return;
+        }
 
-                if (!didChange) {
-                    return;
-                }
+        if (!didChange) {
+            return;
+        }
 
-                this.persistAllState();
-                broadcastRoomState();
-            })();
-        });
-
-        return new Response(null, {
-            status: 101,
-            webSocket: client,
-        });
+        this.persistAllState();
+        broadcastRoomState();
     }
 
     private rehydratePlayerGameState(
@@ -872,7 +976,13 @@ export class GameRoom extends DurableObject {
 
         if (adapter.onPlayerJoin) {
             const isReconnect = !!participant;
-            adapter.onPlayerJoin(playerId, playerName, isReconnect, broadcast, sendTo);
+            adapter.onPlayerJoin(
+                playerId,
+                playerName,
+                isReconnect,
+                broadcast,
+                sendTo,
+            );
             return;
         }
 

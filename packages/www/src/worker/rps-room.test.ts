@@ -122,6 +122,32 @@ const PLAYERS = Array.from({ length: PLAYER_COUNT }, (_, i) => ({
 }));
 
 describe("GameRoom RPS sequences", () => {
+    it("persists player identity in hibernatable socket attachments", async () => {
+        const roomId = nextRoomId();
+        const { client } = await connectClient(roomId);
+
+        try {
+            client.send({
+                type: "identify",
+                playerId: "p1",
+                playerName: "Alice",
+                data: {},
+            });
+            await sleep(50);
+
+            const attachments = await withRoom(roomId, (ctx) =>
+                ctx.getWebSockets().map((ws) => ws.deserializeAttachment()),
+            );
+
+            expect(attachments).toContainEqual({
+                id: expect.any(String),
+                playerId: "p1",
+            });
+        } finally {
+            client.close();
+        }
+    });
+
     it("runs a full 8-player tournament with bestOf=1", { timeout: 15000 }, async () => {
         const roomId = nextRoomId();
         const clients: TestRoomClient[] = [];
