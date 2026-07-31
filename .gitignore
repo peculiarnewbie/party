@@ -41,3 +41,4 @@ blob-report/
 
 # Fuzz test local failure logs
 .fuzz-failures/
+.commandcode/
