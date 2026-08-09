@@ -13,6 +13,7 @@
         "prepare": "effect-language-service patch",
         "typecheck": "pnpm --filter www run typecheck",
         "test:unit": "pnpm --filter www test:unit",
+        "test:fuzz": "pnpm --filter www test:fuzz",
         "test:quiz-manager": "pnpm --filter quiz-manager test:unit",
         "test:worker": "pnpm --filter www test:worker",
         "test:soak": "pnpm --filter www test:soak",

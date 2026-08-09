@@ -1,0 +1,33 @@
+name: Nightly reliability
+
+on:
+    schedule:
+        - cron: "17 18 * * *"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: nightly-reliability
+    cancel-in-progress: false
+
+jobs:
+    fuzz-and-soak:
+        name: Deep fuzz and game-action soak
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        steps:
+            - uses: actions/checkout@v7
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22
+                  cache: pnpm
+                  cache-dependency-path: pnpm-lock.yaml
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm test:fuzz
+              env:
+                  FUZZ_RUNS: 250
+            - run: pnpm test:worker
+            - run: pnpm test:soak

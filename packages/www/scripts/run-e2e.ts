@@ -56,22 +56,26 @@ const E2E_SUITES: Record<string, E2eSuite> = {
         browserProjects: ["perudo-live"],
     },
     herd: {
-        description: "Live browser and workerd room-start coverage for Herd Mentality",
+        description:
+            "Live browser and workerd room-start coverage for Herd Mentality",
         workerFiles: ["src/worker/herd-room.test.ts"],
         browserProjects: ["herd-live"],
     },
     "fun-facts": {
-        description: "Live browser and workerd room-start coverage for Fun Facts",
+        description:
+            "Live browser and workerd room-start coverage for Fun Facts",
         workerFiles: ["src/worker/fun-facts-room.test.ts"],
         browserProjects: ["fun-facts-live"],
     },
     "cheese-thief": {
-        description: "Live browser and workerd room-start coverage for Cheese Thief",
+        description:
+            "Live browser and workerd room-start coverage for Cheese Thief",
         workerFiles: ["src/worker/cheese-thief-room.test.ts"],
         browserProjects: ["cheese-thief-live"],
     },
     "cockroach-poker": {
-        description: "Live browser and workerd room-start coverage for Cockroach Poker",
+        description:
+            "Live browser and workerd room-start coverage for Cockroach Poker",
         workerFiles: ["src/worker/cockroach-poker-room.test.ts"],
         browserProjects: ["cockroach-poker-live"],
     },
@@ -171,10 +175,10 @@ async function startDevServer(): Promise<ChildProcess> {
     child.stdout?.on("data", (d) => process.stdout.write(d));
     child.stderr?.on("data", (d) => process.stderr.write(d));
 
-    const ready = await waitForServer("http://127.0.0.1:3000/", 60_000);
+    const ready = await waitForServer("http://127.0.0.1:3000/", 90_000);
     if (!ready) {
-        child.kill("SIGTERM");
-        throw new Error("Dev server did not become ready within 60s");
+        await stopDevServer(child);
+        throw new Error("Dev server did not become ready within 90s");
     }
 
     return child;

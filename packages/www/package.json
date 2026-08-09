@@ -12,6 +12,7 @@
         "deploy": "alchemy deploy alchemy.run.ts --stage prod --profile party --yes --adopt",
         "destroy": "alchemy destroy alchemy.run.ts --stage prod --profile party",
         "test:unit": "vitest run",
+        "test:fuzz": "vitest run src/game/poker/engine.fuzz.test.ts src/game/yahtzee/engine.fuzz.test.ts src/game/perudo/engine.fuzz.test.ts src/game/rps/engine.fuzz.test.ts",
         "test:worker": "vitest run --config vitest.worker.config.ts",
         "test:soak": "vitest run --config vitest.soak.config.ts",
         "test:infra": "vitest run --config vitest.infra.config.ts",

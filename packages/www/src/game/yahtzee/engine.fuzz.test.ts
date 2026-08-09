@@ -1,10 +1,8 @@
 // @vitest-environment node
 
-import fs from "node:fs";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
+import { createSeededRng, runFuzz } from "~/game/shared/fuzz-test-helpers";
 import {
     calculateScore,
     getTotalScore,
@@ -24,14 +22,6 @@ import type {
 } from "./types";
 
 const CATEGORIES: ScoringCategory[] = SCORING_CATEGORIES;
-
-function createRng(seed: number) {
-    let s = seed >>> 0;
-    return () => {
-        s = (s * 1664525 + 1013904223) >>> 0;
-        return s / 4294967296;
-    };
-}
 
 function rollDie(rng: () => number): number {
     return Math.floor(rng() * 6) + 1;
@@ -338,134 +328,86 @@ function playerArb(count: number): { id: string; name: string }[] {
     }));
 }
 
-function fuzzParameters(): fc.Parameters<[number, number, TurnDecision[]]> {
-    const seed = process.env.FUZZ_SEED;
-    const path = process.env.FUZZ_PATH;
-    return {
-        numRuns: Number(process.env.FUZZ_RUNS ?? 50),
-        ...(seed === undefined ? {} : { seed: Number(seed) }),
-        ...(path === undefined ? {} : { path }),
-    };
-}
-
-function logFuzzFailure(
-    label: string,
-    runDetails: fc.RunDetails<[number, number, TurnDecision[]]>,
-): void {
-    const seed = runDetails.seed;
-    const numShrinks = runDetails.numShrinks;
-    const counterexample = runDetails.counterexample;
-    const counterexamplePath = runDetails.counterexamplePath;
-
-    if (!process.env.CI) {
-        const logDir = path.join(process.cwd(), ".fuzz-failures");
-        fs.mkdirSync(logDir, { recursive: true });
-        const logPath = path.join(logDir, `${label}.json`);
-        fs.writeFileSync(
-            logPath,
-            JSON.stringify(
-                {
-                    label,
-                    seed,
-                    counterexamplePath,
-                    numShrinks,
-                    counterexample,
-                    timestamp: new Date().toISOString(),
-                },
-                null,
-                2,
-            ),
-        );
-        console.error(`Fuzz failure for ${label} logged to ${logPath}`);
-    } else {
-        console.error(
-            `Fuzz failure for ${label}: seed=${seed}, path=${counterexamplePath}, shrinks=${numShrinks}`,
-        );
-        console.error(
-            "Counterexample:",
-            JSON.stringify(counterexample, null, 2),
-        );
-    }
-}
-
 describe("yahtzee engine fuzz", () => {
-    it("standard mode: random full games maintain invariants", () => {
-        const result = fc.check(
-            fc.property(
-                fc.integer({ min: 1, max: 100000 }),
-                fc.integer({ min: 2, max: 4 }),
-                fc.array(turnDecisionArb("standard"), {
-                    minLength: 15,
-                    maxLength: 25,
-                }),
-                (seed, playerCount, decisions) => {
-                    const rng = createRng(seed);
-                    const state = initGame(playerArb(playerCount), {
-                        mode: "standard",
-                    });
+    it(
+        "standard mode: random full games maintain invariants",
+        { timeout: 120_000 },
+        () => {
+            runFuzz(
+                "yahtzee-standard",
+                fc.property(
+                    fc.integer({ min: 1, max: 100000 }),
+                    fc.integer({ min: 2, max: 4 }),
+                    fc.array(turnDecisionArb("standard"), {
+                        minLength: 15,
+                        maxLength: 25,
+                    }),
+                    (seed, playerCount, decisions) => {
+                        const rng = createSeededRng(seed);
+                        const state = initGame(playerArb(playerCount), {
+                            mode: "standard",
+                        });
 
-                    for (const decision of decisions) {
-                        if (state.phase === "game_over") break;
-                        playTurn(state, decision, rng);
-                        assertStateInvariants(state, "standard");
-                    }
-
-                    if (state.phase !== "game_over") {
-                        const anyMovesLeft = state.players.some(
-                            (p) =>
-                                Object.keys(p.scorecard).length < TOTAL_ROUNDS,
-                        );
-                        if (!anyMovesLeft) {
-                            expect(state.phase).toBe("game_over");
+                        for (const decision of decisions) {
+                            if (state.phase === "game_over") break;
+                            playTurn(state, decision, rng);
+                            assertStateInvariants(state, "standard");
                         }
-                    }
-                },
-            ),
-            fuzzParameters(),
-        );
-        if (result.failed) {
-            logFuzzFailure("yahtzee-standard", result);
-            throw new Error("Fuzz failed for standard mode");
-        }
-    });
 
-    it("lying mode: random full games maintain invariants", () => {
-        const result = fc.check(
-            fc.property(
-                fc.integer({ min: 1, max: 100000 }),
-                fc.integer({ min: 2, max: 4 }),
-                fc.array(turnDecisionArb("lying"), {
-                    minLength: 15,
-                    maxLength: 25,
-                }),
-                (seed, playerCount, decisions) => {
-                    const rng = createRng(seed);
-                    const state = initGame(playerArb(playerCount), {
-                        mode: "lying",
-                    });
-
-                    for (const decision of decisions) {
-                        if (state.phase === "game_over") break;
-                        playTurn(state, decision, rng);
-                        assertStateInvariants(state, "lying");
-                    }
-
-                    if (state.phase !== "game_over") {
-                        const anyMovesLeft = state.players.some(
-                            (p) =>
-                                Object.keys(p.scorecard).length < TOTAL_ROUNDS,
-                        );
-                        if (!anyMovesLeft) {
-                            expect(state.phase).toBe("game_over");
+                        if (state.phase !== "game_over") {
+                            const anyMovesLeft = state.players.some(
+                                (p) =>
+                                    Object.keys(p.scorecard).length <
+                                    TOTAL_ROUNDS,
+                            );
+                            if (!anyMovesLeft) {
+                                expect(state.phase).toBe("game_over");
+                            }
                         }
-                    }
-                },
-            ),
-            fuzzParameters(),
-        );
-        if (result.failed) {
-            logFuzzFailure("yahtzee-lying", result);
-            throw new Error("Fuzz failed for lying mode");
-        }
-    });
+                    },
+                ),
+            );
+        },
+    );
+
+    it(
+        "lying mode: random full games maintain invariants",
+        { timeout: 120_000 },
+        () => {
+            runFuzz(
+                "yahtzee-lying",
+                fc.property(
+                    fc.integer({ min: 1, max: 100000 }),
+                    fc.integer({ min: 2, max: 4 }),
+                    fc.array(turnDecisionArb("lying"), {
+                        minLength: 15,
+                        maxLength: 25,
+                    }),
+                    (seed, playerCount, decisions) => {
+                        const rng = createSeededRng(seed);
+                        const state = initGame(playerArb(playerCount), {
+                            mode: "lying",
+                        });
+
+                        for (const decision of decisions) {
+                            if (state.phase === "game_over") break;
+                            playTurn(state, decision, rng);
+                            assertStateInvariants(state, "lying");
+                        }
+
+                        if (state.phase !== "game_over") {
+                            const anyMovesLeft = state.players.some(
+                                (p) =>
+                                    Object.keys(p.scorecard).length <
+                                    TOTAL_ROUNDS,
+                            );
+                            if (!anyMovesLeft) {
+                                expect(state.phase).toBe("game_over");
+                            }
+                        }
+                    },
+                ),
+            );
+        },
+    );
 });

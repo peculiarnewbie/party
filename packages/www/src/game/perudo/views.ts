@@ -36,18 +36,8 @@ export function getPlayerView(
         };
     });
 
-    const activePlayerIds = activePlayers.map((p) => p.id);
-    const myIndex = activePlayerIds.indexOf(playerId);
-    const currentIndex = activePlayerIds.indexOf(currentPlayer?.id ?? "");
-    const expectedNext =
-        activePlayers.length > 1
-            ? (currentIndex + 1) % activePlayers.length
-            : -1;
     const canChallenge =
-        isMyTurn === false &&
-        state.phase === "bidding" &&
-        state.currentBid !== null &&
-        myIndex === expectedNext;
+        isMyTurn && state.phase === "bidding" && state.currentBid !== null;
 
     let mustBet = false;
     if (
@@ -59,21 +49,20 @@ export function getPlayerView(
     }
 
     let nextHigherBid: { quantity: number; faceValue: FaceValue } | null = null;
-    if (state.currentBid) {
+    if (state.phase === "bidding" && state.currentBid) {
         const cb = state.currentBid;
         if (cb.quantity < state.totalDiceInPlay) {
             nextHigherBid = {
                 quantity: cb.quantity + 1,
                 faceValue: cb.faceValue,
             };
-        } else {
-            const nextFace = ((cb.faceValue % 6) + 1) as FaceValue;
+        } else if (cb.faceValue < 6) {
             nextHigherBid = {
                 quantity: cb.quantity,
-                faceValue: nextFace,
+                faceValue: (cb.faceValue + 1) as FaceValue,
             };
         }
-    } else {
+    } else if (state.phase === "round_start" || state.phase === "bidding") {
         nextHigherBid = { quantity: 1, faceValue: 1 as FaceValue };
     }
 

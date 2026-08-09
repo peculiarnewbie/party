@@ -145,6 +145,8 @@ function resolveChallenge(
         return { type: "error", message: "Challenger not found" };
     }
 
+    const activePlayersBeforeChallenge = getActivePlayers(state);
+    const loserOrder = activePlayersBeforeChallenge.map((player) => player.id);
     const actualCount = countDiceWithValue(state, currentBid.faceValue);
     const wasCorrect = actualCount >= currentBid.quantity;
 
@@ -191,11 +193,18 @@ function resolveChallenge(
         return { type: "game_over", winners: state.winners };
     }
 
-    const wasPalifico = state.palificoRound;
     const palificoNext = loserNewCount === 1;
-
+    const loserOrderIndex = loserOrder.indexOf(loserId);
+    const nextStartingPlayerId =
+        activePlayers.find((player) => player.id === loserId)?.id ??
+        loserOrder
+            .slice(loserOrderIndex + 1)
+            .concat(loserOrder.slice(0, loserOrderIndex))
+            .find((playerId) =>
+                activePlayers.some((player) => player.id === playerId),
+            );
     const nextStartingPlayerIndex = activePlayers.findIndex(
-        (p) => p.id === loserId,
+        (player) => player.id === nextStartingPlayerId,
     );
 
     state.lastChallengeResult = {
@@ -342,22 +351,11 @@ export function processAction(
             return { type: "error", message: "Player not found" };
         }
 
-        const activePlayers = getActivePlayers(state);
-        const challengerIndex = activePlayers.findIndex(
-            (p) => p.id === action.playerId,
-        );
-        const currentIndex = activePlayers.findIndex(
-            (p) => p.id === currentPlayer.id,
-        );
-
-        if (challengerIndex !== currentIndex) {
-            const expectedNext = (currentIndex + 1) % activePlayers.length;
-            if (challengerIndex !== expectedNext) {
-                return {
-                    type: "error",
-                    message: "Must wait your turn to challenge",
-                };
-            }
+        if (action.playerId !== currentPlayer.id) {
+            return {
+                type: "error",
+                message: "Must wait your turn to challenge",
+            };
         }
 
         const challengeResult = resolveChallenge(state, action.playerId);
@@ -481,14 +479,17 @@ export function endGameByHost(state: PerudoState): PerudoResult {
     return { type: "game_over", winners: state.winners };
 }
 
-export function finishReveal(state: PerudoState): PerudoResult {
+export function finishReveal(
+    state: PerudoState,
+    rollFn: RollFn = defaultRoll,
+): PerudoResult {
     if (state.phase !== "revealing") {
         return { type: "error", message: "Not in reveal phase" };
     }
 
     state.revealTimerActive = false;
 
-    const result = startNextRound(state);
+    const result = startNextRound(state, rollFn);
 
     if (result.type === "round_started") {
         state.currentPlayerIndex = state.startingPlayerIndex;

@@ -268,6 +268,7 @@ describe("processAction", () => {
         );
         state.phase = "bidding";
         state.currentBid = { playerId: "p1", quantity: 3, faceValue: 3 };
+        state.currentPlayerIndex = 1;
         const result = processAction(state, {
             type: "challenge",
             playerId: "p2",
@@ -282,6 +283,7 @@ describe("processAction", () => {
         );
         state.phase = "bidding";
         state.currentBid = { playerId: "p1", quantity: 3, faceValue: 3 };
+        state.currentPlayerIndex = 1;
         const result = processAction(state, {
             type: "challenge",
             playerId: "p2",
@@ -300,6 +302,7 @@ describe("processAction", () => {
         );
         state.phase = "bidding";
         state.currentBid = { playerId: "p1", quantity: 5, faceValue: 3 };
+        state.currentPlayerIndex = 1;
         const result = processAction(state, {
             type: "challenge",
             playerId: "p2",
@@ -317,6 +320,7 @@ describe("processAction", () => {
         );
         state.phase = "bidding";
         state.currentBid = { playerId: "p1", quantity: 3, faceValue: 3 };
+        state.currentPlayerIndex = 1;
         state.players[0].dice = [1, 1, 3];
         state.players[1].dice = [6, 6];
         const result = processAction(state, {
@@ -333,6 +337,7 @@ describe("processAction", () => {
         );
         state.phase = "bidding";
         state.currentBid = { playerId: "p1", quantity: 5, faceValue: 3 };
+        state.currentPlayerIndex = 1;
         state.players[1].dice.pop();
         state.players[1].dice.pop();
         state.players[1].dice.pop();
@@ -497,6 +502,17 @@ describe("getPlayerView", () => {
         state.currentBid = { playerId: "p1", quantity: 3, faceValue: 4 };
         const view = getPlayerView(state, "p2");
         expect(view.nextHigherBid).toEqual({ quantity: 4, faceValue: 4 });
+    });
+
+    it("does not suggest a bid above the maximum bid", () => {
+        const state = initGame(PLAYERS);
+        state.phase = "bidding";
+        state.currentBid = {
+            playerId: "p1",
+            quantity: state.totalDiceInPlay,
+            faceValue: 6,
+        };
+        expect(getPlayerView(state, "p2").nextHigherBid).toBeNull();
     });
 
     it("hides dice of eliminated players", () => {

@@ -11,6 +11,37 @@ function isRoomState(message: MessageEnvelope) {
     return message.type === "room_state";
 }
 
+type RpsSoakState = {
+    eventIndex?: number;
+    bestOf: number;
+    currentRound: number;
+    phase: "throwing" | "round_results" | "tournament_over";
+    winnerId: string | null;
+    rounds: {
+        roundNumber: number;
+        matches: {
+            player1Id: string;
+            player2Id: string;
+            player1Choice: "rock" | "paper" | "scissors" | null;
+            player2Choice: "rock" | "paper" | "scissors" | null;
+            status: "active" | "complete";
+        }[];
+    }[];
+};
+
+function isRpsSnapshot(message: MessageEnvelope) {
+    return message.type === "rps:snapshot";
+}
+
+function isRpsSyncResponse(message: MessageEnvelope) {
+    return message.type === "rps:sync_response";
+}
+
+function isRpsEvent(eventType: string) {
+    return (message: MessageEnvelope) =>
+        message.type === "rps:event" && message.data.type === eventType;
+}
+
 async function join(
     client: TestRoomClient,
     playerId: string,
@@ -52,6 +83,187 @@ async function closeAll(clients: Iterable<TestRoomClient>) {
             await client.waitForClose();
         }),
     );
+}
+
+async function selectRpsAndStart(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
+    const selectCursor = client.cursor();
+    client.send({
+        type: "select_game",
+        playerId,
+        playerName,
+        data: { gameType: "rps" },
+    });
+    await client.waitForMessage(
+        (message) =>
+            isRoomState(message) && message.data.selectedGameType === "rps",
+        { since: selectCursor },
+    );
+
+    const startCursor = client.cursor();
+    client.send({ type: "start", playerId, playerName, data: {} });
+    await client.waitForMessage(isRpsSnapshot, { since: startCursor });
+
+    const bestOfCursor = client.cursor();
+    client.send({
+        type: "rps:set_best_of",
+        playerId,
+        playerName,
+        data: { bestOf: 1 },
+    });
+    await client.waitForMessage(isRpsEvent("best_of_changed"), {
+        since: bestOfCursor,
+    });
+}
+
+async function readRpsState(roomId: string): Promise<RpsSoakState> {
+    return withRoom(roomId, (_, instance) =>
+        structuredClone(instance.gameStateHolder.current as RpsSoakState),
+    );
+}
+
+async function playRpsSoakRoom(roomIndex: number) {
+    const roomId = `room-soak-rps-actions-${roomIndex}`;
+    const clients = new Map<string, TestRoomClient>();
+    const names = new Map<string, string>();
+
+    try {
+        for (let playerIndex = 0; playerIndex < 4; playerIndex += 1) {
+            const playerId = `player-${playerIndex}`;
+            const playerName = `Player ${playerIndex}`;
+            const { client } = await connectClient(roomId);
+            clients.set(playerId, client);
+            names.set(playerId, playerName);
+            await join(client, playerId, playerName);
+        }
+
+        await selectRpsAndStart(
+            clients.get("player-0")!,
+            "player-0",
+            "Player 0",
+        );
+
+        let recoveredPendingThrow = false;
+        for (let actionCount = 0; actionCount < 32; actionCount += 1) {
+            const state = await readRpsState(roomId);
+            if (state.phase === "tournament_over") break;
+
+            if (state.phase === "round_results") {
+                const host = clients.get("player-0")!;
+                const cursor = host.cursor();
+                host.send({
+                    type: "rps:next_round",
+                    playerId: "player-0",
+                    playerName: "Player 0",
+                    data: {},
+                });
+                await host.waitForMessage(isRpsEvent("round_advanced"), {
+                    since: cursor,
+                });
+                continue;
+            }
+
+            const round = state.rounds.find(
+                (entry) => entry.roundNumber === state.currentRound,
+            );
+            const match = round?.matches.find(
+                (entry) => entry.status === "active",
+            );
+            expect(match).toBeDefined();
+            if (!match) break;
+
+            const firstId = match.player1Choice
+                ? match.player2Id
+                : match.player1Id;
+            const firstChoice = match.player1Choice ? "paper" : "rock";
+            const first = clients.get(firstId)!;
+            const firstCursor = first.cursor();
+            first.send({
+                type: "rps:throw",
+                playerId: firstId,
+                playerName: names.get(firstId)!,
+                data: { choice: firstChoice },
+            });
+            await first.waitForMessage(isRpsEvent("throw_registered"), {
+                since: firstCursor,
+            });
+
+            const afterFirst = await readRpsState(roomId);
+            const pendingMatch = afterFirst.rounds
+                .find((entry) => entry.roundNumber === afterFirst.currentRound)
+                ?.matches.find(
+                    (entry) =>
+                        entry.player1Id === match.player1Id &&
+                        entry.player2Id === match.player2Id,
+                );
+            expect(pendingMatch).toBeDefined();
+            if (!pendingMatch) break;
+
+            const secondId = pendingMatch.player1Choice
+                ? pendingMatch.player2Id
+                : pendingMatch.player1Id;
+            if (!recoveredPendingThrow) {
+                clients.get(secondId)!.close();
+                const replacement = await reconnect(
+                    roomId,
+                    secondId,
+                    names.get(secondId)!,
+                );
+                clients.set(secondId, replacement);
+                await replacement.waitForMessage(isRpsSyncResponse);
+                await withRoom(roomId, (_, instance) => {
+                    instance.clearCachedAdapter();
+                });
+                recoveredPendingThrow = true;
+            }
+
+            const second = clients.get(secondId)!;
+            const secondCursor = second.cursor();
+            second.send({
+                type: "rps:throw",
+                playerId: secondId,
+                playerName: names.get(secondId)!,
+                data: { choice: "paper" },
+            });
+            await second.waitForMessage(isRpsEvent("throw_revealed"), {
+                since: secondCursor,
+            });
+        }
+
+        const observed = await withRoom(roomId, (ctx, instance) => ({
+            state: structuredClone(
+                instance.gameStateHolder.current as RpsSoakState,
+            ),
+            persisted: JSON.parse(
+                ctx.storage.sql
+                    .exec<{
+                        value: string;
+                    }>("SELECT value FROM kv WHERE key = 'game_snapshot'")
+                    .one().value,
+            ) as { gameType: string; state: RpsSoakState },
+        }));
+
+        expect(recoveredPendingThrow).toBe(true);
+        expect(observed.state.phase).toBe("tournament_over");
+        expect(observed.state.winnerId).toMatch(/^player-/);
+        expect(observed.state.eventIndex).toBeGreaterThan(0);
+        expect(observed.persisted.gameType).toBe("rps");
+        expect(observed.persisted.state).toEqual(observed.state);
+        expect(
+            Array.from(clients.values()).flatMap((client) =>
+                client.messages.filter(
+                    (message) => message.type === "rps:error",
+                ),
+            ),
+        ).toHaveLength(0);
+
+        return observed.state.winnerId;
+    } finally {
+        await closeAll(clients.values());
+    }
 }
 
 beforeAll(() => {
@@ -207,5 +419,14 @@ describe("GameRoom bounded soak", () => {
         );
 
         expect(new Set(capabilityHashes).size).toBe(8);
+    });
+
+    it("finishes real tournaments across reconnects and adapter restoration", async () => {
+        const winners = await Promise.all(
+            Array.from({ length: 4 }, (_, roomIndex) =>
+                playRpsSoakRoom(roomIndex),
+            ),
+        );
+        expect(winners.every((winner) => winner !== null)).toBe(true);
     });
 });

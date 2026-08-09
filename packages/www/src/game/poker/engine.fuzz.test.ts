@@ -1,10 +1,8 @@
 // @vitest-environment node
 
-import fs from "node:fs";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
+import { createSeededRng, runFuzz } from "~/game/shared/fuzz-test-helpers";
 import {
     getLegalActions,
     initGame,
@@ -15,16 +13,8 @@ import {
 } from "./engine";
 import type { PokerAction, PokerActionType, PokerState } from "./types";
 
-function createRng(seed: number) {
-    let s = seed >>> 0;
-    return () => {
-        s = (s * 1664525 + 1013904223) >>> 0;
-        return s / 4294967296;
-    };
-}
-
 function createSeededShuffle(seed: number) {
-    const rng = createRng(seed);
+    const rng = createSeededRng(seed);
     return <T>(arr: T[]): T[] => {
         const next = [...arr];
         for (let i = next.length - 1; i > 0; i -= 1) {
@@ -59,18 +49,6 @@ function playerArb(count: number): { id: string; name: string }[] {
         id: `p${i}`,
         name: `Player ${i}`,
     }));
-}
-
-function fuzzParameters(): fc.Parameters<
-    [number, number, number, ActionChoice[]]
-> {
-    const seed = process.env.FUZZ_SEED;
-    const replayPath = process.env.FUZZ_PATH;
-    return {
-        numRuns: Number(process.env.FUZZ_RUNS ?? 50),
-        ...(seed === undefined ? {} : { seed: Number(seed) }),
-        ...(replayPath === undefined ? {} : { path: replayPath }),
-    };
 }
 
 function pickOne<T>(arr: T[], rng: () => number): T {
@@ -136,7 +114,10 @@ function assertInvariants(state: PokerState): void {
             );
         }
 
-        if (state.street !== "hand_over" && state.street !== "tournament_over") {
+        if (
+            state.street !== "hand_over" &&
+            state.street !== "tournament_over"
+        ) {
             // Weaker pot check without importing buildPots
             expect(totalPot).toBe(totalCommitted);
         } else {
@@ -171,46 +152,10 @@ function assertInvariants(state: PokerState): void {
     }
 }
 
-function logFuzzFailure(
-    label: string,
-    runDetails: fc.RunDetails<[number, number, number, ActionChoice[]]>,
-): void {
-    const seed = runDetails.seed;
-    const numShrinks = runDetails.numShrinks;
-    const counterexample = runDetails.counterexample;
-    const counterexamplePath = runDetails.counterexamplePath;
-
-    if (!process.env.CI) {
-        const logDir = path.join(process.cwd(), ".fuzz-failures");
-        fs.mkdirSync(logDir, { recursive: true });
-        const logPath = path.join(logDir, `${label}.json`);
-        fs.writeFileSync(
-            logPath,
-            JSON.stringify(
-                {
-                    label,
-                    seed,
-                    counterexamplePath,
-                    numShrinks,
-                    counterexample,
-                    timestamp: new Date().toISOString(),
-                },
-                null,
-                2,
-            ),
-        );
-        console.error(`Fuzz failure for ${label} logged to ${logPath}`);
-    } else {
-        console.error(
-            `Fuzz failure for ${label}: seed=${seed}, path=${counterexamplePath}, shrinks=${numShrinks}`,
-        );
-        console.error("Counterexample:", JSON.stringify(counterexample, null, 2));
-    }
-}
-
 describe("poker engine fuzz", () => {
-    it("random full hands maintain invariants", () => {
-        const result = fc.check(
+    it("random full hands maintain invariants", { timeout: 120_000 }, () => {
+        runFuzz(
+            "poker-engine",
             fc.property(
                 fc.integer({ min: 1, max: 100000 }),
                 fc.integer({ min: 1, max: 100000 }),
@@ -221,7 +166,7 @@ describe("poker engine fuzz", () => {
                 }),
                 (shuffleSeed, actionSeed, playerCount, choices) => {
                     const shuffle = createSeededShuffle(shuffleSeed);
-                    const rng = createRng(actionSeed);
+                    const rng = createSeededRng(actionSeed);
                     const state = initGame(playerArb(playerCount), shuffle);
 
                     for (const choice of choices) {
@@ -233,7 +178,8 @@ describe("poker engine fuzz", () => {
 
                         if (state.actingPlayerIndex === null) break;
 
-                        const playerId = state.players[state.actingPlayerIndex].id;
+                        const playerId =
+                            state.players[state.actingPlayerIndex].id;
                         const action = selectAction(
                             state,
                             playerId,
@@ -253,11 +199,6 @@ describe("poker engine fuzz", () => {
                     }
                 },
             ),
-            fuzzParameters(),
         );
-        if (result.failed) {
-            logFuzzFailure("poker-engine", result);
-            throw new Error("Fuzz failed for poker engine");
-        }
     });
 });
