@@ -1,10 +1,24 @@
 # Browser E2E Migration Plan
 
+## Status
+
+Completed. Playwright Test owns the browser suites, Stagehand is no longer used,
+and the runner exposes seeded and/or live-room projects for every game module.
+The full matrix currently contains 48 browser tests and 27 real workerd room
+tests. Browser concurrency is capped at four workers so the single local Alchemy
+Worker is not saturated by simultaneous multiplayer rooms.
+
+Every engine-backed game also has Fast Check coverage. Poker and Yahtzee run
+randomized full-game simulations, RPS runs mechanics and randomized action
+sequences, and the remaining engines exercise game-specific invariants such as
+card conservation, legal declarations, role assignment, bidding, scoring, and
+initial-state validity.
+
 ## Overview
 
-Move all browser E2E tests off Stagehand and onto Playwright Test.
+This document records the completed move from Stagehand to Playwright Test.
 
-Current state:
+Original state:
 
 - Workerd/Vitest worker E2E tests stay as-is
 - Browser E2E tests are custom Node scripts
@@ -143,7 +157,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm run dev:vite -- --host 127.0.0.1 --port 3000",
+    command: "pnpm exec alchemy dev alchemy.run.ts --stage test_browser",
     cwd: ".",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !isCI,
@@ -424,11 +438,11 @@ Custom `takeScreenshot(...)` can remain if we still want curated element screens
 
 - workerd worker tests
 - existing fixture route behavior
-- existing `dev:vite` based local dev workflow
+- existing Alchemy local development workflow
 
 ## Risks
 
-- `dev:vite` port drift versus Playwright `baseURL`
+- Alchemy dev-server port drift versus Playwright `baseURL`
 - Playwright project filter bugs in custom runner
 - Custom screenshot helper drift vs Playwright-managed screenshots
 - `poker-live` multi-context test timing sensitivity

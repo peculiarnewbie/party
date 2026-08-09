@@ -8,7 +8,13 @@ export default defineProject({
     plugins: [
         cloudflareTest({
             main: "./src/worker/test-entry.ts",
-            wrangler: { configPath: "./wrangler.jsonc" },
+            miniflare: {
+                compatibilityDate: "2026-01-01",
+                compatibilityFlags: ["nodejs_compat"],
+                durableObjects: {
+                    WS: { className: "GameRoom", useSQLite: true },
+                },
+            },
         }),
     ],
     test: {
@@ -18,9 +24,7 @@ export default defineProject({
         // WebSockets, alarms, R2, etc. Add files as they are migrated.
         include: [
             "src/worker/room-storage.test.ts",
-            "src/worker/poker-room.test.ts",
-            "src/worker/yahtzee-room.test.ts",
-            "src/worker/rps-room.test.ts",
+            "src/worker/*-room.test.ts",
             "src/worker/player-capability.test.ts",
             "src/worker/room-auth.test.ts",
         ],

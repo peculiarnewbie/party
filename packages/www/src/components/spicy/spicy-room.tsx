@@ -190,7 +190,7 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
     };
 
     return (
-        <div class="min-h-screen bg-[radial-gradient(circle_at_top,#f6eed9_0%,#ecddbd_36%,#d6c09c_100%)] text-[#2b1c18]">
+        <div data-testid="spicy-room" class="min-h-screen bg-[radial-gradient(circle_at_top,#f6eed9_0%,#ecddbd_36%,#d6c09c_100%)] text-[#2b1c18]">
             <div class="border-b-2 border-[#7a2e25] bg-[#efe2c3]/90 px-4 py-4 backdrop-blur">
                 <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
                     <div>

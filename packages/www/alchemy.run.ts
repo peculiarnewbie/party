@@ -1,43 +1,75 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
+import * as State from "alchemy/State";
 import * as Effect from "effect/Effect";
 
-export default Alchemy.Stack(
-    "Party",
-    {
-        providers: Cloudflare.providers(),
-        state: Cloudflare.state(),
-    },
-    Effect.gen(function* () {
-        const db = yield* Cloudflare.D1Database("DB", {
-            name: "party",
-        });
+import type { GameRoom } from "./src/worker/ws";
 
-        const bucket = yield* Cloudflare.R2Bucket("BUCKET", {
-            name: "party",
-        });
+const defaultState = () => {
+    const dev = process.env.ALCHEMY_DEV?.toLowerCase();
+    return dev === "1" || dev === "true"
+        ? State.localState()
+        : Cloudflare.state();
+};
 
-        const gameRoom = Cloudflare.DurableObjectNamespace("WS", {
-            className: "GameRoom",
-        });
+export const makePartyStack = (
+    state: Alchemy.StackProps<unknown>["state"] = defaultState(),
+) =>
+    Alchemy.Stack(
+        "Party",
+        {
+            providers: Cloudflare.providers(),
+            state,
+        },
+        Effect.gen(function* () {
+            const stack = yield* Alchemy.Stack;
+            const isProduction = stack.stage === "prod";
+            const db = yield* Cloudflare.D1.Database("DB", {
+                name: isProduction ? "party" : undefined,
+            });
 
-        const app = yield* Cloudflare.Vite("PartyApp", {
-            name: "party",
-            compatibility: {
-                date: "2026-01-01",
-                flags: ["nodejs_compat"],
-            },
-            bindings: {
-                DB: db,
-                BUCKET: bucket,
-                WS: gameRoom,
-            },
-            env: {
-                MY_VAR: "Hello from Cloudflare",
-            },
-            domain: "party.peculiarnewbie.com",
-        });
+            const bucket = yield* Cloudflare.R2.Bucket("BUCKET", {
+                name: isProduction ? "party" : undefined,
+            });
 
-        return { url: app.url };
-    }),
-);
+            const gameRoom = Cloudflare.DurableObject<GameRoom>("WS", {
+                className: "GameRoom",
+            });
+
+            const app = yield* Cloudflare.Website.Vite("PartyApp", {
+                name: isProduction ? "party" : undefined,
+                main: "./src/worker/index.ts",
+                dev: {
+                    host: "127.0.0.1",
+                    port: 3000,
+                    strictPort: true,
+                },
+                compatibility: {
+                    date: "2026-01-01",
+                    flags: ["nodejs_compat"],
+                },
+                assets: {
+                    runWorkerFirst: true,
+                },
+                env: {
+                    DB: db,
+                    BUCKET: bucket,
+                    WS: gameRoom,
+                    MY_VAR: "Hello from Cloudflare",
+                },
+                domain: isProduction ? "party.peculiarnewbie.com" : undefined,
+            });
+
+            return {
+                url: app.url,
+                stage: stack.stage,
+                workerName: app.workerName,
+                databaseName: db.databaseName,
+                bucketName: bucket.bucketName,
+                domain: app.domain,
+                durableObjectNamespaces: app.durableObjectNamespaces,
+            };
+        }),
+    );
+
+export default makePartyStack();

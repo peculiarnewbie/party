@@ -58,7 +58,7 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
         view()?.players.find((player) => player.id === playerId)?.name ?? "Unknown";
 
     return (
-        <div class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla">
+        <div data-testid="flip-7-room" class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla">
             <Show when={view()} keyed>
                 {(state) => (
                     <div class="max-w-6xl mx-auto px-4 py-6">

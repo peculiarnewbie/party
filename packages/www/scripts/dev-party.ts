@@ -4,7 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
 import { customAlphabet } from "nanoid";
-import { E2E_BASE_URL, E2E_VIEWPORT, E2E_EXECUTABLE_PATH } from "../e2e/helpers/e2e.config";
+import {
+    E2E_BASE_URL,
+    E2E_VIEWPORT,
+    E2E_EXECUTABLE_PATH,
+} from "../e2e/helpers/e2e.config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,21 +21,15 @@ export interface LocalServerHandle {
 export async function startLocalApp(): Promise<LocalServerHandle> {
     const logState = { stdout: "", stderr: "" };
     const baseUrl = new URL(E2E_BASE_URL);
-    const host = baseUrl.hostname;
-    const port = baseUrl.port || "3000";
-    const child = spawn(
-        "pnpm",
-        ["run", "dev:vite", "--", "--host", host, "--port", port],
-        {
-            cwd: path.resolve(__dirname, ".."),
-            stdio: ["ignore", "pipe", "pipe"],
-            env: {
-                ...process.env,
-                FORCE_COLOR: "0",
-                NO_COLOR: "1",
-            },
+    const child = spawn("pnpm", ["run", "dev"], {
+        cwd: path.resolve(__dirname, ".."),
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+            ...process.env,
+            FORCE_COLOR: "0",
+            NO_COLOR: "1",
         },
-    );
+    });
 
     child.stdout?.on("data", (chunk) => {
         logState.stdout += chunk.toString();
@@ -175,7 +173,11 @@ function parseArgs(): CliArgs {
                 process.exit(0);
                 break;
             default:
-                if (/^\d+$/.test(a) && argv.indexOf("-p") === -1 && argv.indexOf("--players") === -1) {
+                if (
+                    /^\d+$/.test(a) &&
+                    argv.indexOf("-p") === -1 &&
+                    argv.indexOf("--players") === -1
+                ) {
                     out.players = Number(a);
                     break;
                 }
@@ -281,7 +283,9 @@ async function launchPlayer({
 
     const roomUrl = new URL(`/room/${roomId}`, url).toString();
     await page.goto(roomUrl, { waitUntil: "networkidle" });
-    await page.waitForSelector('[data-testid="room-lobby"]', { timeout: 15_000 });
+    await page.waitForSelector('[data-testid="room-lobby"]', {
+        timeout: 15_000,
+    });
     await page.locator('[data-testid="room-name-input"]').fill(name);
     await page.locator('[data-testid="room-join-button"]').click();
     await page.waitForSelector('[data-testid="room-leave-button"]', {
@@ -297,7 +301,8 @@ async function main() {
     const roomId = args.room ?? generateRoomId();
     const parsedUrl = new URL(args.url);
     const isLocal =
-        parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1";
+        parsedUrl.hostname === "localhost" ||
+        parsedUrl.hostname === "127.0.0.1";
 
     let server: LocalServerHandle | null = null;
     if (isLocal && !(await isServerUp(args.url))) {
@@ -341,7 +346,9 @@ async function main() {
         );
     } catch (error) {
         console.error("Failed to launch players:", error);
-        await Promise.all(sessions.map((s) => s.browser.close().catch(() => {})));
+        await Promise.all(
+            sessions.map((s) => s.browser.close().catch(() => {})),
+        );
         await server?.stop();
         process.exit(1);
     }
@@ -378,14 +385,18 @@ async function main() {
         process.stdout.write("Game started.\n");
     }
 
-    process.stdout.write("\nBrowsers are live. Press Ctrl+C to close everything.\n");
+    process.stdout.write(
+        "\nBrowsers are live. Press Ctrl+C to close everything.\n",
+    );
 
     let shuttingDown = false;
     const shutdown = async (signal: NodeJS.Signals) => {
         if (shuttingDown) return;
         shuttingDown = true;
         process.stdout.write(`\nReceived ${signal}, shutting down...\n`);
-        await Promise.all(sessions.map((s) => s.browser.close().catch(() => {})));
+        await Promise.all(
+            sessions.map((s) => s.browser.close().catch(() => {})),
+        );
         await server?.stop();
         process.exit(0);
     };

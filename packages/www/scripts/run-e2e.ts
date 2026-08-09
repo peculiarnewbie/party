@@ -1,6 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import http from "node:http";
-import path from "node:path";
 
 type E2eSuite = {
     description: string;
@@ -26,25 +25,70 @@ const E2E_SUITES: Record<string, E2eSuite> = {
         description:
             "Real workerd room-sequence coverage for standard, lying, reconnect, and hibernation flows",
         workerFiles: ["src/worker/yahtzee-room.test.ts"],
-        browserProjects: ["yahtzee-seeded"],
+        browserProjects: ["yahtzee-seeded", "yahtzee-live"],
     },
     rps: {
         description:
             "Real workerd room-sequence coverage for 8-player RPS tournament, disconnect, and reconnection",
         workerFiles: ["src/worker/rps-room.test.ts"],
-        browserProjects: ["rps-seeded"],
+        browserProjects: ["rps-seeded", "rps-live"],
     },
     quiz: {
         description:
             "Browser fixture coverage for quiz answer flow, host view, and answer locking",
-        workerFiles: [],
-        browserProjects: ["quiz-seeded"],
+        workerFiles: ["src/worker/quiz-room.test.ts"],
+        browserProjects: ["quiz-seeded", "quiz-live"],
     },
     blackjack: {
         description:
             "Browser coverage for blackjack seeded states and live multiplayer devtools flow",
-        workerFiles: [],
+        workerFiles: ["src/worker/blackjack-room.test.ts"],
         browserProjects: ["blackjack-seeded", "blackjack-live"],
+    },
+    "go-fish": {
+        description: "Live browser and workerd room-start coverage for Go Fish",
+        workerFiles: ["src/worker/go-fish-room.test.ts"],
+        browserProjects: ["go-fish-live"],
+    },
+    perudo: {
+        description: "Live browser and workerd room-start coverage for Perudo",
+        workerFiles: ["src/worker/perudo-room.test.ts"],
+        browserProjects: ["perudo-live"],
+    },
+    herd: {
+        description: "Live browser and workerd room-start coverage for Herd Mentality",
+        workerFiles: ["src/worker/herd-room.test.ts"],
+        browserProjects: ["herd-live"],
+    },
+    "fun-facts": {
+        description: "Live browser and workerd room-start coverage for Fun Facts",
+        workerFiles: ["src/worker/fun-facts-room.test.ts"],
+        browserProjects: ["fun-facts-live"],
+    },
+    "cheese-thief": {
+        description: "Live browser and workerd room-start coverage for Cheese Thief",
+        workerFiles: ["src/worker/cheese-thief-room.test.ts"],
+        browserProjects: ["cheese-thief-live"],
+    },
+    "cockroach-poker": {
+        description: "Live browser and workerd room-start coverage for Cockroach Poker",
+        workerFiles: ["src/worker/cockroach-poker-room.test.ts"],
+        browserProjects: ["cockroach-poker-live"],
+    },
+    "flip-7": {
+        description: "Live browser and workerd room-start coverage for Flip 7",
+        workerFiles: ["src/worker/flip-7-room.test.ts"],
+        browserProjects: ["flip-7-live"],
+    },
+    skull: {
+        description: "Live browser and workerd room-start coverage for Skull",
+        workerFiles: ["src/worker/skull-room.test.ts"],
+        browserProjects: ["skull-live"],
+    },
+    spicy: {
+        description: "Live browser and workerd room-start coverage for Spicy",
+        workerFiles: ["src/worker/spicy-room.test.ts"],
+        browserProjects: ["spicy-live"],
     },
 };
 
@@ -100,16 +144,27 @@ async function waitForServer(url: string, timeoutMs: number): Promise<boolean> {
 }
 
 async function startDevServer(): Promise<ChildProcess> {
-    const viteCliPath = path.resolve(
-        process.cwd(),
-        "node_modules/vite/bin/vite.js",
-    );
     const child = spawn(
-        process.execPath,
-        [viteCliPath, "dev", "--host", "127.0.0.1", "--port", "3000"],
+        pnpmExecutable,
+        pnpmArgs([
+            "exec",
+            "alchemy",
+            "dev",
+            "alchemy.run.ts",
+            "--stage",
+            "test_browser",
+        ]),
         {
             stdio: ["ignore", "pipe", "pipe"],
-            env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
+            shell: pnpmNeedsShell,
+            env: {
+                ...process.env,
+                CI: "true",
+                CLOUDFLARE_ACCOUNT_ID: "00000000000000000000000000000001",
+                CLOUDFLARE_API_TOKEN: "local-development-only",
+                FORCE_COLOR: "0",
+                NO_COLOR: "1",
+            },
         },
     );
 
@@ -131,6 +186,19 @@ async function stopDevServer(child: ChildProcess): Promise<void> {
     const exited = new Promise<void>((resolve) => {
         child.once("exit", () => resolve());
     });
+
+    if (process.platform === "win32" && child.pid !== undefined) {
+        spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+            stdio: "ignore",
+            windowsHide: true,
+        });
+        await Promise.race([
+            exited,
+            new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+        ]);
+        return;
+    }
+
     child.kill("SIGTERM");
 
     await Promise.race([

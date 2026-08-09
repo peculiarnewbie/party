@@ -177,7 +177,7 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
     );
 
     return (
-        <div class="min-h-screen bg-[radial-gradient(circle_at_top,#f5dcb2,transparent_42%),linear-gradient(180deg,#2a120f_0%,#532720_20%,#a85b35_58%,#f0d6b3_100%)] text-[#2b170f] font-karla">
+        <div data-testid="skull-room" class="min-h-screen bg-[radial-gradient(circle_at_top,#f5dcb2,transparent_42%),linear-gradient(180deg,#2a120f_0%,#532720_20%,#a85b35_58%,#f0d6b3_100%)] text-[#2b170f] font-karla">
             <div class="border-b-2 border-[#442116] bg-[#f1dfbd]/90 backdrop-blur px-4 py-4">
                 <div class="mx-auto flex max-w-6xl items-center justify-between gap-4">
                     <div>

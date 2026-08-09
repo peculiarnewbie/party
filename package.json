@@ -14,16 +14,18 @@
         "typecheck": "pnpm --filter www run typecheck",
         "test:unit": "pnpm --filter www test:unit",
         "test:quiz-manager": "pnpm --filter quiz-manager test:unit",
+        "test:worker": "pnpm --filter www test:worker",
+        "test:soak": "pnpm --filter www test:soak",
+        "test:infra": "pnpm --filter www test:infra",
         "test:e2e": "pnpm --filter www test:e2e",
-        "test:all": "pnpm --filter www test:all",
+        "test:all": "pnpm test:unit && pnpm test:quiz-manager && pnpm test:worker && pnpm test:soak && pnpm test:e2e -- --browser all",
         "trace": "pnpm --filter www trace",
         "report": "pnpm --filter www report"
     },
     "devDependencies": {
-        "@cloudflare/vite-plugin": "^1.32.3",
-        "@effect/language-service": "^0.85.1",
-        "@effect/platform-node": "4.0.0-beta.70",
-        "alchemy": "2.0.0-beta.43",
+        "@effect/language-service": "^0.87.2",
+        "@effect/platform-node": "4.0.0-beta.102",
+        "alchemy": "2.0.0-beta.70",
         "effect-solutions": "^0.5.2",
         "prettier": "^3.7.4",
         "typescript": "^5.7.2"
@@ -31,8 +33,16 @@
     "peerDependencies": {
         "typescript": "^5"
     },
+    "pnpm": {
+        "overrides": {
+            "@cloudflare/vitest-pool-workers>wrangler": "-"
+        },
+        "patchedDependencies": {
+            "@cloudflare/vitest-pool-workers@0.20.3": "patches/@cloudflare__vitest-pool-workers@0.20.3.patch"
+        }
+    },
     "packageManager": "pnpm@10.33.0",
     "dependencies": {
-        "effect": "4.0.0-beta.70"
+        "effect": "4.0.0-beta.102"
     }
 }

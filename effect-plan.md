@@ -35,7 +35,7 @@ The migration should improve:
 - room and game message validation currently uses Zod
 - many engines return `{ type: "error"; message: string }`
 - worker-side telemetry is mostly ad hoc `console.log` and uncaught exceptions
-- `packages/www/wrangler.jsonc` has no `tail_consumers` or explicit `observability` block yet
+- `packages/www/alchemy.run.ts` has no tail consumers or explicit `observability` block yet
 
 ## Architecture Target
 
@@ -201,7 +201,7 @@ Split telemetry into two streams:
 
 ### Workers Logs Plan
 
-Enable `observability` in `packages/www/wrangler.jsonc`.
+Enable `observability` on the Worker in `packages/www/alchemy.run.ts`.
 
 Initial settings:
 
@@ -209,7 +209,7 @@ Initial settings:
 {
     "observability": {
         "enabled": true,
-        "head_sampling_rate": 0.01
+        "headSamplingRate": 0.01
     }
 }
 ```
@@ -294,7 +294,7 @@ Tail Worker allowlist:
 
 ### Files To Add Or Update
 
-- `packages/www/wrangler.jsonc`
+- `packages/www/alchemy.run.ts`
 - `packages/www/src/utils/effect/logging.ts`
 - `packages/www/src/worker/index.ts`
 - `packages/www/src/worker/ws.ts`
@@ -489,12 +489,12 @@ Drop:
 - regular successful validation logs
 - noisy state broadcast logs
 
-### Wrangler Configuration Tasks
+### Alchemy Configuration Tasks
 
 1. create and deploy the Tail Worker
-2. add `tail_consumers` to the producer Worker config
+2. add `tailConsumers` to the producer Worker resource
 3. keep producer and consumer names explicit
-4. run `bun run cf-typegen` after binding changes if types change
+4. update `src/env.d.ts` after binding changes if types change
 
 ## Phase 11: Optional Layer Adoption
 

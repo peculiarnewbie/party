@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { nanoid } from "nanoid";
 import { MultiplayerRoomPage } from "./helpers/multiplayer-room-page";
+import { defineLiveGameSmoke } from "./helpers/live-game-smoke";
 
 function createRoomId(prefix: string) {
     return `${prefix}-${nanoid(6).toLowerCase()}`;
@@ -66,4 +67,10 @@ test.describe("poker-live", () => {
         await room.switchPlayer(aliceId);
         await expect(page.getByTestId("poker-spectator-list")).toContainText(/Dana/);
     });
+});
+
+defineLiveGameSmoke({
+    gameType: "backwards_poker",
+    playerCount: 2,
+    roomTestId: "poker-room",
 });

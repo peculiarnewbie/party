@@ -18,7 +18,7 @@ The question bank is a **content library**, not a runtime service. When a host p
 |----------|--------|
 | Storage | Separate D1 database, Drizzle ORM, SQL-style queries |
 | Effect depth | ServiceMap.Service + Layer, TaggedError, Schema |
-| Auth | Password + HMAC session cookie (7-day expiry), wrangler secrets |
+| Auth | Password + HMAC session cookie (7-day expiry), Alchemy secret bindings |
 | Admin UI | Full CRUD, server route handlers, matches party app styling (Bebas Neue, Karla) |
 | Tags | Separate /tags page + inline autocomplete on quiz edit |
 | Question reorder | Drag-to-reorder (dnd-kit) |
@@ -341,35 +341,35 @@ export const Route = createFileRoute("/quiz/$quizId")({
 
 ### Auth
 
-- Password validated against `ADMIN_PASSWORD` wrangler secret
-- Session cookie: HMAC-signed with `SESSION_SECRET` wrangler secret, 7-day expiry
+- Password validated against the `ADMIN_PASSWORD` secret binding
+- Session cookie: HMAC-signed with the `SESSION_SECRET` secret binding, 7-day expiry
 - `httpOnly`, `secure`, `sameSite: strict`
 - Middleware check on all non-login routes
 
-## Wrangler Configuration
+## Alchemy Configuration
 
-```jsonc
-// packages/quiz-manager/wrangler.jsonc
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "quiz-manager",
-  "compatibility_date": "2026-01-01",
-  "compatibility_flags": ["nodejs_compat"],
-  "main": "src/worker/index.ts",
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "quiz-manager"
-      // database_id filled after `wrangler d1 create`
-    }
-  ]
-}
+```typescript
+// packages/quiz-manager/alchemy.run.ts
+const db = yield* Cloudflare.D1.Database("DB", {
+  name: isProduction ? "quiz-manager" : undefined,
+  migrationsDir: "./drizzle",
+});
+
+const app = yield* Cloudflare.Website.Vite("QuizManagerApp", {
+  name: isProduction ? "quiz-manager" : undefined,
+  main: "./src/worker/index.ts",
+  env: {
+    DB: db,
+    ADMIN_PASSWORD: Config.redacted("ADMIN_PASSWORD"),
+    SESSION_SECRET: Config.redacted("SESSION_SECRET"),
+  },
+});
 ```
 
-Secrets:
+Secrets are supplied to the deploy environment and uploaded as redacted Worker bindings:
+
 ```bash
-wrangler secret put ADMIN_PASSWORD --config packages/quiz-manager/wrangler.jsonc
-wrangler secret put SESSION_SECRET --config packages/quiz-manager/wrangler.jsonc
+pnpm --filter quiz-manager deploy
 ```
 
 ## Party App Integration
@@ -392,12 +392,14 @@ export const GAME_RULES: Record<GameType, {
 
 ### Service Binding
 
-Party's `wrangler.jsonc`:
-```jsonc
-"services": [{ "binding": "QUIZ_MANAGER", "service": "quiz-manager" }]
+Party's `alchemy.run.ts`:
+```typescript
+env: {
+  QUIZ_MANAGER: quizManager,
+}
 ```
 
-Party's `worker-configuration.d.ts`:
+Party's `src/env.d.ts`:
 ```typescript
 QUIZ_MANAGER: Service<import("../quiz-manager/src/worker/rpc").QuizManager>;
 ```
@@ -440,8 +442,7 @@ packages/quiz-manager/
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
-├── wrangler.jsonc
-├── worker-configuration.d.ts
+├── alchemy.run.ts
 ├── drizzle.config.ts
 ├── drizzle/
 │   └── 0000_init.sql
@@ -455,6 +456,7 @@ packages/quiz-manager/
 │   │   └── quiz-db.ts
 │   ├── schemas.ts
 │   ├── errors.ts
+│   ├── env.d.ts
 │   ├── answer-matcher.ts
 │   ├── effect/
 │   │   ├── runtime.ts
@@ -500,23 +502,22 @@ packages/quiz-manager/
     "@dnd-kit/solid": "^0.0.1"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.13.7",
+    "@cloudflare/workers-types": "5.20260809.1",
     "@tailwindcss/vite": "^4.1.18",
     "drizzle-kit": "^0.31.0",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.7.2",
-    "vite": "^7.1.7",
-    "vite-plugin-solid": "^2.11.10",
-    "vite-tsconfig-paths": "^5.1.4",
-    "wrangler": "^4.81.1"
+    "alchemy": "2.0.0-beta.70",
+    "vite": "^8.0.7",
+    "vite-plugin-solid": "^2.11.10"
   }
 }
 ```
 
 ## Implementation Order
 
-1. **Package scaffolding** — `packages/quiz-manager/` with package.json, tsconfig, vite.config, wrangler.jsonc, worker-configuration.d.ts
-2. **Drizzle schema + migrations** — schema.ts, drizzle.config.ts, generate initial migration, create D1 database
+1. **Package scaffolding** — `packages/quiz-manager/` with package.json, tsconfig, vite.config, alchemy.run.ts, src/env.d.ts
+2. **Drizzle schema + migrations** — schema.ts, drizzle.config.ts, generate initial migration, declare D1 through Alchemy
 3. **Effect foundation** — schemas.ts, errors.ts, effect/runtime.ts, effect/logger.ts
 4. **QuizDb service** — services/quiz-db.ts with all Drizzle queries wrapped in Effect
 5. **Answer matcher** — answer-matcher.ts (pure logic for fill-in matching)

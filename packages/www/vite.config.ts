@@ -1,10 +1,14 @@
 import { defineConfig } from "vite";
-import { cloudflare } from "@cloudflare/vite-plugin";
 import { tanstackStart } from "@tanstack/solid-start/plugin/vite";
 import viteSolid from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+    build: {
+        rolldownOptions: {
+            external: [/^cloudflare:/],
+        },
+    },
     resolve: {
         tsconfigPaths: true,
     },
@@ -12,10 +16,5 @@ export default defineConfig({
         port: 3000,
         host: "127.0.0.1",
     },
-    plugins: [
-        tailwindcss(),
-        cloudflare({ viteEnvironment: { name: "ssr" } }),
-        tanstackStart(),
-        viteSolid({ ssr: true }),
-    ],
+    plugins: [tailwindcss(), tanstackStart(), viteSolid({ ssr: true })],
 });

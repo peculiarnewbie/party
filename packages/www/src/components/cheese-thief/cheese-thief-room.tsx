@@ -81,7 +81,7 @@ export const CheeseThiefRoom: Component<CheeseThiefRoomProps> = (props) => {
     };
 
     return (
-        <div class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla">
+        <div data-testid="cheese-thief-room" class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla">
             <Show when={view()} fallback={<LoadingScreen />}>
                 {(v) => (
                     <>

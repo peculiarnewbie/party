@@ -163,6 +163,7 @@ export async function withRoom<R>(
     const stub = createRoomStub(roomId);
     return runInDurableObject(stub, async (instance, ctx) => {
         await instance.ready;
+        await instance.messageQueue;
         return callback(ctx, instance);
     });
 }

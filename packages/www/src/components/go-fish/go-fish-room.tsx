@@ -180,7 +180,7 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
     };
 
     return (
-        <div class="min-h-screen bg-[#ddd5c4] font-karla flex flex-col">
+        <div data-testid="go-fish-room" class="min-h-screen bg-[#ddd5c4] font-karla flex flex-col">
             {/* Top bar */}
             <div class="flex items-center justify-between px-4 py-2 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a]">
                 <div class="flex items-center gap-3">

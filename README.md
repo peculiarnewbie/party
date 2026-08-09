@@ -22,8 +22,15 @@ pnpm --filter www build
 # Unit tests (Vitest)
 pnpm --filter www test:unit
 
-# E2E tests (Playwright + Stagehand, Yahtzee only)
-pnpm --filter www test:browser:yahtzee
+# Real workerd/Durable Object E2E for every game
+pnpm test:e2e -- all
+
+# Playwright seeded and live-room E2E for every game
+pnpm test:e2e -- --browser all
+
+# Run one game in either mode
+pnpm test:e2e -- rps
+pnpm test:e2e -- --browser rps
 
 # Deploy to Cloudflare
 pnpm deploy

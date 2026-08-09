@@ -193,7 +193,7 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
     const diceDotColor = () => "#f5e6c8";
 
     return (
-        <div class="min-h-screen bg-[#0d2818] font-karla flex flex-col">
+        <div data-testid="perudo-room" class="min-h-screen bg-[#0d2818] font-karla flex flex-col">
             <div class="flex items-center justify-between px-4 py-3 bg-[#0a1f14] border-b-2 border-[#d4a017]/40">
                 <div class="flex items-center gap-3">
                     <span class="font-bebas text-[1.1rem] tracking-[.12em] text-[#d4a017]">

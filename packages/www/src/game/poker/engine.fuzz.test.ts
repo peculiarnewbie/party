@@ -61,6 +61,18 @@ function playerArb(count: number): { id: string; name: string }[] {
     }));
 }
 
+function fuzzParameters(): fc.Parameters<
+    [number, number, number, ActionChoice[]]
+> {
+    const seed = process.env.FUZZ_SEED;
+    const replayPath = process.env.FUZZ_PATH;
+    return {
+        numRuns: Number(process.env.FUZZ_RUNS ?? 50),
+        ...(seed === undefined ? {} : { seed: Number(seed) }),
+        ...(replayPath === undefined ? {} : { path: replayPath }),
+    };
+}
+
 function pickOne<T>(arr: T[], rng: () => number): T {
     return arr[Math.floor(rng() * arr.length)];
 }
@@ -166,6 +178,7 @@ function logFuzzFailure(
     const seed = runDetails.seed;
     const numShrinks = runDetails.numShrinks;
     const counterexample = runDetails.counterexample;
+    const counterexamplePath = runDetails.counterexamplePath;
 
     if (!process.env.CI) {
         const logDir = path.join(process.cwd(), ".fuzz-failures");
@@ -177,6 +190,7 @@ function logFuzzFailure(
                 {
                     label,
                     seed,
+                    counterexamplePath,
                     numShrinks,
                     counterexample,
                     timestamp: new Date().toISOString(),
@@ -188,7 +202,7 @@ function logFuzzFailure(
         console.error(`Fuzz failure for ${label} logged to ${logPath}`);
     } else {
         console.error(
-            `Fuzz failure for ${label}: seed=${seed}, shrinks=${numShrinks}`,
+            `Fuzz failure for ${label}: seed=${seed}, path=${counterexamplePath}, shrinks=${numShrinks}`,
         );
         console.error("Counterexample:", JSON.stringify(counterexample, null, 2));
     }
@@ -200,7 +214,7 @@ describe("poker engine fuzz", () => {
             fc.property(
                 fc.integer({ min: 1, max: 100000 }),
                 fc.integer({ min: 1, max: 100000 }),
-                fc.integer({ min: 3, max: 3 }),
+                fc.integer({ min: 2, max: 8 }),
                 fc.array(actionChoiceArb, {
                     minLength: 50,
                     maxLength: 100,
@@ -239,7 +253,7 @@ describe("poker engine fuzz", () => {
                     }
                 },
             ),
-            { numRuns: 50 },
+            fuzzParameters(),
         );
         if (result.failed) {
             logFuzzFailure("poker-engine", result);

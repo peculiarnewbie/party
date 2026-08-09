@@ -8,6 +8,7 @@ import type { PlayerId } from "~/game";
 import {
     createDefaultState,
     deletePlayerCapability,
+    ensureSchema,
     GAME_SNAPSHOT_KEY,
     loadGameSnapshot,
     loadPlayerCapabilityHash,
@@ -284,6 +285,96 @@ describe("room-storage", () => {
             );
 
             expect(loaded.gameParticipants).toEqual(participants);
+        });
+    });
+
+    it("removes obsolete participant rows when a new session is persisted", async () => {
+        await withRoom(async (ctx) => {
+            runObservedSync(
+                persistRoomState(ctx, {
+                    ...createDefaultState(),
+                    gameSessionId: "session-old",
+                    gameParticipants: [
+                        { playerId: pid("p1"), status: "active" },
+                        { playerId: pid("p2"), status: "disconnected" },
+                    ],
+                }),
+                "room-storage.persist",
+                { component: "room-storage" },
+            );
+            runObservedSync(
+                persistRoomState(ctx, {
+                    ...createDefaultState(),
+                    gameSessionId: "session-current",
+                    gameParticipants: [
+                        { playerId: pid("p3"), status: "active" },
+                    ],
+                }),
+                "room-storage.persist",
+                { component: "room-storage" },
+            );
+
+            const storedRows = ctx.storage.sql
+                .exec<{
+                    session_id: string;
+                    player_id: string;
+                }>("SELECT session_id, player_id FROM game_participants")
+                .toArray();
+            const loaded = runObservedSync(
+                loadRoomState(ctx),
+                "room-storage.load",
+                { component: "room-storage" },
+            );
+
+            expect(storedRows).toEqual([
+                { session_id: "session-current", player_id: "p3" },
+            ]);
+            expect(loaded.gameParticipants).toEqual([
+                { playerId: "p3", status: "active" },
+            ]);
+        });
+    });
+
+    it("upgrades a legacy room schema idempotently without losing state", async () => {
+        await withRoom(async (ctx) => {
+            const roomState = {
+                ...createDefaultState(),
+                players: [{ id: pid("p1"), name: "Alice", score: 7 }],
+                hostId: pid("p1"),
+            };
+            runObservedSync(
+                persistRoomState(ctx, roomState),
+                "room-storage.persist",
+                { component: "room-storage" },
+            );
+            ctx.storage.sql.exec("DROP TABLE player_capabilities");
+
+            runObservedSync(ensureSchema(ctx), "room-storage.schema", {
+                component: "room-storage",
+            });
+            runObservedSync(ensureSchema(ctx), "room-storage.schema", {
+                component: "room-storage",
+            });
+            runObservedSync(
+                persistPlayerCapabilityHash(ctx, "p1", "digest"),
+                "room-storage.capability.persist",
+                { component: "room-storage" },
+            );
+
+            const loaded = runObservedSync(
+                loadRoomState(ctx),
+                "room-storage.load",
+                { component: "room-storage" },
+            );
+            expect(loaded.players).toEqual(roomState.players);
+            expect(loaded.hostId).toBe("p1");
+            expect(
+                runObservedSync(
+                    loadPlayerCapabilityHash(ctx, "p1"),
+                    "room-storage.capability.load",
+                    { component: "room-storage" },
+                ),
+            ).toBe("digest");
         });
     });
 

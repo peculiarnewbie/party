@@ -45,11 +45,14 @@ pnpm --filter www build
 # Preview production build
 pnpm --filter www preview
 
+# Authenticate Cloudflare through Alchemy OAuth
+pnpm --filter www exec alchemy login alchemy.run.ts --profile party --configure
+
 # Deploy to Cloudflare
 pnpm deploy
 
-# Generate Cloudflare types
-pnpm --filter www cf-typegen
+# Validate Cloudflare bindings and application types
+pnpm --filter www typecheck
 ```
 
 **Important**: `pnpm --filter www build` runs `vite build && tsc --noEmit` to validate TypeScript.
@@ -66,11 +69,17 @@ pnpm --filter www test:unit src/game/game.test.ts
 # Run E2E tests (workerd worker tests)
 pnpm test:e2e -- all
 
+# Run the complete workerd worker suite
+pnpm test:worker
+
 # Run browser E2E tests (Playwright)
 pnpm test:e2e -- --browser all
 pnpm test:e2e -- --browser rps
 pnpm test:e2e -- --browser rps --headed
 pnpm test:e2e -- --browser rps --ui
+
+# Provision, exercise, and destroy an isolated stack on real Cloudflare infrastructure
+pnpm test:infra
 
 # View HTML report
 pnpm report
@@ -79,7 +88,7 @@ pnpm report
 pnpm trace
 
 # Run everything
-pnpm --filter www test:all
+pnpm test:all
 ```
 
 - Uses Vitest (`vitest run`) with `vite-plugin-solid` for JSX support
@@ -89,6 +98,7 @@ pnpm --filter www test:all
 - Browser E2E tests use Playwright Test (`@playwright/test`)
 - Playwright config lives at `packages/www/playwright.config.ts`
 - HTML reports are generated in `packages/www/playwright-report/`
+- Cloudflare worker-test configuration must remain inline; the test pool's legacy config-file compatibility hook is disabled
 
 ## TypeScript Configuration
 
@@ -251,7 +261,8 @@ src/
 
 - Access bindings via `import { env } from 'cloudflare:workers'` in server code
 - Server functions can use Cloudflare bindings directly
-- Run `pnpm --filter www cf-typegen` after adding new bindings
+- Declare infrastructure in `alchemy.run.ts` with Alchemy's Cloudflare resources
+- Keep project-specific binding declarations in `src/env.d.ts` synchronized with `alchemy.run.ts`
 
 ### Git Workflow
 
@@ -270,6 +281,7 @@ src/
 - Follow existing patterns in the codebase
 
 <!-- effect-solutions:start -->
+
 ## Effect Best Practices
 
 **IMPORTANT:** Always consult effect-solutions before writing Effect code.
@@ -287,4 +299,5 @@ Never guess at Effect patterns - check the guide first.
 The Effect v4 repository is cloned to `~/.local/share/effect-solutions/effect` for reference.
 Use this to explore APIs, find usage examples, and understand implementation
 details when the documentation isn't enough.
+
 <!-- effect-solutions:end -->

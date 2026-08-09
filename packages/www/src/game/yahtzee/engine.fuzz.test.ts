@@ -262,6 +262,7 @@ function playTurn(
         const actualMatch =
             [...actualDice].sort((a, b) => a - b).join(",") ===
             [...claimedDice].sort((a, b) => a - b).join(",");
+        const responderPenaltyBefore = responder.penaltyPoints;
 
         const response = processAction(state, responseAction);
         if (response.type !== "claim_resolved") return;
@@ -269,11 +270,17 @@ function playTurn(
         const player = state.players.find((p) => p.id === currentPlayerId)!;
         if (response.outcome === "accepted") {
             expect(player.scorecard[category]).toBe(claimedPoints);
+            expect(responder.penaltyPoints).toBe(responderPenaltyBefore);
         } else if (response.outcome === "truthful_challenge") {
+            expect(actualMatch).toBe(true);
             expect(player.scorecard[category]).toBe(claimedPoints);
-            expect(responder.penaltyPoints).toBe(claimedPoints);
+            expect(responder.penaltyPoints).toBe(
+                responderPenaltyBefore + claimedPoints,
+            );
         } else if (response.outcome === "caught_lying") {
+            expect(actualMatch).toBe(false);
             expect(player.scorecard[category]).toBe(-claimedPoints);
+            expect(responder.penaltyPoints).toBe(responderPenaltyBefore);
         }
     }
 }
@@ -290,18 +297,14 @@ function assertStateInvariants(state: YahtzeeState, mode: YahtzeeMode): void {
     expect(state.players.length).toBeLessThanOrEqual(10);
 
     for (const player of state.players) {
-        const filled = Object.keys(
-            player.scorecard,
-        ) as ScoringCategory[];
+        const filled = Object.keys(player.scorecard) as ScoringCategory[];
         expect(filled.length).toBeLessThanOrEqual(TOTAL_ROUNDS);
 
         for (const cat of filled) {
             expect(CATEGORIES).toContain(cat);
             const value = player.scorecard[cat];
             expect(value).toBeDefined();
-            expect(
-                isValidScore(value!, cat, mode === "lying"),
-            ).toBe(true);
+            expect(isValidScore(value!, cat, mode === "lying")).toBe(true);
         }
 
         expect(player.yahtzeeBonus).toBeGreaterThanOrEqual(0);
@@ -313,12 +316,13 @@ function assertStateInvariants(state: YahtzeeState, mode: YahtzeeMode): void {
         expect(CATEGORIES).toContain(state.pendingClaim.category);
         expect(state.pendingClaim.claimedDice).toHaveLength(5);
         expect(
-            state.pendingClaim.claimedDice.every(
-                (d) => d >= 1 && d <= 6,
-            ),
+            state.pendingClaim.claimedDice.every((d) => d >= 1 && d <= 6),
         ).toBe(true);
         expect(state.pendingClaim.claimedPoints).toBe(
-            calculateScore(state.pendingClaim.claimedDice, state.pendingClaim.category),
+            calculateScore(
+                state.pendingClaim.claimedDice,
+                state.pendingClaim.category,
+            ),
         );
     }
 
@@ -334,6 +338,16 @@ function playerArb(count: number): { id: string; name: string }[] {
     }));
 }
 
+function fuzzParameters(): fc.Parameters<[number, number, TurnDecision[]]> {
+    const seed = process.env.FUZZ_SEED;
+    const path = process.env.FUZZ_PATH;
+    return {
+        numRuns: Number(process.env.FUZZ_RUNS ?? 50),
+        ...(seed === undefined ? {} : { seed: Number(seed) }),
+        ...(path === undefined ? {} : { path }),
+    };
+}
+
 function logFuzzFailure(
     label: string,
     runDetails: fc.RunDetails<[number, number, TurnDecision[]]>,
@@ -341,6 +355,7 @@ function logFuzzFailure(
     const seed = runDetails.seed;
     const numShrinks = runDetails.numShrinks;
     const counterexample = runDetails.counterexample;
+    const counterexamplePath = runDetails.counterexamplePath;
 
     if (!process.env.CI) {
         const logDir = path.join(process.cwd(), ".fuzz-failures");
@@ -352,6 +367,7 @@ function logFuzzFailure(
                 {
                     label,
                     seed,
+                    counterexamplePath,
                     numShrinks,
                     counterexample,
                     timestamp: new Date().toISOString(),
@@ -363,9 +379,12 @@ function logFuzzFailure(
         console.error(`Fuzz failure for ${label} logged to ${logPath}`);
     } else {
         console.error(
-            `Fuzz failure for ${label}: seed=${seed}, shrinks=${numShrinks}`,
+            `Fuzz failure for ${label}: seed=${seed}, path=${counterexamplePath}, shrinks=${numShrinks}`,
         );
-        console.error("Counterexample:", JSON.stringify(counterexample, null, 2));
+        console.error(
+            "Counterexample:",
+            JSON.stringify(counterexample, null, 2),
+        );
     }
 }
 
@@ -402,7 +421,7 @@ describe("yahtzee engine fuzz", () => {
                     }
                 },
             ),
-            { numRuns: 50 },
+            fuzzParameters(),
         );
         if (result.failed) {
             logFuzzFailure("yahtzee-standard", result);
@@ -442,7 +461,7 @@ describe("yahtzee engine fuzz", () => {
                     }
                 },
             ),
-            { numRuns: 50 },
+            fuzzParameters(),
         );
         if (result.failed) {
             logFuzzFailure("yahtzee-lying", result);

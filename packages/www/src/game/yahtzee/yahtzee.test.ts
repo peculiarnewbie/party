@@ -162,7 +162,8 @@ describe("score totals", () => {
         };
         const upper = 3 + 6 + 9 + 16 + 20 + 18;
         const lower = 50 + 22;
-        const expected = upper + lower + UPPER_BONUS_POINTS + YAHTZEE_BONUS_POINTS;
+        const expected =
+            upper + lower + UPPER_BONUS_POINTS + YAHTZEE_BONUS_POINTS;
         expect(getTotalScore(player)).toBe(expected);
     });
 });
@@ -226,7 +227,11 @@ describe("processAction", () => {
     it("handles a roll action", () => {
         const state = initGame(PLAYERS);
         const roll = fixedRollFn([3, 4, 5, 2, 1]);
-        const result = processAction(state, { type: "roll", playerId: "p1" }, roll);
+        const result = processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            roll,
+        );
         expect(result.type).toBe("rolled");
         if (result.type === "rolled") {
             expect(result.dice).toEqual([3, 4, 5, 2, 1]);
@@ -241,7 +246,11 @@ describe("processAction", () => {
         processAction(state, { type: "roll", playerId: "p1" }, roll);
         processAction(state, { type: "roll", playerId: "p1" }, roll);
         processAction(state, { type: "roll", playerId: "p1" }, roll);
-        const result = processAction(state, { type: "roll", playerId: "p1" }, roll);
+        const result = processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            roll,
+        );
         expect(result.type).toBe("error");
     });
 
@@ -378,7 +387,11 @@ describe("processAction", () => {
             { type: "roll", playerId: "p1" },
             fixedRollFn([1, 2, 3, 4, 5]),
         );
-        processAction(state, { type: "score", playerId: "p1", category: "ones" });
+        processAction(state, {
+            type: "score",
+            playerId: "p1",
+            category: "ones",
+        });
 
         expect(state.round).toBe(1);
         expect(state.currentPlayerIndex).toBe(1);
@@ -388,7 +401,11 @@ describe("processAction", () => {
             { type: "roll", playerId: "p2" },
             fixedRollFn([1, 2, 3, 4, 5]),
         );
-        processAction(state, { type: "score", playerId: "p2", category: "ones" });
+        processAction(state, {
+            type: "score",
+            playerId: "p2",
+            category: "ones",
+        });
 
         expect(state.round).toBe(2);
         expect(state.currentPlayerIndex).toBe(0);
@@ -415,7 +432,11 @@ describe("processAction", () => {
             { type: "roll", playerId: "p2" },
             fixedRollFn([1, 2, 3, 4, 5]),
         );
-        processAction(state, { type: "score", playerId: "p2", category: "chance" });
+        processAction(state, {
+            type: "score",
+            playerId: "p2",
+            category: "chance",
+        });
 
         processAction(
             state,
@@ -454,7 +475,11 @@ describe("processAction", () => {
             { type: "roll", playerId: "p2" },
             fixedRollFn([1, 2, 3, 4, 5]),
         );
-        processAction(state, { type: "score", playerId: "p2", category: "chance" });
+        processAction(state, {
+            type: "score",
+            playerId: "p2",
+            category: "chance",
+        });
 
         processAction(
             state,
@@ -475,9 +500,19 @@ describe("processAction", () => {
     it("ends game after 13 rounds", () => {
         const state = initGame([{ id: "p1", name: "Alice" }]);
         const categories = [
-            "ones", "twos", "threes", "fours", "fives", "sixes",
-            "three_of_a_kind", "four_of_a_kind", "full_house",
-            "small_straight", "large_straight", "yahtzee", "chance",
+            "ones",
+            "twos",
+            "threes",
+            "fours",
+            "fives",
+            "sixes",
+            "three_of_a_kind",
+            "four_of_a_kind",
+            "full_house",
+            "small_straight",
+            "large_straight",
+            "yahtzee",
+            "chance",
         ] as const;
 
         let lastResult;
@@ -521,9 +556,19 @@ describe("processAction", () => {
     it("rejects actions after game over", () => {
         const state = initGame([{ id: "p1", name: "Alice" }]);
         const categories = [
-            "ones", "twos", "threes", "fours", "fives", "sixes",
-            "three_of_a_kind", "four_of_a_kind", "full_house",
-            "small_straight", "large_straight", "yahtzee", "chance",
+            "ones",
+            "twos",
+            "threes",
+            "fours",
+            "fives",
+            "sixes",
+            "three_of_a_kind",
+            "four_of_a_kind",
+            "full_house",
+            "small_straight",
+            "large_straight",
+            "yahtzee",
+            "chance",
         ] as const;
 
         for (const cat of categories) {
@@ -546,9 +591,19 @@ describe("processAction", () => {
     it("handles tie correctly", () => {
         const state = initGame(PLAYERS);
         const categories = [
-            "ones", "twos", "threes", "fours", "fives", "sixes",
-            "three_of_a_kind", "four_of_a_kind", "full_house",
-            "small_straight", "large_straight", "yahtzee", "chance",
+            "ones",
+            "twos",
+            "threes",
+            "fours",
+            "fives",
+            "sixes",
+            "three_of_a_kind",
+            "four_of_a_kind",
+            "full_house",
+            "small_straight",
+            "large_straight",
+            "yahtzee",
+            "chance",
         ] as const;
 
         let lastResult;
@@ -558,14 +613,22 @@ describe("processAction", () => {
                 { type: "roll", playerId: "p1" },
                 fixedRollFn([1, 2, 3, 4, 5]),
             );
-            processAction(state, { type: "score", playerId: "p1", category: cat });
+            processAction(state, {
+                type: "score",
+                playerId: "p1",
+                category: cat,
+            });
 
             processAction(
                 state,
                 { type: "roll", playerId: "p2" },
                 fixedRollFn([1, 2, 3, 4, 5]),
             );
-            lastResult = processAction(state, { type: "score", playerId: "p2", category: cat });
+            lastResult = processAction(state, {
+                type: "score",
+                playerId: "p2",
+                category: cat,
+            });
         }
 
         expect(lastResult!.type).toBe("game_over");
@@ -669,6 +732,58 @@ describe("processAction", () => {
         expect(state.players[1].penaltyPoints).toBe(25);
         expect(state.players[1].scorecard.full_house).toBeUndefined();
         expect(getTotalScore(state.players[1])).toBe(-25);
+    });
+
+    it("accumulates penalties across multiple truthful challenges", () => {
+        const state = initGame(PLAYERS, { mode: "lying" });
+
+        processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            fixedRollFn([1, 1, 1, 1, 1]),
+        );
+        processAction(state, {
+            type: "claim",
+            playerId: "p1",
+            category: "ones",
+            claimedDice: [1, 1, 1, 1, 1],
+        });
+        processAction(state, {
+            type: "challenge_claim",
+            playerId: "p2",
+        });
+
+        processAction(
+            state,
+            { type: "roll", playerId: "p2" },
+            fixedRollFn([2, 2, 2, 2, 2]),
+        );
+        processAction(state, {
+            type: "claim",
+            playerId: "p2",
+            category: "twos",
+            claimedDice: [2, 2, 2, 2, 2],
+        });
+        processAction(state, { type: "accept_claim", playerId: "p1" });
+
+        processAction(
+            state,
+            { type: "roll", playerId: "p1" },
+            fixedRollFn([3, 3, 3, 3, 3]),
+        );
+        processAction(state, {
+            type: "claim",
+            playerId: "p1",
+            category: "threes",
+            claimedDice: [3, 3, 3, 3, 3],
+        });
+        processAction(state, {
+            type: "challenge_claim",
+            playerId: "p2",
+        });
+
+        expect(state.players[1].penaltyPoints).toBe(20);
+        expect(getTotalScore(state.players[1])).toBe(-10);
     });
 
     it("finishes the game when player removal leaves one player", () => {

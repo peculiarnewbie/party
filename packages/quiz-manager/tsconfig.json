@@ -11,6 +11,7 @@
         "moduleDetection": "force",
         "verbatimModuleSyntax": true,
         "lib": ["DOM", "DOM.Iterable", "ES2022"],
+        "types": ["@cloudflare/workers-types"],
         "isolatedModules": true,
         "resolveJsonModule": true,
         "skipLibCheck": true,

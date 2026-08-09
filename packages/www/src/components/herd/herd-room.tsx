@@ -119,7 +119,7 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
     };
 
     return (
-        <div class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla">
+        <div data-testid="herd-room" class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla">
             <Show when={view()} keyed>
                 {(v) => (
                     <div class="max-w-3xl mx-auto px-4 py-6">

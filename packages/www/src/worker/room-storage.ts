@@ -403,10 +403,7 @@ function writeParticipants(
     return Effect.try({
         try: () => {
             const now = Date.now();
-            ctx.storage.sql.exec(
-                "DELETE FROM game_participants WHERE session_id = ?",
-                sessionId,
-            );
+            ctx.storage.sql.exec("DELETE FROM game_participants");
 
             const batchSize = 20;
             for (
