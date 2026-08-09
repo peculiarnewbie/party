@@ -17,6 +17,23 @@ import {
 } from "~/errors";
 import { nanoid } from "nanoid";
 
+function groupBy<K, V>(
+    values: readonly V[],
+    getKey: (value: V) => K,
+): Map<K, V[]> {
+    const grouped = new Map<K, V[]>();
+    for (const value of values) {
+        const key = getKey(value);
+        const group = grouped.get(key);
+        if (group) {
+            group.push(value);
+        } else {
+            grouped.set(key, [value]);
+        }
+    }
+    return grouped;
+}
+
 interface QuizDbShape {
     readonly getQuiz: (
         id: string,
@@ -49,7 +66,7 @@ interface QuizDbShape {
     ) => Effect.Effect<void, DatabaseError | QuestionNotFoundError>;
     readonly reorderQuestions: (
         quizId: string,
-        orderedIds: string[],
+        orderedIds: readonly string[],
     ) => Effect.Effect<void, DatabaseError>;
     readonly listTags: () => Effect.Effect<TagWithCount[], DatabaseError>;
     readonly createTag: (
@@ -60,7 +77,7 @@ interface QuizDbShape {
     ) => Effect.Effect<void, DatabaseError | TagNotFoundError>;
     readonly setQuizTags: (
         quizId: string,
-        tagIds: string[],
+        tagIds: readonly string[],
     ) => Effect.Effect<void, DatabaseError>;
 }
 
@@ -72,7 +89,8 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
             const wrapDb = <A>(op: string, fn: () => Promise<A>) =>
                 Effect.tryPromise({
                     try: fn,
-                    catch: (cause) => new DatabaseError({ operation: op, cause }),
+                    catch: (cause) =>
+                        new DatabaseError({ operation: op, cause }),
                 });
 
             return {
@@ -105,7 +123,9 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                                               questionIds,
                                           ),
                                       )
-                                      .orderBy(asc(schema.answerOptions.sortOrder))
+                                      .orderBy(
+                                          asc(schema.answerOptions.sortOrder),
+                                      )
                                 : [];
 
                         const answers =
@@ -119,8 +139,19 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                                               questionIds,
                                           ),
                                       )
-                                      .orderBy(asc(schema.acceptedAnswers.sortOrder))
+                                      .orderBy(
+                                          asc(schema.acceptedAnswers.sortOrder),
+                                      )
                                 : [];
+
+                        const optionsByQuestion = groupBy(
+                            options,
+                            (option) => option.questionId,
+                        );
+                        const answersByQuestion = groupBy(
+                            answers,
+                            (answer) => answer.questionId,
+                        );
 
                         return {
                             id: quiz.id,
@@ -132,25 +163,25 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                                 type: q.type,
                                 text: q.text,
                                 sortOrder: q.sortOrder,
-                                options: options
-                                    .filter((o) => o.questionId === q.id)
-                                    .map((o) => ({
-                                        id: o.id,
-                                        questionId: o.questionId,
-                                        text: o.text,
-                                        isCorrect: o.isCorrect,
-                                        sortOrder: o.sortOrder,
-                                    })),
-                                acceptedAnswers: answers
-                                    .filter((a) => a.questionId === q.id)
-                                    .map((a) => ({
-                                        id: a.id,
-                                        questionId: a.questionId,
-                                        pattern: a.pattern,
-                                        matchType: a.matchType,
-                                        caseInsensitive: a.caseInsensitive,
-                                        sortOrder: a.sortOrder,
-                                    })),
+                                options: (
+                                    optionsByQuestion.get(q.id) ?? []
+                                ).map((o) => ({
+                                    id: o.id,
+                                    questionId: o.questionId,
+                                    text: o.text,
+                                    isCorrect: o.isCorrect,
+                                    sortOrder: o.sortOrder,
+                                })),
+                                acceptedAnswers: (
+                                    answersByQuestion.get(q.id) ?? []
+                                ).map((a) => ({
+                                    id: a.id,
+                                    questionId: a.questionId,
+                                    pattern: a.pattern,
+                                    matchType: a.matchType,
+                                    caseInsensitive: a.caseInsensitive,
+                                    sortOrder: a.sortOrder,
+                                })),
                             })),
                         } satisfies QuizWithQuestions;
                     }),
@@ -163,7 +194,9 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                             .orderBy(asc(schema.quizzes.createdAt));
 
                         const allTags = await db.select().from(schema.tags);
-                        const allQuizTags = await db.select().from(schema.quizTags);
+                        const allQuizTags = await db
+                            .select()
+                            .from(schema.quizTags);
 
                         const allQuestions = await db
                             .select({
@@ -171,6 +204,18 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                                 type: schema.questions.type,
                             })
                             .from(schema.questions);
+
+                        const tagsById = new Map(
+                            allTags.map((tag) => [tag.id, tag]),
+                        );
+                        const tagIdsByQuiz = groupBy(
+                            allQuizTags,
+                            (quizTag) => quizTag.quizId,
+                        );
+                        const questionTypesByQuiz = groupBy(
+                            allQuestions,
+                            (question) => question.quizId,
+                        );
 
                         let filteredQuizIds: Set<string> | null = null;
 
@@ -181,7 +226,9 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
 
                             if (matchingTagIds.length > 0) {
                                 const matchingQuizIds = allQuizTags
-                                    .filter((qt) => matchingTagIds.includes(qt.tagId))
+                                    .filter((qt) =>
+                                        matchingTagIds.includes(qt.tagId),
+                                    )
                                     .map((qt) => qt.quizId);
                                 filteredQuizIds = new Set(matchingQuizIds);
                             } else {
@@ -194,14 +241,20 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                             const searchMatches = allQuizzes
                                 .filter(
                                     (q) =>
-                                        q.title.toLowerCase().includes(searchLower) ||
-                                        q.description?.toLowerCase().includes(searchLower),
+                                        q.title
+                                            .toLowerCase()
+                                            .includes(searchLower) ||
+                                        q.description
+                                            ?.toLowerCase()
+                                            .includes(searchLower),
                                 )
                                 .map((q) => q.id);
 
                             if (filteredQuizIds) {
                                 filteredQuizIds = new Set(
-                                    searchMatches.filter((id) => filteredQuizIds!.has(id)),
+                                    searchMatches.filter((id) =>
+                                        filteredQuizIds!.has(id),
+                                    ),
                                 );
                             } else {
                                 filteredQuizIds = new Set(searchMatches);
@@ -209,21 +262,24 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                         }
 
                         const quizzes = filteredQuizIds
-                            ? allQuizzes.filter((q) => filteredQuizIds!.has(q.id))
+                            ? allQuizzes.filter((q) =>
+                                  filteredQuizIds!.has(q.id),
+                              )
                             : allQuizzes;
 
                         return quizzes.map((quiz) => {
-                            const quizQuestionTypes = allQuestions
-                                .filter((q) => q.quizId === quiz.id)
-                                .map((q) => q.type);
+                            const quizQuestionTypes = (
+                                questionTypesByQuiz.get(quiz.id) ?? []
+                            ).map((q) => q.type);
 
-                            const quizTagIds = allQuizTags
-                                .filter((qt) => qt.quizId === quiz.id)
-                                .map((qt) => qt.tagId);
+                            const quizTagIds = (
+                                tagIdsByQuiz.get(quiz.id) ?? []
+                            ).map((qt) => qt.tagId);
 
-                            const quizTagNames = allTags.filter((t) =>
-                                quizTagIds.includes(t.id),
-                            );
+                            const quizTagNames = quizTagIds.flatMap((tagId) => {
+                                const tag = tagsById.get(tagId);
+                                return tag ? [tag] : [];
+                            });
 
                             return {
                                 id: quiz.id,
@@ -281,7 +337,8 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                             const updates: Record<string, unknown> = {
                                 updatedAt: new Date().toISOString(),
                             };
-                            if (data.title !== undefined) updates.title = data.title;
+                            if (data.title !== undefined)
+                                updates.title = data.title;
                             if (data.description !== undefined)
                                 updates.description = data.description;
 
@@ -332,29 +389,37 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                             sortOrder: (maxSort?.max ?? -1) + 1,
                         });
 
-                        if (data.type === "multiple_choice" && data.options) {
-                            for (const [i, opt] of data.options.entries()) {
-                                await db.insert(schema.answerOptions).values({
+                        if (
+                            data.type === "multiple_choice" &&
+                            data.options &&
+                            data.options.length > 0
+                        ) {
+                            await db.insert(schema.answerOptions).values(
+                                data.options.map((opt, i) => ({
                                     id: nanoid(10),
                                     questionId: id,
                                     text: opt.text,
                                     isCorrect: opt.isCorrect,
                                     sortOrder: i,
-                                });
-                            }
+                                })),
+                            );
                         }
 
-                        if (data.type === "fill_in" && data.acceptedAnswers) {
-                            for (const [i, ans] of data.acceptedAnswers.entries()) {
-                                await db.insert(schema.acceptedAnswers).values({
+                        if (
+                            data.type === "fill_in" &&
+                            data.acceptedAnswers &&
+                            data.acceptedAnswers.length > 0
+                        ) {
+                            await db.insert(schema.acceptedAnswers).values(
+                                data.acceptedAnswers.map((ans, i) => ({
                                     id: nanoid(10),
                                     questionId: id,
                                     pattern: ans.pattern,
                                     matchType: ans.matchType,
                                     caseInsensitive: ans.caseInsensitive,
                                     sortOrder: i,
-                                });
-                            }
+                                })),
+                            );
                         }
 
                         return id;
@@ -362,12 +427,14 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
 
                 updateQuestion: (id, data) =>
                     Effect.gen(function* () {
-                        const existing = yield* wrapDb("updateQuestion.check", () =>
-                            db
-                                .select({ id: schema.questions.id })
-                                .from(schema.questions)
-                                .where(eq(schema.questions.id, id))
-                                .get(),
+                        const existing = yield* wrapDb(
+                            "updateQuestion.check",
+                            () =>
+                                db
+                                    .select({ id: schema.questions.id })
+                                    .from(schema.questions)
+                                    .where(eq(schema.questions.id, id))
+                                    .get(),
                         );
 
                         if (!existing) {
@@ -386,43 +453,55 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
 
                             await db
                                 .delete(schema.acceptedAnswers)
-                                .where(eq(schema.acceptedAnswers.questionId, id));
+                                .where(
+                                    eq(schema.acceptedAnswers.questionId, id),
+                                );
 
-                            if (data.type === "multiple_choice" && data.options) {
-                                for (const [i, opt] of data.options.entries()) {
-                                    await db.insert(schema.answerOptions).values({
+                            if (
+                                data.type === "multiple_choice" &&
+                                data.options &&
+                                data.options.length > 0
+                            ) {
+                                await db.insert(schema.answerOptions).values(
+                                    data.options.map((opt, i) => ({
                                         id: nanoid(10),
                                         questionId: id,
                                         text: opt.text,
                                         isCorrect: opt.isCorrect,
                                         sortOrder: i,
-                                    });
-                                }
+                                    })),
+                                );
                             }
 
-                            if (data.type === "fill_in" && data.acceptedAnswers) {
-                                for (const [i, ans] of data.acceptedAnswers.entries()) {
-                                    await db.insert(schema.acceptedAnswers).values({
+                            if (
+                                data.type === "fill_in" &&
+                                data.acceptedAnswers &&
+                                data.acceptedAnswers.length > 0
+                            ) {
+                                await db.insert(schema.acceptedAnswers).values(
+                                    data.acceptedAnswers.map((ans, i) => ({
                                         id: nanoid(10),
                                         questionId: id,
                                         pattern: ans.pattern,
                                         matchType: ans.matchType,
                                         caseInsensitive: ans.caseInsensitive,
                                         sortOrder: i,
-                                    });
-                                }
+                                    })),
+                                );
                             }
                         });
                     }),
 
                 deleteQuestion: (id) =>
                     Effect.gen(function* () {
-                        const existing = yield* wrapDb("deleteQuestion.check", () =>
-                            db
-                                .select({ id: schema.questions.id })
-                                .from(schema.questions)
-                                .where(eq(schema.questions.id, id))
-                                .get(),
+                        const existing = yield* wrapDb(
+                            "deleteQuestion.check",
+                            () =>
+                                db
+                                    .select({ id: schema.questions.id })
+                                    .from(schema.questions)
+                                    .where(eq(schema.questions.id, id))
+                                    .get(),
                         );
 
                         if (!existing) {
@@ -453,15 +532,23 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                             .from(schema.tags)
                             .orderBy(asc(schema.tags.name));
 
-                        const allQuizTags = await db.select().from(schema.quizTags);
+                        const allQuizTags = await db
+                            .select()
+                            .from(schema.quizTags);
+
+                        const quizCountByTag = new Map<string, number>();
+                        for (const quizTag of allQuizTags) {
+                            quizCountByTag.set(
+                                quizTag.tagId,
+                                (quizCountByTag.get(quizTag.tagId) ?? 0) + 1,
+                            );
+                        }
 
                         return allTags.map((tag) => ({
                             id: tag.id,
                             name: tag.name,
                             slug: tag.slug,
-                            quizCount: allQuizTags.filter(
-                                (qt) => qt.tagId === tag.id,
-                            ).length,
+                            quizCount: quizCountByTag.get(tag.id) ?? 0,
                         })) satisfies TagWithCount[];
                     }),
 
@@ -523,11 +610,12 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                             .delete(schema.quizTags)
                             .where(eq(schema.quizTags.quizId, quizId));
 
-                        for (const tagId of tagIds) {
-                            await db.insert(schema.quizTags).values({
-                                quizId,
-                                tagId,
-                            });
+                        if (tagIds.length > 0) {
+                            await db
+                                .insert(schema.quizTags)
+                                .values(
+                                    tagIds.map((tagId) => ({ quizId, tagId })),
+                                );
                         }
                     }),
             } satisfies QuizDbShape;

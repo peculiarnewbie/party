@@ -40,14 +40,17 @@ export function createRpsFold(playerId: string): RpsClientFold {
 
     function processEvent(index: number, event: RpsEvent) {
         const current = state();
-        if (!current) return;
+        if (!current || index <= lastEventIndex()) return;
 
         const hidden = hiddenByIndex.get(index);
         const next = reduce(current, event);
         setState(next);
         setLastEventIndex(Math.max(lastEventIndex(), index));
 
-        if (event.type === "throw_registered" && hidden?.type === "throw_choice") {
+        if (
+            event.type === "throw_registered" &&
+            hidden?.type === "throw_choice"
+        ) {
             setMyChoice(hidden.choice);
         }
         if (event.type === "throw_revealed") {
@@ -63,6 +66,7 @@ export function createRpsFold(playerId: string): RpsClientFold {
     }
 
     function applySnapshot(index: number, snapshotState: RpsState) {
+        if (state() && index <= lastEventIndex()) return;
         setState(snapshotState);
         setMyChoice(null);
         setLastSnapshotIndex(index);
@@ -71,6 +75,12 @@ export function createRpsFold(playerId: string): RpsClientFold {
     }
 
     function applySync(sync: SyncResponse) {
+        const newestIncomingIndex = sync.events.reduce(
+            (latest, entry) => Math.max(latest, entry.index),
+            sync.snapshot.index,
+        );
+        if (newestIncomingIndex < lastEventIndex()) return;
+
         if (sync.snapshot.data) {
             setState(sync.snapshot.data as RpsState);
             setLastSnapshotIndex(sync.snapshot.index);
@@ -79,9 +89,11 @@ export function createRpsFold(playerId: string): RpsClientFold {
             hiddenByIndex.clear();
         }
 
-        const hiddenEntries = [...sync.hidden].sort((a, b) => a.index - b.index);
+        const hiddenEntries = [...sync.hidden].sort(
+            (a, b) => a.index - b.index,
+        );
         for (const entry of hiddenEntries) {
-            hiddenByIndex.set(entry.index, entry.data as RpsHiddenData);
+            processHidden(entry.index, entry.data as RpsHiddenData);
         }
 
         const eventEntries = [...sync.events].sort((a, b) => a.index - b.index);

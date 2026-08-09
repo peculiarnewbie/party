@@ -3,7 +3,11 @@ import { decodeUnknownSync } from "~/effect/schema-helpers";
 import type { RoomTransport } from "~/room/room-transport";
 import type { GameConnection } from "../connection";
 import { createRpsFold } from "./client-fold";
-import type { RpsClientOutgoing, RpsConnection, RpsSideEvent } from "./connection";
+import type {
+    RpsClientOutgoing,
+    RpsConnection,
+    RpsSideEvent,
+} from "./connection";
 import { rpsServerMessageSchema } from "./schemas";
 
 export function createRpsGameConnection(
@@ -16,6 +20,7 @@ export function createRpsGameConnection(
         import("./schemas").RpsPlayerView | null
     >(null);
     const handlers = new Set<(event: RpsSideEvent) => void>();
+    let syncPending = false;
 
     const view = createMemo(() => fold.view() ?? snapshotView());
 
@@ -35,7 +40,9 @@ export function createRpsGameConnection(
         }
 
         if (message.type === "rps:state") {
-            setSnapshotView(() => message.data as import("./schemas").RpsPlayerView);
+            setSnapshotView(
+                () => message.data as import("./schemas").RpsPlayerView,
+            );
             return;
         }
 
@@ -48,21 +55,28 @@ export function createRpsGameConnection(
             const syncInfo = fold.syncInfo();
             const index = message.index as number;
             if (index > syncInfo.lastEventIndex + 1) {
-                transport.send({
-                    type: "rps:sync",
-                    data: syncInfo,
-                    playerId: envelope().playerId,
-                    playerName: envelope().playerName,
-                });
+                if (!syncPending) {
+                    syncPending = true;
+                    transport.send({
+                        type: "rps:sync",
+                        data: syncInfo,
+                        playerId: envelope().playerId,
+                        playerName: envelope().playerName,
+                    });
+                }
                 return;
             }
-            fold.processEvent(index, message.data as import("./events").RpsEvent);
+            fold.processEvent(
+                index,
+                message.data as import("./events").RpsEvent,
+            );
         } else if (message.type === "rps:hidden") {
             fold.processHidden(
                 message.index as number,
                 message.data as import("./events").RpsHiddenData,
             );
         } else if (message.type === "rps:sync_response") {
+            syncPending = false;
             fold.applySync(
                 message as unknown as import("~/game/shared/game-engine-types").SyncResponse,
             );
@@ -73,9 +87,9 @@ export function createRpsGameConnection(
         }
     };
 
-    const cached = transport.latest("rps:state") as
-        | { data?: import("./schemas").RpsPlayerView }
-        | null;
+    const cached = transport.latest("rps:state") as {
+        data?: import("./schemas").RpsPlayerView;
+    } | null;
     if (cached?.data) {
         setSnapshotView(() => cached.data as import("./schemas").RpsPlayerView);
     }

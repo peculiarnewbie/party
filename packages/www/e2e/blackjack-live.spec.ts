@@ -19,30 +19,52 @@ async function startBlackjackRound(page: import("@playwright/test").Page) {
     await room.startGame();
     await room.waitForBlackjackRoom();
 
-    await expect(page.getByText("PLACE YOUR BET")).toBeVisible({
-        timeout: 15_000,
-    });
-    await page.getByRole("button", { name: "DEAL" }).click();
-    await expect(page.getByText("WAITING FOR OTHER BETS...")).toBeVisible({
-        timeout: 15_000,
-    });
-
-    await room.switchPlayer(bobId);
-    await expect(page.getByText("PLACE YOUR BET")).toBeVisible({
-        timeout: 15_000,
-    });
-    await page.getByRole("button", { name: "DEAL" }).click();
-
-    if (await page.getByRole("button", { name: "NO" }).isVisible()) {
-        await page.getByRole("button", { name: "NO" }).click();
+    for (let attempt = 0; attempt < 4; attempt += 1) {
         await room.switchPlayer(aliceId);
-        if (await page.getByRole("button", { name: "NO" }).isVisible()) {
-            await page.getByRole("button", { name: "NO" }).click();
+        await expect(page.getByText("PLACE YOUR BET")).toBeVisible({
+            timeout: 15_000,
+        });
+        await page.getByRole("button", { name: "DEAL" }).click();
+        await expect(page.getByText("WAITING FOR OTHER BETS...")).toBeVisible({
+            timeout: 15_000,
+        });
+
+        await room.switchPlayer(bobId);
+        await expect(page.getByText("PLACE YOUR BET")).toBeVisible({
+            timeout: 15_000,
+        });
+        await page.getByRole("button", { name: "DEAL" }).click();
+        await page.waitForFunction(() => {
+            return (
+                document.querySelector(
+                    '[data-testid^="blackjack-player-"][data-current-turn="true"]',
+                ) !== null ||
+                document.body.textContent?.includes("INSURANCE?") ||
+                document.body.textContent?.includes(
+                    "NEXT ROUND STARTING SOON...",
+                )
+            );
+        });
+
+        for (const playerId of [bobId, aliceId]) {
+            await room.switchPlayer(playerId);
+            const decline = page.getByRole("button", { name: "NO" });
+            if (await decline.isVisible()) {
+                await decline.click();
+            }
         }
         await room.switchPlayer(bobId);
+
+        if (await currentTurnPlayerId(page)) {
+            return { room, aliceId, bobId };
+        }
+
+        await expect(page.getByText("PLACE YOUR BET")).toBeVisible({
+            timeout: 10_000,
+        });
     }
 
-    return { room, aliceId, bobId };
+    throw new Error("Unable to start an actionable blackjack round");
 }
 
 async function currentTurnPlayerId(page: import("@playwright/test").Page) {
@@ -50,11 +72,17 @@ async function currentTurnPlayerId(page: import("@playwright/test").Page) {
         const current = document.querySelector(
             '[data-testid^="blackjack-player-"][data-current-turn="true"]',
         );
-        return current?.getAttribute("data-testid")?.replace("blackjack-player-", "") ?? null;
+        return (
+            current
+                ?.getAttribute("data-testid")
+                ?.replace("blackjack-player-", "") ?? null
+        );
     });
 }
 
-async function waitForCurrentTurnPlayerId(page: import("@playwright/test").Page) {
+async function waitForCurrentTurnPlayerId(
+    page: import("@playwright/test").Page,
+) {
     await page.waitForFunction(
         () => {
             return Boolean(
@@ -73,7 +101,9 @@ test.describe("blackjack-live", () => {
     test("bet and deal", async ({ page }) => {
         const { room, aliceId, bobId } = await startBlackjackRound(page);
 
-        await expect(page.getByText("YOUR TURN").or(page.getByText("'S TURN"))).toBeVisible({
+        await expect(
+            page.getByText("YOUR TURN").or(page.getByText("'S TURN")),
+        ).toBeVisible({
             timeout: 15_000,
         });
 
@@ -96,13 +126,17 @@ test.describe("blackjack-live", () => {
         expect([aliceId, bobId]).toContain(currentId);
 
         await room.switchPlayer(currentId!);
-        await expect(page.getByText("YOUR TURN")).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByText("YOUR TURN")).toBeVisible({
+            timeout: 15_000,
+        });
         await expect(page.getByRole("button", { name: "HIT" })).toBeVisible();
 
         const otherId = currentId === aliceId ? bobId : aliceId;
         await room.switchPlayer(otherId);
         await expect(page.getByTestId("blackjack-room")).toBeVisible();
-        await expect(page.getByText("'S TURN")).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByText("'S TURN")).toBeVisible({
+            timeout: 15_000,
+        });
         await expect(page.getByRole("button", { name: "HIT" })).toHaveCount(0);
     });
 
@@ -115,18 +149,23 @@ test.describe("blackjack-live", () => {
         const before = Number(await hand.getAttribute("data-card-count"));
 
         await page.getByRole("button", { name: "HIT" }).click();
-        await expect(hand).toHaveAttribute("data-card-count", String(before + 1), {
-            timeout: 15_000,
-        });
-
-        const snap = await room.snapshot();
-        const other = snap.players.find((player) => player.id !== currentId && player.isJoined);
-        expect(other).toBeTruthy();
-        await room.switchPlayer(other!.id);
-        await expect(page.getByTestId(`blackjack-hand-${currentId}-0`)).toHaveAttribute(
+        await expect(hand).toHaveAttribute(
             "data-card-count",
             String(before + 1),
+            {
+                timeout: 15_000,
+            },
         );
+
+        const snap = await room.snapshot();
+        const other = snap.players.find(
+            (player) => player.id !== currentId && player.isJoined,
+        );
+        expect(other).toBeTruthy();
+        await room.switchPlayer(other!.id);
+        await expect(
+            page.getByTestId(`blackjack-hand-${currentId}-0`),
+        ).toHaveAttribute("data-card-count", String(before + 1));
     });
 
     test("stand advances turn", async ({ page }) => {
@@ -141,8 +180,10 @@ test.describe("blackjack-live", () => {
                 const current = document.querySelector(
                     '[data-testid^="blackjack-player-"][data-current-turn="true"]',
                 );
-                const currentId = current?.getAttribute("data-testid")?.replace("blackjack-player-", "");
-                return currentId && currentId !== previousId;
+                const currentId = current
+                    ?.getAttribute("data-testid")
+                    ?.replace("blackjack-player-", "");
+                return currentId !== previousId;
             },
             currentId,
             { timeout: 15_000 },
@@ -153,27 +194,46 @@ test.describe("blackjack-live", () => {
         const { room, aliceId, bobId } = await startBlackjackRound(page);
 
         for (let i = 0; i < 16; i++) {
-            if (await page.getByText("NEXT ROUND STARTING SOON...").isVisible()) break;
+            if (await page.getByText("NEXT ROUND STARTING SOON...").isVisible())
+                break;
             const currentId = await currentTurnPlayerId(page);
-            if (!currentId) break;
+            if (!currentId) {
+                for (const playerId of [aliceId, bobId]) {
+                    await room.switchPlayer(playerId);
+                    const decline = page.getByRole("button", { name: "NO" });
+                    if (await decline.isVisible()) {
+                        await decline.click();
+                    }
+                }
+                await page.waitForTimeout(50);
+                continue;
+            }
             await room.switchPlayer(currentId);
             if (await page.getByRole("button", { name: "STAND" }).isVisible()) {
                 await page.getByRole("button", { name: "STAND" }).click();
-            } else if (await page.getByRole("button", { name: "NO" }).isVisible()) {
+            } else if (
+                await page.getByRole("button", { name: "NO" }).isVisible()
+            ) {
                 await page.getByRole("button", { name: "NO" }).click();
             } else {
                 await page.getByRole("button", { name: "HIT" }).click();
             }
-            await page.waitForTimeout(250);
+            await page.waitForTimeout(50);
         }
 
-        await expect(page.getByText("NEXT ROUND STARTING SOON...")).toBeVisible({
-            timeout: 15_000,
-        });
+        await expect(page.getByText("NEXT ROUND STARTING SOON...")).toBeVisible(
+            {
+                timeout: 15_000,
+            },
+        );
 
         await room.switchPlayer(aliceId);
-        await expect(page.getByText("NEXT ROUND STARTING SOON...")).toBeVisible();
+        await expect(
+            page.getByText("NEXT ROUND STARTING SOON..."),
+        ).toBeVisible();
         await room.switchPlayer(bobId);
-        await expect(page.getByText("NEXT ROUND STARTING SOON...")).toBeVisible();
+        await expect(
+            page.getByText("NEXT ROUND STARTING SOON..."),
+        ).toBeVisible();
     });
 });

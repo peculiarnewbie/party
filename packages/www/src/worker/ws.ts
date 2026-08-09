@@ -11,9 +11,12 @@ import {
 } from "~/game";
 import {
     createDefaultState,
+    deletePlayerCapability,
     ensureSchema,
     loadGameSnapshot,
+    loadPlayerCapabilityHash,
     loadRoomState,
+    persistPlayerCapabilityHash,
     persistGameSnapshot as persistSnapshotToStorage,
     persistRoomState as persistRoomStateToStorage,
     type PersistedGameSnapshot,
@@ -29,12 +32,19 @@ import {
     type GameAdapter,
     type GameAdapterContext,
 } from "~/worker/game-adapter";
+import {
+    createPlayerCapability,
+    hashPlayerCapability,
+    verifyPlayerCapability,
+} from "~/worker/player-capability";
 
 const HIBERNATION_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+const MAX_WEBSOCKET_MESSAGE_BYTES = 64 * 1024;
 
 type RoomSession = {
     id: string;
     playerId: string | null;
+    authenticated: boolean;
 };
 
 function isRoomSession(value: unknown): value is RoomSession {
@@ -45,7 +55,9 @@ function isRoomSession(value: unknown): value is RoomSession {
     const session = value as Record<string, unknown>;
     return (
         typeof session.id === "string" &&
-        (session.playerId === null || typeof session.playerId === "string")
+        typeof session.authenticated === "boolean" &&
+        ((session.authenticated && typeof session.playerId === "string") ||
+            (!session.authenticated && session.playerId === null))
     );
 }
 
@@ -58,6 +70,7 @@ export class GameRoom extends DurableObject {
     ready: Promise<void>;
     cachedAdapter: GameAdapter | null;
     cachedAdapterGameType: string | null;
+    messageQueue: Promise<void>;
 
     constructor(ctx: DurableObjectState, env: Env) {
         super(ctx, env);
@@ -68,6 +81,7 @@ export class GameRoom extends DurableObject {
         this.clearGameTimer = null;
         this.cachedAdapter = null;
         this.cachedAdapterGameType = null;
+        this.messageQueue = Promise.resolve();
         for (const ws of this.ctx.getWebSockets()) {
             const attachment = ws.deserializeAttachment();
             if (!isRoomSession(attachment)) {
@@ -76,7 +90,7 @@ export class GameRoom extends DurableObject {
             }
 
             this.sessions.set(ws, attachment);
-            if (attachment.playerId) {
+            if (attachment.authenticated && attachment.playerId) {
                 this.bindSessionToPlayer(ws, attachment, attachment.playerId);
             }
         }
@@ -284,6 +298,7 @@ export class GameRoom extends DurableObject {
 
     bindSessionToPlayer(ws: WebSocket, session: RoomSession, playerId: string) {
         session.playerId = playerId;
+        session.authenticated = true;
         ws.serializeAttachment(session);
         const sockets = this.playerSockets.get(playerId);
         if (sockets) {
@@ -291,6 +306,20 @@ export class GameRoom extends DurableObject {
             return;
         }
         this.playerSockets.set(playerId, new Set([ws]));
+    }
+
+    revokePlayerSessions(playerId: string) {
+        const sockets = this.playerSockets.get(playerId);
+        if (!sockets) return;
+
+        this.playerSockets.delete(playerId);
+        for (const ws of sockets) {
+            const session = this.sessions.get(ws);
+            if (!session) continue;
+            session.playerId = null;
+            session.authenticated = false;
+            ws.serializeAttachment(session);
+        }
     }
 
     removeSession(ws: WebSocket): RoomSession | null {
@@ -359,11 +388,19 @@ export class GameRoom extends DurableObject {
                 }
                 this.persistGameSnapshot();
             },
+            persistGameSnapshot: () => {
+                this.persistGameSnapshot();
+            },
+            getHostPlayerId: () => this.state.hostId,
             setGameTimer: (clearFn) => {
                 this.clearGameTimer = clearFn;
             },
         };
-        getAdapter = () => this.activeAdapter(adapterCtx);
+        getAdapter = () => {
+            const adapter = this.activeAdapter(adapterCtx);
+            adapter?.resumeGame?.(broadcast, sendTo);
+            return adapter;
+        };
 
         const rehydrateConnectedParticipants = () => {
             this.sessions.forEach((session) => {
@@ -443,6 +480,7 @@ export class GameRoom extends DurableObject {
         const session: RoomSession = {
             id: crypto.randomUUID(),
             playerId: null,
+            authenticated: false,
         };
         serverWs.serializeAttachment(session);
         this.sessions.set(serverWs, session);
@@ -456,12 +494,30 @@ export class GameRoom extends DurableObject {
     }
 
     async webSocketMessage(serverWs: WebSocket, message: string | ArrayBuffer) {
+        const work = this.messageQueue.then(() =>
+            this.processWebSocketMessage(serverWs, message),
+        );
+        this.messageQueue = work.catch(() => undefined);
+        await work;
+    }
+
+    private async processWebSocketMessage(
+        serverWs: WebSocket,
+        message: string | ArrayBuffer,
+    ) {
         await this.ready;
         if (typeof message !== "string") {
             return;
         }
 
         const raw = message;
+        if (
+            new TextEncoder().encode(raw).byteLength >
+            MAX_WEBSOCKET_MESSAGE_BYTES
+        ) {
+            serverWs.close(1009, "Message too large");
+            return;
+        }
         const {
             activateConnectedParticipants,
             adapterCtx,
@@ -563,27 +619,120 @@ export class GameRoom extends DurableObject {
                     sharedMessage?.type === "identify" ||
                     sharedMessage?.type === "join";
 
-                if (messagePlayerId) {
-                    if (session.playerId === null) {
-                        if (!isIdentityMessage) {
-                            yield* Effect.logWarning(
-                                "game-room.identity.unbound",
-                            ).pipe(
-                                Effect.annotateLogs({
-                                    component: "game-room",
-                                    operation: "game-room.identity.unbound",
-                                    messageType: messageType ?? "unknown",
-                                    playerId: messagePlayerId,
+                if (isIdentityMessage && sharedMessage) {
+                    const requestedPlayerId = sharedMessage.playerId;
+                    const storedCapabilityHash =
+                        yield* loadPlayerCapabilityHash(
+                            this.ctx,
+                            requestedPlayerId,
+                        );
+                    const existingPlayer = this.state.players.some(
+                        (player) => player.id === requestedPlayerId,
+                    );
+                    const alreadyAuthenticated =
+                        session.authenticated &&
+                        session.playerId === requestedPlayerId;
+                    const providedCapability =
+                        sharedMessage.sessionToken ?? null;
+                    const hasValidCapability =
+                        alreadyAuthenticated ||
+                        (storedCapabilityHash !== null &&
+                            providedCapability !== null &&
+                            (yield* Effect.promise(() =>
+                                verifyPlayerCapability(
+                                    providedCapability,
+                                    storedCapabilityHash,
+                                ),
+                            )));
+
+                    if (sharedMessage.type === "identify") {
+                        if (!existingPlayer && storedCapabilityHash === null) {
+                            sendRoomStateToSocket(serverWs);
+                            return;
+                        }
+
+                        if (!hasValidCapability) {
+                            serverWs.send(
+                                encodeServerMessage({
+                                    type: "room_auth_error",
+                                    data: {
+                                        reason:
+                                            storedCapabilityHash === null
+                                                ? "session_required"
+                                                : "invalid_session",
+                                    },
                                 }),
                             );
                             return;
                         }
+                    } else if (!hasValidCapability) {
+                        if (existingPlayer || storedCapabilityHash !== null) {
+                            serverWs.send(
+                                encodeServerMessage({
+                                    type: "room_auth_error",
+                                    data: {
+                                        reason:
+                                            storedCapabilityHash === null
+                                                ? "session_required"
+                                                : "invalid_session",
+                                    },
+                                }),
+                            );
+                            return;
+                        }
+
+                        const capability = createPlayerCapability();
+                        const capabilityHash = yield* Effect.promise(() =>
+                            hashPlayerCapability(capability),
+                        );
+                        yield* persistPlayerCapabilityHash(
+                            this.ctx,
+                            requestedPlayerId,
+                            capabilityHash,
+                        );
                         this.bindSessionToPlayer(
                             serverWs,
                             session,
-                            messagePlayerId,
+                            requestedPlayerId,
                         );
-                    } else if (session.playerId !== messagePlayerId) {
+                        serverWs.send(
+                            encodeServerMessage({
+                                type: "room_session",
+                                data: {
+                                    playerId: requestedPlayerId,
+                                    sessionToken: capability,
+                                },
+                            }),
+                        );
+                    }
+
+                    if (!session.authenticated) {
+                        this.bindSessionToPlayer(
+                            serverWs,
+                            session,
+                            requestedPlayerId,
+                        );
+                    }
+                } else {
+                    if (
+                        !session.authenticated ||
+                        session.playerId === null ||
+                        !messagePlayerId
+                    ) {
+                        yield* Effect.logWarning(
+                            "game-room.identity.unbound",
+                        ).pipe(
+                            Effect.annotateLogs({
+                                component: "game-room",
+                                operation: "game-room.identity.unbound",
+                                messageType: messageType ?? "unknown",
+                                playerId: messagePlayerId ?? "",
+                            }),
+                        );
+                        return;
+                    }
+
+                    if (session.playerId !== messagePlayerId) {
                         yield* Effect.logWarning(
                             "game-room.identity.mismatch",
                         ).pipe(
@@ -596,6 +745,37 @@ export class GameRoom extends DurableObject {
                             }),
                         );
                         return;
+                    }
+                }
+
+                if (this.state.phase === "lobby") {
+                    const disconnectedPlayerIds = this.state.players
+                        .filter((player) => !this.playerSockets.has(player.id))
+                        .map((player) => player.id);
+                    if (disconnectedPlayerIds.length > 0) {
+                        const disconnectedIds = new Set<string>(
+                            disconnectedPlayerIds,
+                        );
+                        this.state.players = this.state.players.filter(
+                            (player) => !disconnectedIds.has(player.id),
+                        );
+                        this.state.answers = Object.fromEntries(
+                            Object.entries(this.state.answers).filter(
+                                ([playerId]) => !disconnectedIds.has(playerId),
+                            ),
+                        );
+                        for (const playerId of disconnectedPlayerIds) {
+                            yield* deletePlayerCapability(this.ctx, playerId);
+                        }
+                        if (
+                            this.state.hostId &&
+                            disconnectedIds.has(this.state.hostId)
+                        ) {
+                            this.state.hostId =
+                                this.state.players[0]?.id ?? null;
+                        }
+                        this.persistRoomState();
+                        broadcastRoomState();
                     }
                 }
 
@@ -884,6 +1064,14 @@ export class GameRoom extends DurableObject {
                     return;
                 }
 
+                if (sharedMessage.type === "leave") {
+                    yield* deletePlayerCapability(
+                        this.ctx,
+                        sharedMessage.playerId,
+                    );
+                    this.revokePlayerSessions(sharedMessage.playerId);
+                }
+
                 this.persistRoomState();
                 if (sharedMessage.type === "join") {
                     this.persistGameSnapshot();
@@ -909,13 +1097,21 @@ export class GameRoom extends DurableObject {
 
     async webSocketClose(serverWs: WebSocket, code: number, reason: string) {
         await this.ready;
-        await this.handleSocketDisconnect(serverWs);
+        const work = this.messageQueue.then(() =>
+            this.handleSocketDisconnect(serverWs),
+        );
+        this.messageQueue = work.catch(() => undefined);
+        await work;
         serverWs.close(code, reason);
     }
 
     async webSocketError(serverWs: WebSocket) {
         await this.ready;
-        await this.handleSocketDisconnect(serverWs);
+        const work = this.messageQueue.then(() =>
+            this.handleSocketDisconnect(serverWs),
+        );
+        this.messageQueue = work.catch(() => undefined);
+        await work;
     }
 
     async handleSocketDisconnect(serverWs: WebSocket) {

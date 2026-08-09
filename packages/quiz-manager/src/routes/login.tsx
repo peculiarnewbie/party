@@ -7,6 +7,7 @@ import {
     parseCookies,
     getSessionCookieName,
     validateSession,
+    validatePassword,
 } from "~/worker/session";
 
 export const Route = createFileRoute("/login")({
@@ -19,26 +20,33 @@ export const Route = createFileRoute("/login")({
 
                 if (
                     sessionCookie &&
-                    (await validateSession(env.ADMIN_PASSWORD, sessionCookie))
+                    (await validateSession(env.SESSION_SECRET, sessionCookie))
                 ) {
                     return redirect({ to: "/" });
                 }
 
-                return new Response(
-                    loginPage({ error: null }),
-                    { headers: { "Content-Type": "text/html" } },
-                );
+                return new Response(loginPage({ error: null }), {
+                    headers: {
+                        "Cache-Control": "no-store",
+                        "Content-Type": "text/html; charset=utf-8",
+                    },
+                });
             },
             POST: async ({ request }) => {
                 const formData = await request.formData();
-                const password = formData.get("password") as string;
+                const passwordValue = formData.get("password");
+                const password =
+                    typeof passwordValue === "string" ? passwordValue : "";
 
-                if (!password || password !== env.ADMIN_PASSWORD) {
+                if (!(await validatePassword(password, env.ADMIN_PASSWORD))) {
                     return new Response(
                         loginPage({ error: "Invalid password" }),
                         {
                             status: 401,
-                            headers: { "Content-Type": "text/html" },
+                            headers: {
+                                "Cache-Control": "no-store",
+                                "Content-Type": "text/html; charset=utf-8",
+                            },
                         },
                     );
                 }

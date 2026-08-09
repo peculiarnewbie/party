@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/solid-router";
-import { createSignal, onMount } from "solid-js";
+import { createSignal } from "solid-js";
 import { normalizeRoomId } from "~/utils/room-id";
 
 export const Route = createFileRoute("/room/")({
@@ -7,15 +7,6 @@ export const Route = createFileRoute("/room/")({
 });
 
 function RouteComponent() {
-    let ws: WebSocket;
-
-    onMount(async () => {
-        ws = new WebSocket("ws://localhost:3000/api/room/hey");
-        ws.onmessage = (e) => {
-            console.log(e.data);
-        };
-    });
-
     const [roomId, setRoomId] = createSignal("");
 
     const joinRoom = (e: Event) => {
@@ -37,7 +28,9 @@ function RouteComponent() {
                     type="text"
                     placeholder="Enter room name"
                     value={roomId()}
-                    onInput={(e) => setRoomId(normalizeRoomId(e.currentTarget.value))}
+                    onInput={(e) =>
+                        setRoomId(normalizeRoomId(e.currentTarget.value))
+                    }
                     class="px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
                 />
                 <button

@@ -1,7 +1,12 @@
 import type { GameAdapterContext } from "./game-adapter-types";
 
 export interface GameTimer {
-    schedule: ((broadcast: (msg: string) => void, sendTo: (playerId: string, msg: string) => void) => void) | undefined;
+    schedule:
+        | ((
+              broadcast: (msg: string) => void,
+              sendTo: (playerId: string, msg: string) => void,
+          ) => void)
+        | undefined;
     clear(): void;
 }
 
@@ -23,6 +28,9 @@ export function createGameTimer(
             timer = setTimeout(() => {
                 timer = null;
                 onElapsed(broadcast, sendTo);
+                if (!timer) {
+                    ctx.setGameTimer(null);
+                }
             }, delayMs);
             ctx.setGameTimer(() => {
                 if (timer) {

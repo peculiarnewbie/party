@@ -12,7 +12,10 @@ function toBase64Url(data: ArrayBuffer | Uint8Array): string {
     for (const byte of bytes) {
         binary += String.fromCharCode(byte);
     }
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return btoa(binary)
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
 }
 
 function fromBase64Url(str: string): Uint8Array {
@@ -26,16 +29,28 @@ function fromBase64Url(str: string): Uint8Array {
     return bytes;
 }
 
-async function hmacSign(secret: string, data: string): Promise<string> {
+async function importHmacKey(
+    secret: string,
+    usages: KeyUsage[],
+): Promise<CryptoKey> {
     const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
+    return crypto.subtle.importKey(
         "raw",
         encoder.encode(secret),
         { name: "HMAC", hash: "SHA-256" },
         false,
-        ["sign"],
+        usages,
     );
-    const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(data));
+}
+
+async function hmacSign(secret: string, data: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const key = await importHmacKey(secret, ["sign"]);
+    const signature = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        encoder.encode(data),
+    );
     return toBase64Url(signature);
 }
 
@@ -44,11 +59,22 @@ async function hmacVerify(
     data: string,
     signature: string,
 ): Promise<boolean> {
-    const expected = await hmacSign(secret, data);
-    return expected === signature;
+    try {
+        const encoder = new TextEncoder();
+        const key = await importHmacKey(secret, ["verify"]);
+        return crypto.subtle.verify(
+            "HMAC",
+            key,
+            Uint8Array.from(fromBase64Url(signature)).buffer,
+            encoder.encode(data),
+        );
+    } catch {
+        return false;
+    }
 }
 
 export async function createSessionCookie(secret: string): Promise<string> {
+    if (!secret) throw new Error("SESSION_SECRET must be configured");
     const now = Date.now();
     const payload: SessionPayload = {
         iat: now,
@@ -67,6 +93,7 @@ export async function validateSession(
     secret: string,
     cookieValue: string,
 ): Promise<boolean> {
+    if (!secret) return false;
     const parts = cookieValue.split(".");
     if (parts.length !== 2) return false;
 
@@ -79,9 +106,24 @@ export async function validateSession(
         const padded =
             payloadB64 + "=".repeat((4 - (payloadB64.length % 4)) % 4);
         const payloadJson = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
-        const payload: SessionPayload = JSON.parse(payloadJson);
+        const payload: unknown = JSON.parse(payloadJson);
 
-        if (payload.exp < Date.now()) return false;
+        if (
+            typeof payload !== "object" ||
+            payload === null ||
+            !("iat" in payload) ||
+            !("exp" in payload) ||
+            typeof payload.iat !== "number" ||
+            typeof payload.exp !== "number" ||
+            !Number.isFinite(payload.iat) ||
+            !Number.isFinite(payload.exp) ||
+            payload.iat > payload.exp ||
+            payload.iat > Date.now() ||
+            payload.exp <= Date.now() ||
+            payload.exp - payload.iat !== SESSION_DURATION_MS
+        ) {
+            return false;
+        }
 
         return true;
     } catch {
@@ -114,5 +156,8 @@ export async function validatePassword(
     password: string,
     envPassword: string,
 ): Promise<boolean> {
-    return password === envPassword;
+    if (!password || !envPassword) return false;
+    const challenge = "quiz-manager-admin-password";
+    const expected = await hmacSign(envPassword, challenge);
+    return hmacVerify(password, challenge, expected);
 }

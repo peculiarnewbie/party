@@ -172,9 +172,17 @@ export const messageTypes = [
 ] as const;
 export type MessageType = (typeof messageTypes)[number];
 
+const playerNameSchema = Schema.String.check(Schema.isMaxLength(40));
+const joinedPlayerNameSchema = playerNameSchema.check(Schema.isMinLength(1));
+const roomTextSchema = Schema.String.check(Schema.isMaxLength(1_000));
+const sessionTokenSchema = Schema.String.check(
+    Schema.isLengthBetween(43, 43),
+    Schema.isPattern(/^[A-Za-z0-9_-]+$/),
+);
+
 export const playerSchema = Schema.Struct({
     id: Schema.mutableKey(playerIdSchema),
-    name: Schema.mutableKey(Schema.String),
+    name: Schema.mutableKey(joinedPlayerNameSchema),
     score: Schema.optionalKey(Schema.mutableKey(Schema.Number)),
 });
 
@@ -215,7 +223,11 @@ export type GameParticipant = SchemaType<typeof gameParticipantSchema>;
 export type GameState = SchemaType<typeof gameStateSchema>;
 export type RoomStatePayload = SchemaType<typeof roomStatePayloadSchema>;
 
-export { playerIdSchema, nullablePlayerIdSchema, parsePlayerId } from "~/game/shared/branded-ids";
+export {
+    playerIdSchema,
+    nullablePlayerIdSchema,
+    parsePlayerId,
+} from "~/game/shared/branded-ids";
 export type { PlayerId } from "~/game/shared/branded-ids";
 
 export type RoomProcessResult =
@@ -230,79 +242,81 @@ const selectGameClientDataSchema = Schema.Struct({
 });
 
 const answerClientDataSchema = Schema.Struct({
-    answer: Schema.mutableKey(Schema.String),
+    answer: Schema.mutableKey(roomTextSchema),
 });
 
 export const clientMessageSchema = Schema.Union([
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
+        sessionToken: Schema.optionalKey(Schema.NullOr(sessionTokenSchema)),
         type: Schema.mutableKey(Schema.Literal("identify")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(joinedPlayerNameSchema),
+        sessionToken: Schema.optionalKey(Schema.NullOr(sessionTokenSchema)),
         type: Schema.mutableKey(Schema.Literal("join")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("leave")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("leave_game")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("resume_room")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("restart_room")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("select_game")),
         data: Schema.mutableKey(selectGameClientDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("start")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("end")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("return_to_lobby")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("info")),
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
-        playerName: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(playerNameSchema),
         type: Schema.mutableKey(Schema.Literal("answer")),
         data: Schema.mutableKey(answerClientDataSchema),
     }),
@@ -314,6 +328,25 @@ const playerAnsweredPayloadSchema = Schema.Struct({
 });
 
 export const serverMessageSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("room_session")),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                playerId: Schema.mutableKey(playerIdSchema),
+                sessionToken: Schema.mutableKey(sessionTokenSchema),
+            }),
+        ),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("room_auth_error")),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                reason: Schema.mutableKey(
+                    Schema.Literals(["invalid_session", "session_required"]),
+                ),
+            }),
+        ),
+    }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("room_state")),
         data: Schema.mutableKey(roomStatePayloadSchema),

@@ -1,24 +1,42 @@
 import { createServerFn } from "@tanstack/solid-start";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { env } from "cloudflare:workers";
 import { QuizDb } from "~/services/quiz-db";
-import type { QuestionInput } from "~/schemas";
+import { requireAdmin } from "~/server/admin-auth";
+import {
+    createQuestionInputSchema,
+    createQuizInputSchema,
+    entityIdInputSchema,
+    reorderQuestionsInputSchema,
+    setQuizTagsInputSchema,
+    tagNameInputSchema,
+    updateQuestionInputSchema,
+    updateQuizInputSchema,
+} from "~/schemas";
 
 const dbLayer = QuizDb.layer(env.DB);
 
-export const listQuizzes = createServerFn({ method: "GET" }).handler(async () => {
-    const program = Effect.gen(function* () {
-        const db = yield* QuizDb;
-        return yield* db.listQuizzes();
-    }).pipe(
-        Effect.catchTag("DatabaseError", (e) => Effect.die(e)),
-        Effect.provide(dbLayer),
-    );
-    return Effect.runPromise(program);
-});
+function decodeInput<A>(schema: Schema.Decoder<A>) {
+    return (input: unknown) =>
+        Effect.runPromise(Schema.decodeUnknownEffect(schema)(input));
+}
+
+export const listQuizzes = createServerFn({ method: "GET" })
+    .middleware([requireAdmin])
+    .handler(async () => {
+        const program = Effect.gen(function* () {
+            const db = yield* QuizDb;
+            return yield* db.listQuizzes();
+        }).pipe(
+            Effect.catchTag("DatabaseError", (e) => Effect.die(e)),
+            Effect.provide(dbLayer),
+        );
+        return Effect.runPromise(program);
+    });
 
 export const getQuiz = createServerFn({ method: "GET" })
-    .inputValidator((id: string) => id)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(entityIdInputSchema))
     .handler(async ({ data: id }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
@@ -33,13 +51,13 @@ export const getQuiz = createServerFn({ method: "GET" })
     });
 
 export const createQuiz = createServerFn({ method: "POST" })
-    .inputValidator((input: { title: string; description?: string }) => input)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(createQuizInputSchema))
     .handler(async ({ data }) => {
-        if (!data.title?.trim()) throw new Error("Title is required");
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
             return yield* db.createQuiz({
-                title: data.title.trim(),
+                title: data.title,
                 description: data.description,
             });
         }).pipe(
@@ -50,9 +68,8 @@ export const createQuiz = createServerFn({ method: "POST" })
     });
 
 export const updateQuiz = createServerFn({ method: "POST" })
-    .inputValidator(
-        (input: { id: string; title?: string; description?: string }) => input,
-    )
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(updateQuizInputSchema))
     .handler(async ({ data }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
@@ -69,7 +86,8 @@ export const updateQuiz = createServerFn({ method: "POST" })
     });
 
 export const deleteQuiz = createServerFn({ method: "POST" })
-    .inputValidator((id: string) => id)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(entityIdInputSchema))
     .handler(async ({ data: id }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
@@ -83,7 +101,8 @@ export const deleteQuiz = createServerFn({ method: "POST" })
     });
 
 export const createQuestion = createServerFn({ method: "POST" })
-    .inputValidator((input: { quizId: string } & QuestionInput) => input)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(createQuestionInputSchema))
     .handler(async ({ data }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
@@ -101,7 +120,8 @@ export const createQuestion = createServerFn({ method: "POST" })
     });
 
 export const updateQuestion = createServerFn({ method: "POST" })
-    .inputValidator((input: { questionId: string } & QuestionInput) => input)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(updateQuestionInputSchema))
     .handler(async ({ data }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
@@ -120,7 +140,8 @@ export const updateQuestion = createServerFn({ method: "POST" })
     });
 
 export const deleteQuestion = createServerFn({ method: "POST" })
-    .inputValidator((id: string) => id)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(entityIdInputSchema))
     .handler(async ({ data: id }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
@@ -134,7 +155,8 @@ export const deleteQuestion = createServerFn({ method: "POST" })
     });
 
 export const reorderQuestions = createServerFn({ method: "POST" })
-    .inputValidator((input: { quizId: string; orderedIds: string[] }) => input)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(reorderQuestionsInputSchema))
     .handler(async ({ data }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
@@ -146,19 +168,22 @@ export const reorderQuestions = createServerFn({ method: "POST" })
         return Effect.runPromise(program);
     });
 
-export const listTags = createServerFn({ method: "GET" }).handler(async () => {
-    const program = Effect.gen(function* () {
-        const db = yield* QuizDb;
-        return yield* db.listTags();
-    }).pipe(
-        Effect.catchTag("DatabaseError", (e) => Effect.die(e)),
-        Effect.provide(dbLayer),
-    );
-    return Effect.runPromise(program);
-});
+export const listTags = createServerFn({ method: "GET" })
+    .middleware([requireAdmin])
+    .handler(async () => {
+        const program = Effect.gen(function* () {
+            const db = yield* QuizDb;
+            return yield* db.listTags();
+        }).pipe(
+            Effect.catchTag("DatabaseError", (e) => Effect.die(e)),
+            Effect.provide(dbLayer),
+        );
+        return Effect.runPromise(program);
+    });
 
 export const createTag = createServerFn({ method: "POST" })
-    .inputValidator((name: string) => name)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(tagNameInputSchema))
     .handler(async ({ data: name }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
@@ -172,7 +197,8 @@ export const createTag = createServerFn({ method: "POST" })
     });
 
 export const deleteTag = createServerFn({ method: "POST" })
-    .inputValidator((id: string) => id)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(entityIdInputSchema))
     .handler(async ({ data: id }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;
@@ -186,7 +212,8 @@ export const deleteTag = createServerFn({ method: "POST" })
     });
 
 export const setQuizTags = createServerFn({ method: "POST" })
-    .inputValidator((input: { quizId: string; tagIds: string[] }) => input)
+    .middleware([requireAdmin])
+    .inputValidator(decodeInput(setQuizTagsInputSchema))
     .handler(async ({ data }) => {
         const program = Effect.gen(function* () {
             const db = yield* QuizDb;

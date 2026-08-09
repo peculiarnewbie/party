@@ -8,11 +8,25 @@ import {
     gameErrorPayloadSchema,
     type GameErrorPayload,
 } from "~/game/shared/game-wire";
-import { nonNegativeIntSchema, serverMessageWithData } from "~/game/shared/wire-schemas";
+import {
+    nonNegativeIntSchema,
+    serverMessageWithData,
+} from "~/game/shared/wire-schemas";
 import { rpsEventSchema, type RpsEvent, type RpsHiddenData } from "./events";
-import { rpsChoices, rpsBestOfValues, rpsPhases, rpsChoiceSchema, rpsBestOfSchema } from "./constants";
+import {
+    rpsChoices,
+    rpsBestOfValues,
+    rpsPhases,
+    rpsChoiceSchema,
+    rpsBestOfSchema,
+} from "./constants";
 
-export { rpsChoices, rpsBestOfValues, rpsChoiceSchema, rpsBestOfSchema } from "./constants";
+export {
+    rpsChoices,
+    rpsBestOfValues,
+    rpsChoiceSchema,
+    rpsBestOfSchema,
+} from "./constants";
 
 const rpsPhaseSchema = Schema.Literals(rpsPhases);
 const matchStatusSchema = Schema.Literals(["active", "complete"] as const);
@@ -32,7 +46,9 @@ const rpsThrowStateSchema = Schema.Struct({
 const rpsMatchStateSchema = Schema.Struct({
     player1Id: Schema.mutableKey(Schema.String),
     player2Id: Schema.mutableKey(Schema.String),
-    throws: Schema.mutableKey(Schema.mutable(Schema.Array(rpsThrowStateSchema))),
+    throws: Schema.mutableKey(
+        Schema.mutable(Schema.Array(rpsThrowStateSchema)),
+    ),
     player1Wins: Schema.mutableKey(Schema.Number),
     player2Wins: Schema.mutableKey(Schema.Number),
     player1Choice: Schema.mutableKey(Schema.NullOr(rpsChoiceSchema)),
@@ -43,16 +59,21 @@ const rpsMatchStateSchema = Schema.Struct({
 
 const rpsRoundStateSchema = Schema.Struct({
     roundNumber: Schema.mutableKey(Schema.Number),
-    matches: Schema.mutableKey(Schema.mutable(Schema.Array(rpsMatchStateSchema))),
+    matches: Schema.mutableKey(
+        Schema.mutable(Schema.Array(rpsMatchStateSchema)),
+    ),
     byePlayerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
 });
 
 export const rpsStateSchema = Schema.Struct({
+    eventIndex: Schema.optionalKey(Schema.mutableKey(nonNegativeIntSchema)),
     players: Schema.mutableKey(
         Schema.mutable(Schema.Array(rpsPlayerStateSchema)),
     ),
     bestOf: Schema.mutableKey(rpsBestOfSchema),
-    rounds: Schema.mutableKey(Schema.mutable(Schema.Array(rpsRoundStateSchema))),
+    rounds: Schema.mutableKey(
+        Schema.mutable(Schema.Array(rpsRoundStateSchema)),
+    ),
     currentRound: Schema.mutableKey(Schema.Number),
     phase: Schema.mutableKey(rpsPhaseSchema),
     winnerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
@@ -87,7 +108,9 @@ const rpsMatchViewSchema = Schema.Struct({
 const rpsRoundViewSchema = Schema.Struct({
     roundNumber: Schema.mutableKey(Schema.Number),
     label: Schema.mutableKey(Schema.String),
-    matches: Schema.mutableKey(Schema.mutable(Schema.Array(rpsMatchViewSchema))),
+    matches: Schema.mutableKey(
+        Schema.mutable(Schema.Array(rpsMatchViewSchema)),
+    ),
     byePlayer: Schema.mutableKey(Schema.NullOr(rpsPlayerInfoSchema)),
 });
 
@@ -99,7 +122,9 @@ export const rpsPlayerViewSchema = Schema.Struct({
     totalRounds: Schema.mutableKey(Schema.Number),
     rounds: Schema.mutableKey(Schema.mutable(Schema.Array(rpsRoundViewSchema))),
     winnerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    players: Schema.mutableKey(Schema.mutable(Schema.Array(rpsPlayerInfoSchema))),
+    players: Schema.mutableKey(
+        Schema.mutable(Schema.Array(rpsPlayerInfoSchema)),
+    ),
     myMatch: Schema.mutableKey(Schema.NullOr(rpsMatchViewSchema)),
     needsToThrow: Schema.mutableKey(Schema.Boolean),
 });
@@ -160,19 +185,33 @@ const rpsHiddenMessageSchema = Schema.Struct({
 
 const rpsSyncResponseMessageSchema = Schema.Struct({
     type: Schema.mutableKey(Schema.Literal("rps:sync_response")),
-    snapshot: Schema.mutableKey(Schema.Struct({
-        index: Schema.mutableKey(nonNegativeIntSchema),
-        data: Schema.mutableKey(rpsStateSchema),
-    })),
-    events: Schema.mutableKey(Schema.mutable(Schema.Array(Schema.Struct({
-        index: Schema.mutableKey(nonNegativeIntSchema),
-        type: Schema.mutableKey(Schema.String),
-        data: Schema.mutableKey(rpsEventSchema),
-    })))),
-    hidden: Schema.mutableKey(Schema.mutable(Schema.Array(Schema.Struct({
-        index: Schema.mutableKey(nonNegativeIntSchema),
-        data: Schema.mutableKey(rpsHiddenDataWireSchema),
-    })))),
+    snapshot: Schema.mutableKey(
+        Schema.Struct({
+            index: Schema.mutableKey(nonNegativeIntSchema),
+            data: Schema.mutableKey(rpsStateSchema),
+        }),
+    ),
+    events: Schema.mutableKey(
+        Schema.mutable(
+            Schema.Array(
+                Schema.Struct({
+                    index: Schema.mutableKey(nonNegativeIntSchema),
+                    type: Schema.mutableKey(Schema.String),
+                    data: Schema.mutableKey(rpsEventSchema),
+                }),
+            ),
+        ),
+    ),
+    hidden: Schema.mutableKey(
+        Schema.mutable(
+            Schema.Array(
+                Schema.Struct({
+                    index: Schema.mutableKey(nonNegativeIntSchema),
+                    data: Schema.mutableKey(rpsHiddenDataWireSchema),
+                }),
+            ),
+        ),
+    ),
 });
 
 export const rpsServerMessageSchema = Schema.Union([
@@ -209,7 +248,12 @@ export type RpsSideMessage =
     | { type: "rps:snapshot"; index: number; data: RpsState }
     | { type: "rps:event"; index: number; data: RpsEvent }
     | { type: "rps:hidden"; index: number; data: RpsHiddenData }
-    | { type: "rps:sync_response"; snapshot: { index: number; data: RpsState }; events: { index: number; type: string; data: RpsEvent }[]; hidden: { index: number; data: RpsHiddenData }[] };
+    | {
+          type: "rps:sync_response";
+          snapshot: { index: number; data: RpsState };
+          events: { index: number; type: string; data: RpsEvent }[];
+          hidden: { index: number; data: RpsHiddenData }[];
+      };
 
 export const decodeRpsPlayerView = createPlayerViewDecoder(rpsPlayerViewSchema);
 export function decodeRpsSideMessage(raw: unknown): RpsSideMessage | null {
@@ -228,7 +272,10 @@ export function decodeRpsSideMessage(raw: unknown): RpsSideMessage | null {
         }
 
         if (message.type === "rps:error") {
-            return { type: "rps:error", data: message.data as GameErrorPayload };
+            return {
+                type: "rps:error",
+                data: message.data as GameErrorPayload,
+            };
         }
 
         if (message.type === "rps:game_over") {
@@ -239,18 +286,39 @@ export function decodeRpsSideMessage(raw: unknown): RpsSideMessage | null {
         }
 
         if (message.type === "rps:snapshot") {
-            const ledgerMessage = message as unknown as { index: number; data: RpsState };
-            return { type: "rps:snapshot", index: ledgerMessage.index, data: ledgerMessage.data };
+            const ledgerMessage = message as unknown as {
+                index: number;
+                data: RpsState;
+            };
+            return {
+                type: "rps:snapshot",
+                index: ledgerMessage.index,
+                data: ledgerMessage.data,
+            };
         }
 
         if (message.type === "rps:event") {
-            const ledgerMessage = message as unknown as { index: number; data: RpsEvent };
-            return { type: "rps:event", index: ledgerMessage.index, data: ledgerMessage.data };
+            const ledgerMessage = message as unknown as {
+                index: number;
+                data: RpsEvent;
+            };
+            return {
+                type: "rps:event",
+                index: ledgerMessage.index,
+                data: ledgerMessage.data,
+            };
         }
 
         if (message.type === "rps:hidden") {
-            const ledgerMessage = message as unknown as { index: number; data: RpsHiddenData };
-            return { type: "rps:hidden", index: ledgerMessage.index, data: ledgerMessage.data };
+            const ledgerMessage = message as unknown as {
+                index: number;
+                data: RpsHiddenData;
+            };
+            return {
+                type: "rps:hidden",
+                index: ledgerMessage.index,
+                data: ledgerMessage.data,
+            };
         }
 
         if (message.type === "rps:sync_response") {

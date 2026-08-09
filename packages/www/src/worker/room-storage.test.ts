@@ -7,16 +7,19 @@ import { runObservedSync } from "~/effect/runtime";
 import type { PlayerId } from "~/game";
 import {
     createDefaultState,
+    deletePlayerCapability,
     GAME_SNAPSHOT_KEY,
     loadGameSnapshot,
+    loadPlayerCapabilityHash,
     loadRoomState,
+    persistPlayerCapabilityHash,
     persistGameSnapshot,
     persistRoomState,
     ROOM_STATE_KEY,
 } from "./room-storage";
 import type { GameRoom } from "./ws";
 
-const noShuffle = <T,>(arr: T[]): T[] => [...arr];
+const noShuffle = <T>(arr: T[]): T[] => [...arr];
 
 let roomCounter = 0;
 function roomStub() {
@@ -251,6 +254,87 @@ describe("room-storage", () => {
             );
 
             expect(loaded.gameParticipants).toEqual(roomState.gameParticipants);
+        });
+    });
+
+    it("round-trips participant batches across multiple SQL chunks", async () => {
+        await withRoom(async (ctx) => {
+            const participants = Array.from({ length: 45 }, (_, index) => ({
+                playerId: pid(`player-${index}`),
+                status:
+                    index % 3 === 0
+                        ? ("disconnected" as const)
+                        : ("active" as const),
+            }));
+            const roomState = {
+                ...createDefaultState(),
+                gameSessionId: "session-batched",
+                gameParticipants: participants,
+            };
+
+            runObservedSync(
+                persistRoomState(ctx, roomState),
+                "room-storage.persist",
+                { component: "room-storage" },
+            );
+            const loaded = runObservedSync(
+                loadRoomState(ctx),
+                "room-storage.load",
+                { component: "room-storage" },
+            );
+
+            expect(loaded.gameParticipants).toEqual(participants);
+        });
+    });
+
+    it("creates, rotates, and deletes player capability digests", async () => {
+        await withRoom(async (ctx) => {
+            expect(
+                runObservedSync(
+                    loadPlayerCapabilityHash(ctx, "player-1"),
+                    "room-storage.capability.load",
+                    { component: "room-storage" },
+                ),
+            ).toBeNull();
+
+            runObservedSync(
+                persistPlayerCapabilityHash(ctx, "player-1", "digest-1"),
+                "room-storage.capability.persist",
+                { component: "room-storage" },
+            );
+            expect(
+                runObservedSync(
+                    loadPlayerCapabilityHash(ctx, "player-1"),
+                    "room-storage.capability.load",
+                    { component: "room-storage" },
+                ),
+            ).toBe("digest-1");
+
+            runObservedSync(
+                persistPlayerCapabilityHash(ctx, "player-1", "digest-2"),
+                "room-storage.capability.rotate",
+                { component: "room-storage" },
+            );
+            expect(
+                runObservedSync(
+                    loadPlayerCapabilityHash(ctx, "player-1"),
+                    "room-storage.capability.load",
+                    { component: "room-storage" },
+                ),
+            ).toBe("digest-2");
+
+            runObservedSync(
+                deletePlayerCapability(ctx, "player-1"),
+                "room-storage.capability.delete",
+                { component: "room-storage" },
+            );
+            expect(
+                runObservedSync(
+                    loadPlayerCapabilityHash(ctx, "player-1"),
+                    "room-storage.capability.load",
+                    { component: "room-storage" },
+                ),
+            ).toBeNull();
         });
     });
 });

@@ -21,8 +21,12 @@ function findMessages(calls: string[], type: string) {
 }
 
 function getEventTypes(broadcast: { mock: { calls: string[][] } }) {
-    const allMsgs = parseMessages(broadcast.mock.calls.map((c: string[]) => c[0]));
-    return allMsgs.filter((m: { type: string }) => m.type === "rps:event").map((m: { data: { type: string } }) => m.data.type);
+    const allMsgs = parseMessages(
+        broadcast.mock.calls.map((c: string[]) => c[0]),
+    );
+    return allMsgs
+        .filter((m: { type: string }) => m.type === "rps:event")
+        .map((m: { data: { type: string } }) => m.data.type);
 }
 
 describe("RpsEngine", () => {
@@ -37,7 +41,10 @@ describe("RpsEngine", () => {
             null,
         );
 
-        const snapshot = findMessage(broadcast.mock.calls.map((c) => c[0]), "rps:snapshot");
+        const snapshot = findMessage(
+            broadcast.mock.calls.map((c) => c[0]),
+            "rps:snapshot",
+        );
         expect(snapshot).toBeDefined();
         expect(snapshot.index).toBe(0);
         expect(snapshot.data.phase).toBe("throwing");
@@ -66,12 +73,18 @@ describe("RpsEngine", () => {
             }),
         );
 
-        const events = findMessages(broadcast.mock.calls.map((c) => c[0]), "rps:event");
+        const events = findMessages(
+            broadcast.mock.calls.map((c) => c[0]),
+            "rps:event",
+        );
         expect(events.length).toBeGreaterThanOrEqual(1);
         expect(events[0].data.type).toBe("throw_registered");
         expect(events[0].data.playerId).toBe("a");
 
-        const hidden = findMessages(sendTo.mock.calls.map((c) => c[1]), "rps:hidden");
+        const hidden = findMessages(
+            sendTo.mock.calls.map((c) => c[1]),
+            "rps:hidden",
+        );
         expect(hidden).toHaveLength(1);
         expect(hidden[0].data.choice).toBe("rock");
     });
@@ -87,12 +100,14 @@ describe("RpsEngine", () => {
             null,
         );
 
-        engine.processMessage(JSON.stringify({
-            type: "rps:set_best_of",
-            playerId: "a",
-            playerName: "Alice",
-            data: { bestOf: 1 },
-        }));
+        engine.processMessage(
+            JSON.stringify({
+                type: "rps:set_best_of",
+                playerId: "a",
+                playerName: "Alice",
+                data: { bestOf: 1 },
+            }),
+        );
 
         broadcast.mockClear();
         sendTo.mockClear();
@@ -137,24 +152,40 @@ describe("RpsEngine", () => {
         broadcast.mockClear();
 
         // Throw 1: Alice wins
-        engine.processMessage(JSON.stringify({
-            type: "rps:throw", playerId: "a", playerName: "Alice",
-            data: { choice: "rock" },
-        }));
-        engine.processMessage(JSON.stringify({
-            type: "rps:throw", playerId: "b", playerName: "Bob",
-            data: { choice: "scissors" },
-        }));
+        engine.processMessage(
+            JSON.stringify({
+                type: "rps:throw",
+                playerId: "a",
+                playerName: "Alice",
+                data: { choice: "rock" },
+            }),
+        );
+        engine.processMessage(
+            JSON.stringify({
+                type: "rps:throw",
+                playerId: "b",
+                playerName: "Bob",
+                data: { choice: "scissors" },
+            }),
+        );
 
         // Throw 2: Alice wins again -> match over
-        engine.processMessage(JSON.stringify({
-            type: "rps:throw", playerId: "a", playerName: "Alice",
-            data: { choice: "rock" },
-        }));
-        engine.processMessage(JSON.stringify({
-            type: "rps:throw", playerId: "b", playerName: "Bob",
-            data: { choice: "scissors" },
-        }));
+        engine.processMessage(
+            JSON.stringify({
+                type: "rps:throw",
+                playerId: "a",
+                playerName: "Alice",
+                data: { choice: "rock" },
+            }),
+        );
+        engine.processMessage(
+            JSON.stringify({
+                type: "rps:throw",
+                playerId: "b",
+                playerName: "Bob",
+                data: { choice: "scissors" },
+            }),
+        );
 
         const types = getEventTypes(broadcast);
         expect(types).toContain("match_completed");
@@ -192,7 +223,10 @@ describe("RpsEngine", () => {
             }),
         );
 
-        const errors = findMessages(sendTo.mock.calls.map((c) => c[1]), "rps:error");
+        const errors = findMessages(
+            sendTo.mock.calls.map((c) => c[1]),
+            "rps:error",
+        );
         expect(errors).toHaveLength(1);
         expect(errors[0].data.message).toBe("already_thrown");
     });
@@ -222,7 +256,10 @@ describe("RpsEngine", () => {
         expect(sync.snapshot.index).toBe(0);
         expect(sync.events.length).toBeGreaterThanOrEqual(1);
         expect(sync.hidden.length).toBe(1);
-        expect(sync.hidden[0].data).toEqual({ type: "throw_choice", choice: "rock" });
+        expect(sync.hidden[0].data).toEqual({
+            type: "throw_choice",
+            choice: "rock",
+        });
     });
 
     it("sync returns empty for unknown player", () => {
@@ -261,23 +298,78 @@ describe("RpsEngine", () => {
             null,
         );
 
-        engine.processMessage(JSON.stringify({
-            type: "rps:throw",
-            playerId: "a",
-            playerName: "Alice",
-            data: { choice: "rock" },
-        }));
-        engine.processMessage(JSON.stringify({
-            type: "rps:throw",
-            playerId: "b",
-            playerName: "Bob",
-            data: { choice: "scissors" },
-        }));
+        engine.processMessage(
+            JSON.stringify({
+                type: "rps:throw",
+                playerId: "a",
+                playerName: "Alice",
+                data: { choice: "rock" },
+            }),
+        );
+        engine.processMessage(
+            JSON.stringify({
+                type: "rps:throw",
+                playerId: "b",
+                playerName: "Bob",
+                data: { choice: "scissors" },
+            }),
+        );
 
         const sync = engine.sync("a", 0, 0);
 
         expect(sync.snapshot.index).toBeGreaterThan(0);
         expect(sync.events).toHaveLength(0);
         expect(sync.hidden).toHaveLength(0);
+    });
+
+    it("restores pending private throws after an engine restart", () => {
+        const first = setup();
+        first.engine.initGame(
+            [
+                { id: "a", name: "Alice" },
+                { id: "b", name: "Bob" },
+            ],
+            "a",
+        );
+        first.engine.processMessage(
+            JSON.stringify({
+                type: "rps:throw",
+                playerId: "a",
+                playerName: "Alice",
+                data: { choice: "rock" },
+            }),
+        );
+
+        const persisted = first.engine.getPersistedState();
+        expect(persisted).not.toBeNull();
+        const persistedEventIndex = persisted!.eventIndex ?? 0;
+        expect(persistedEventIndex).toBeGreaterThan(0);
+
+        const second = setup();
+        second.engine.restoreGame(persisted!, "a");
+        const sync = second.engine.sync("a", 0, 0);
+        expect(sync.hidden).toContainEqual({
+            index: persistedEventIndex,
+            data: { type: "throw_choice", choice: "rock" },
+        });
+
+        second.engine.processMessage(
+            JSON.stringify({
+                type: "rps:throw",
+                playerId: "b",
+                playerName: "Bob",
+                data: { choice: "scissors" },
+            }),
+        );
+
+        expect(getEventTypes(second.broadcast)).toContain("throw_revealed");
+        const restoredEventIndices = second.broadcast.mock.calls
+            .map(([message]) => JSON.parse(message) as { index?: number })
+            .flatMap((message) =>
+                message.index === undefined ? [] : [message.index],
+            );
+        expect(Math.min(...restoredEventIndices)).toBeGreaterThan(
+            persistedEventIndex,
+        );
     });
 });

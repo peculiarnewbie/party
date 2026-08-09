@@ -8,11 +8,11 @@ import {
 } from "~/game";
 import { setCookie } from "~/utils/cookies";
 import { createWebSocketRoomTransport } from "./room-transport";
-import type {
-    ConnectionStatus,
-    DevPlayerIdentity,
-    RoomClient,
-} from "./types";
+import {
+    loadRoomSessionToken,
+    saveRoomSessionToken,
+} from "./room-session-storage";
+import type { ConnectionStatus, DevPlayerIdentity, RoomClient } from "./types";
 
 export interface CreateRoomClientOptions {
     roomId: string;
@@ -42,6 +42,7 @@ export function createRoomClient(options: CreateRoomClientOptions): RoomClient {
         roomId: options.roomId,
         playerId: options.identity.id,
         playerName: options.identity.name,
+        sessionToken: loadRoomSessionToken(options.roomId, options.identity.id),
         autoConnect: options.autoConnect ?? true,
     });
 
@@ -54,7 +55,20 @@ export function createRoomClient(options: CreateRoomClientOptions): RoomClient {
         }
 
         try {
-            const parsed = Schema.decodeUnknownSync(serverMessageSchema)(message);
+            const parsed =
+                Schema.decodeUnknownSync(serverMessageSchema)(message);
+            if (
+                parsed.type === "room_session" &&
+                parsed.data.playerId === identity().id
+            ) {
+                transport.setSessionToken(parsed.data.sessionToken);
+                saveRoomSessionToken(
+                    options.roomId,
+                    parsed.data.playerId,
+                    parsed.data.sessionToken,
+                );
+                return;
+            }
             if (parsed.type === "room_state") {
                 setRoomState(parsed.data);
                 const current = parsed.data.players.find(
@@ -132,9 +146,7 @@ export function roomClientName(client: RoomClient): string {
     return client.identity().name;
 }
 
-export function roomClientRoomState(
-    client: RoomClient,
-): RoomStatePayload {
+export function roomClientRoomState(client: RoomClient): RoomStatePayload {
     return client.roomState() ?? defaultRoomState();
 }
 

@@ -38,6 +38,20 @@ describe("createLedger", () => {
         expect(ledger.getState()).toBe(8);
     });
 
+    it("continues event indices from a restored position", () => {
+        const ledger = createLedger({
+            initialState: 8,
+            initialIndex: 42,
+            reduce,
+        });
+
+        expect(ledger.getCurrentIndex()).toBe(42);
+        expect(ledger.getLatestSnapshot().index).toBe(42);
+
+        const result = runSync(ledger.append({ type: "increment", amount: 1 }));
+        expect(result.index).toBe(43);
+    });
+
     it("creates snapshots at the current index", () => {
         const ledger = createLedger({ initialState: 0, reduce });
         runSync(ledger.append({ type: "increment", amount: 5 }));

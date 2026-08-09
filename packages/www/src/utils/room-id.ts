@@ -9,6 +9,10 @@ export function normalizeRoomId(roomId: string) {
     return roomId.trim().toLowerCase();
 }
 
+export function isValidRoomId(roomId: string): boolean {
+    return /^[a-z0-9_-]{1,64}$/.test(roomId);
+}
+
 export function createRoomId() {
     return generateRoomId();
 }

@@ -6,15 +6,18 @@
         "packages/*"
     ],
     "scripts": {
-        "deploy": "pnpm --filter party run deploy",
-        "destroy": "pnpm --filter party run destroy",
+        "build": "pnpm --filter www build",
+        "build:quiz-manager": "pnpm --filter quiz-manager build",
+        "deploy": "pnpm --filter www run deploy",
+        "destroy": "pnpm --filter www run destroy",
         "prepare": "effect-language-service patch",
-        "typecheck": "pnpm --filter ./packages/www run typecheck",
-        "test:unit": "pnpm --filter party test:unit",
-        "test:e2e": "pnpm --filter party test:e2e",
-        "test:all": "pnpm --filter party test:all",
-        "trace": "pnpm --filter party trace",
-        "report": "pnpm --filter party report"
+        "typecheck": "pnpm --filter www run typecheck",
+        "test:unit": "pnpm --filter www test:unit",
+        "test:quiz-manager": "pnpm --filter quiz-manager test:unit",
+        "test:e2e": "pnpm --filter www test:e2e",
+        "test:all": "pnpm --filter www test:all",
+        "trace": "pnpm --filter www trace",
+        "report": "pnpm --filter www report"
     },
     "devDependencies": {
         "@cloudflare/vite-plugin": "^1.32.3",

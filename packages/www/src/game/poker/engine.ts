@@ -38,10 +38,7 @@ function defaultShuffle<T>(arr: T[]): T[] {
     return next;
 }
 
-function pushEvent(
-    state: PokerState,
-    event: PokerEventInput,
-) {
+function pushEvent(state: PokerState, event: PokerEventInput) {
     state.eventSeq += 1;
     state.eventLog = [
         {
@@ -93,10 +90,8 @@ function findPreviousOrSelfOccupiedIndex(state: PokerState): number {
     if (occupied.length === 0) return -1;
 
     if (state.dealerIndex >= 0 && occupied.includes(state.dealerIndex)) {
-        const next = findNextIndex(
-            state,
-            state.dealerIndex,
-            (player) => seatHasChips(player),
+        const next = findNextIndex(state, state.dealerIndex, (player) =>
+            seatHasChips(player),
         );
         return next ?? occupied[0];
     }
@@ -131,11 +126,7 @@ function dealHoleCards(state: PokerState) {
     }
 }
 
-function postBlind(
-    state: PokerState,
-    index: number,
-    blindAmount: number,
-) {
+function postBlind(state: PokerState, index: number, blindAmount: number) {
     const player = state.players[index];
     const paid = Math.min(blindAmount, player.stack);
     player.stack -= paid;
@@ -167,7 +158,9 @@ function resetStreet(state: PokerState) {
 }
 
 function buildPots(players: PokerPlayer[]): PokerPot[] {
-    const thresholds = [...new Set(players.map((player) => player.committedThisHand))]
+    const thresholds = [
+        ...new Set(players.map((player) => player.committedThisHand)),
+    ]
         .filter((amount) => amount > 0)
         .sort((a, b) => a - b);
 
@@ -282,7 +275,10 @@ export function evaluateFiveCardHand(cards: Card[]): PokerHandValue {
     }
 
     if (groups[0]?.[1] === 3) {
-        const kickers = groups.slice(1).map(([rank]) => rank).sort((a, b) => b - a);
+        const kickers = groups
+            .slice(1)
+            .map(([rank]) => rank)
+            .sort((a, b) => b - a);
         return {
             category: 3,
             label: "Three of a Kind",
@@ -301,7 +297,10 @@ export function evaluateFiveCardHand(cards: Card[]): PokerHandValue {
     }
 
     if (groups[0]?.[1] === 2) {
-        const kickers = groups.slice(1).map(([rank]) => rank).sort((a, b) => b - a);
+        const kickers = groups
+            .slice(1)
+            .map(([rank]) => rank)
+            .sort((a, b) => b - a);
         return {
             category: 1,
             label: "One Pair",
@@ -357,15 +356,19 @@ export function evaluateBestHand(cards: Card[]): PokerHandValue {
         }
     }
 
-    return best ?? {
-        category: 0,
-        label: "High Card",
-        values: [],
-    };
+    return (
+        best ?? {
+            category: 0,
+            label: "High Card",
+            values: [],
+        }
+    );
 }
 
 function getLegalActionContext(state: PokerState, playerId: string) {
-    const playerIndex = state.players.findIndex((player) => player.id === playerId);
+    const playerIndex = state.players.findIndex(
+        (player) => player.id === playerId,
+    );
     if (playerIndex < 0 || state.actingPlayerIndex !== playerIndex) {
         return null;
     }
@@ -375,7 +378,10 @@ function getLegalActionContext(state: PokerState, playerId: string) {
         return null;
     }
 
-    const callAmount = Math.max(0, state.currentBet - player.committedThisStreet);
+    const callAmount = Math.max(
+        0,
+        state.currentBet - player.committedThisStreet,
+    );
     const maxBet = player.stack;
 
     return {
@@ -386,10 +392,7 @@ function getLegalActionContext(state: PokerState, playerId: string) {
         minBetOrRaise:
             state.currentBet === 0
                 ? Math.min(player.stack, POKER_BIG_BLIND)
-                : Math.min(
-                      player.stack,
-                      callAmount + state.minRaise,
-                  ),
+                : Math.min(player.stack, callAmount + state.minRaise),
     };
 }
 
@@ -440,18 +443,24 @@ export function getLegalActions(
     return {
         legalActions: [...legal],
         callAmount,
-        minBetOrRaise: legal.has("bet") || legal.has("raise") ? minBetOrRaise : null,
+        minBetOrRaise:
+            legal.has("bet") || legal.has("raise") ? minBetOrRaise : null,
         maxBet,
     };
 }
 
 function updateActingPlayer(state: PokerState, fromIndex: number) {
-    state.actingPlayerIndex =
-        findNextIndex(state, fromIndex, (player) => player.status === "active");
+    state.actingPlayerIndex = findNextIndex(
+        state,
+        fromIndex,
+        (player) => player.status === "active",
+    );
 }
 
 function allActivePlayersHaveMatched(state: PokerState): boolean {
-    const activePlayers = state.players.filter((player) => player.status === "active");
+    const activePlayers = state.players.filter(
+        (player) => player.status === "active",
+    );
     if (activePlayers.length === 0) {
         return true;
     }
@@ -513,10 +522,7 @@ function awardUncontestedPot(state: PokerState, winnerId: string) {
     closeHand(state, [winner.id]);
 }
 
-function awardOddChip(
-    state: PokerState,
-    winnerIndexes: number[],
-): number {
+function awardOddChip(state: PokerState, winnerIndexes: number[]): number {
     if (winnerIndexes.length === 0) return -1;
     let index = state.dealerIndex;
     for (let offset = 1; offset <= state.players.length; offset += 1) {
@@ -530,11 +536,10 @@ function awardOddChip(
 
 function resolveShowdown(state: PokerState) {
     state.street = "showdown";
-    refreshPots(state);
-
     const contenders = state.players
         .map((player, index) => ({ player, index }))
         .filter(({ player }) => isContestantStatus(player.status));
+    refreshPots(state);
 
     const handValues = new Map<string, PokerHandValue>();
     for (const { player } of contenders) {
@@ -558,9 +563,19 @@ function resolveShowdown(state: PokerState) {
     });
 
     for (const pot of state.pots) {
-        const eligible = contenders.filter(({ player }) =>
+        let eligible = contenders.filter(({ player }) =>
             pot.eligiblePlayerIds.includes(player.id),
         );
+
+        if (eligible.length === 0) {
+            const highestEligibleCommitment = Math.max(
+                ...contenders.map(({ player }) => player.committedThisHand),
+            );
+            eligible = contenders.filter(
+                ({ player }) =>
+                    player.committedThisHand === highestEligibleCommitment,
+            );
+        }
 
         if (eligible.length === 0) continue;
 
@@ -620,9 +635,11 @@ function advanceStreet(state: PokerState) {
 
     if (state.street === "preflop") {
         state.street = "flop";
-        const cards = [state.deck.pop(), state.deck.pop(), state.deck.pop()].filter(
-            Boolean,
-        ) as Card[];
+        const cards = [
+            state.deck.pop(),
+            state.deck.pop(),
+            state.deck.pop(),
+        ].filter(Boolean) as Card[];
         state.board.push(...cards);
         pushEvent(state, {
             type: "board_dealt",
@@ -719,11 +736,7 @@ function validateNumericAmount(amount: number): number | null {
     return amount;
 }
 
-function applyFold(
-    state: PokerState,
-    index: number,
-    disconnected = false,
-) {
+function applyFold(state: PokerState, index: number, disconnected = false) {
     const player = state.players[index];
     player.status = disconnected ? "disconnected" : "folded";
     player.hasActedThisStreet = true;
@@ -829,10 +842,12 @@ export function startNextHand(
     if (occupied.length === 2) {
         state.smallBlindIndex = state.dealerIndex;
         state.bigBlindIndex =
-            findNextIndex(state, state.dealerIndex, seatHasChips) ?? state.dealerIndex;
+            findNextIndex(state, state.dealerIndex, seatHasChips) ??
+            state.dealerIndex;
     } else {
         state.smallBlindIndex =
-            findNextIndex(state, state.dealerIndex, seatHasChips) ?? state.dealerIndex;
+            findNextIndex(state, state.dealerIndex, seatHasChips) ??
+            state.dealerIndex;
         state.bigBlindIndex =
             findNextIndex(state, state.smallBlindIndex, seatHasChips) ??
             state.smallBlindIndex;
@@ -848,11 +863,17 @@ export function startNextHand(
     );
 
     if (occupied.length === 2) {
-        state.actingPlayerIndex =
-            findNextIndex(state, state.bigBlindIndex, (player) => player.status === "active");
+        state.actingPlayerIndex = findNextIndex(
+            state,
+            state.bigBlindIndex,
+            (player) => player.status === "active",
+        );
     } else {
-        state.actingPlayerIndex =
-            findNextIndex(state, state.bigBlindIndex, (player) => player.status === "active");
+        state.actingPlayerIndex = findNextIndex(
+            state,
+            state.bigBlindIndex,
+            (player) => player.status === "active",
+        );
     }
 
     pushEvent(state, {
@@ -889,7 +910,9 @@ export function addSpectator(
 }
 
 export function removeSpectator(state: PokerState, spectatorId: string) {
-    state.spectators = state.spectators.filter((spectator) => spectator.id !== spectatorId);
+    state.spectators = state.spectators.filter(
+        (spectator) => spectator.id !== spectatorId,
+    );
 }
 
 export function reconnectPlayer(
@@ -916,7 +939,9 @@ export function reconnectPlayer(
 }
 
 export function disconnectPlayer(state: PokerState, playerId: string) {
-    const playerIndex = state.players.findIndex((player) => player.id === playerId);
+    const playerIndex = state.players.findIndex(
+        (player) => player.id === playerId,
+    );
     if (playerIndex < 0) {
         removeSpectator(state, playerId);
         return;

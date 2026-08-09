@@ -11,9 +11,10 @@ import {
     startNextHand,
 } from "./engine";
 import { getPlayerView } from "./views";
+import type { Card } from "~/assets/card-deck/types";
 import type { PokerPlayer, PokerState } from "./types";
 
-const noShuffle = <T,>(arr: T[]): T[] => [...arr];
+const noShuffle = <T>(arr: T[]): T[] => [...arr];
 
 function makePlayer(
     id: string,
@@ -76,9 +77,9 @@ describe("poker initGame", () => {
 
         expect(state.street).toBe("preflop");
         expect(state.handNumber).toBe(1);
-        expect(state.players.every((player) => player.holeCards.length === 2)).toBe(
-            true,
-        );
+        expect(
+            state.players.every((player) => player.holeCards.length === 2),
+        ).toBe(true);
         expect(state.players[1].committedThisStreet).toBe(POKER_SMALL_BLIND);
         expect(state.players[2].committedThisStreet).toBe(POKER_BIG_BLIND);
         expect(state.actingPlayerIndex).toBe(0);
@@ -97,6 +98,58 @@ describe("poker initGame", () => {
         expect(state.smallBlindIndex).toBe(0);
         expect(state.bigBlindIndex).toBe(1);
         expect(state.actingPlayerIndex).toBe(0);
+    });
+});
+
+describe("poker showdown chip conservation", () => {
+    it("awards dead side-pot chips when no remaining player matched that layer", () => {
+        const cards = [
+            { suit: "heart", rank: 1 },
+            { suit: "diamond", rank: 13 },
+            { suit: "club", rank: 12 },
+            { suit: "spade", rank: 11 },
+            { suit: "heart", rank: 10 },
+            { suit: "diamond", rank: 2 },
+            { suit: "club", rank: 3 },
+            { suit: "spade", rank: 4 },
+            { suit: "heart", rank: 5 },
+        ] satisfies Card[];
+        const state = makeState({
+            street: "river",
+            board: cards.slice(0, 5),
+            currentBet: 80,
+            actingPlayerIndex: 1,
+            players: [
+                makePlayer("a", "Alice", {
+                    stack: 900,
+                    holeCards: cards.slice(5, 7),
+                    status: "folded",
+                    committedThisStreet: 100,
+                    committedThisHand: 100,
+                    hasActedThisStreet: true,
+                }),
+                makePlayer("b", "Bob", {
+                    stack: 920,
+                    holeCards: cards.slice(7, 9),
+                    committedThisStreet: 80,
+                    committedThisHand: 80,
+                }),
+                makePlayer("c", "Cara", {
+                    stack: 920,
+                    holeCards: cards.slice(5, 7),
+                    status: "all_in",
+                    committedThisStreet: 80,
+                    committedThisHand: 80,
+                    hasActedThisStreet: true,
+                }),
+            ],
+        });
+
+        expect(processAction(state, "b", { type: "check" }).type).toBe("ok");
+        expect(state.street).toBe("hand_over");
+        expect(
+            state.players.reduce((total, player) => total + player.stack, 0),
+        ).toBe(3000);
     });
 });
 
@@ -369,7 +422,9 @@ describe("poker showdown, views, and end game", () => {
         const view = getPlayerView(state, "a");
 
         expect(view.myHoleCards).toHaveLength(2);
-        expect(view.players.find((player) => player.id === "b")?.holeCardCount).toBe(2);
+        expect(
+            view.players.find((player) => player.id === "b")?.holeCardCount,
+        ).toBe(2);
     });
 
     it("shows opponents cards and hides your own cards in backwards poker", () => {

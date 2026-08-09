@@ -20,6 +20,7 @@ export interface LedgerSnapshot<S> {
 
 interface LedgerConfig<S, E> {
     readonly initialState: S;
+    readonly initialIndex?: number;
     readonly reduce: (state: S, event: E) => S;
     readonly component?: string;
 }
@@ -50,10 +51,10 @@ export interface Ledger<S, E> {
 
 export function createLedger<S, E>(config: LedgerConfig<S, E>): Ledger<S, E> {
     let currentState = structuredClone(config.initialState);
-    let currentIndex = 0;
+    let currentIndex = config.initialIndex ?? 0;
     const entries: LedgerEntry<E>[] = [];
     const snapshots: LedgerSnapshot<S>[] = [
-        { index: 0, state: structuredClone(config.initialState) },
+        { index: currentIndex, state: structuredClone(config.initialState) },
     ];
     const component = config.component ?? "ledger";
 

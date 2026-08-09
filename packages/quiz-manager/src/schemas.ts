@@ -19,7 +19,9 @@ export class AnswerOption extends Schema.Class<AnswerOption>("AnswerOption")({
     sortOrder: Schema.Number,
 }) {}
 
-export class AcceptedAnswer extends Schema.Class<AcceptedAnswer>("AcceptedAnswer")({
+export class AcceptedAnswer extends Schema.Class<AcceptedAnswer>(
+    "AcceptedAnswer",
+)({
     id: Schema.String,
     questionId: Schema.String,
     pattern: Schema.String,
@@ -57,7 +59,9 @@ export class QuizSummary extends Schema.Class<QuizSummary>("QuizSummary")({
     }),
 }) {}
 
-export class QuizWithQuestions extends Schema.Class<QuizWithQuestions>("QuizWithQuestions")({
+export class QuizWithQuestions extends Schema.Class<QuizWithQuestions>(
+    "QuizWithQuestions",
+)({
     id: Schema.String,
     title: Schema.String,
     description: Schema.NullOr(Schema.String),
@@ -71,22 +75,70 @@ export class TagWithCount extends Schema.Class<TagWithCount>("TagWithCount")({
     quizCount: Schema.Number,
 }) {}
 
+const EntityId = Schema.String.check(
+    Schema.isLengthBetween(1, 64),
+    Schema.isPattern(/^[A-Za-z0-9_-]+$/),
+);
+const QuizTitle = Schema.Trim.check(Schema.isLengthBetween(1, 200));
+const Description = Schema.Trim.check(Schema.isMaxLength(2_000));
+const QuestionText = Schema.Trim.check(Schema.isLengthBetween(1, 1_000));
+const AnswerText = Schema.Trim.check(Schema.isLengthBetween(1, 500));
+const TagName = Schema.Trim.check(Schema.isLengthBetween(1, 80));
+
 const optionInputSchema = Schema.Struct({
-    text: Schema.String,
+    text: AnswerText,
     isCorrect: Schema.Boolean,
 });
 
 const acceptedAnswerInputSchema = Schema.Struct({
-    pattern: Schema.String,
+    pattern: AnswerText,
     matchType: MatchType,
     caseInsensitive: Schema.Boolean,
 });
 
 export const questionInputSchema = Schema.Struct({
     type: QuestionType,
-    text: Schema.String,
-    options: Schema.optional(Schema.Array(optionInputSchema)),
-    acceptedAnswers: Schema.optional(Schema.Array(acceptedAnswerInputSchema)),
+    text: QuestionText,
+    options: Schema.optional(
+        Schema.Array(optionInputSchema).check(Schema.isMaxLength(12)),
+    ),
+    acceptedAnswers: Schema.optional(
+        Schema.Array(acceptedAnswerInputSchema).check(Schema.isMaxLength(50)),
+    ),
 });
 
 export type QuestionInput = typeof questionInputSchema.Type;
+
+export const entityIdInputSchema = EntityId;
+export const tagNameInputSchema = TagName;
+
+export const createQuizInputSchema = Schema.Struct({
+    title: QuizTitle,
+    description: Schema.optional(Description),
+});
+
+export const updateQuizInputSchema = Schema.Struct({
+    id: EntityId,
+    title: Schema.optional(QuizTitle),
+    description: Schema.optional(Description),
+});
+
+export const createQuestionInputSchema = Schema.Struct({
+    quizId: EntityId,
+    ...questionInputSchema.fields,
+});
+
+export const updateQuestionInputSchema = Schema.Struct({
+    questionId: EntityId,
+    ...questionInputSchema.fields,
+});
+
+export const reorderQuestionsInputSchema = Schema.Struct({
+    quizId: EntityId,
+    orderedIds: Schema.Array(EntityId).check(Schema.isMaxLength(500)),
+});
+
+export const setQuizTagsInputSchema = Schema.Struct({
+    quizId: EntityId,
+    tagIds: Schema.Array(EntityId).check(Schema.isMaxLength(100)),
+});

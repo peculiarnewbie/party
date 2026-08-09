@@ -1,14 +1,8 @@
-import {
-    runDurableObjectAlarm,
-} from "cloudflare:test";
+import { runDurableObjectAlarm } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import type { RoomStatePayload } from "~/game";
-import type {
-    PokerEvent,
-    PokerPlayerView,
-    PokerState,
-} from "~/game/poker";
+import type { PokerEvent, PokerPlayerView, PokerState } from "~/game/poker";
 import type { GameRoom } from "./ws";
 
 import {
@@ -71,16 +65,31 @@ function isPokerGameOverMessage(
     return message.type === "poker:game_over";
 }
 
-function joinRoom(client: TestRoomClient, playerId: string, playerName: string) {
+async function joinRoom(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
+    const cursor = client.cursor();
     client.send({
         type: "join",
         playerId,
         playerName,
         data: {},
     });
+    await client.waitForMessage(
+        (message) =>
+            isRoomStateMessage(message) &&
+            message.data.players.some((player) => player.id === playerId),
+        { since: cursor },
+    );
 }
 
-function identify(client: TestRoomClient, playerId: string, playerName: string) {
+function identify(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({
         type: "identify",
         playerId,
@@ -89,21 +98,32 @@ function identify(client: TestRoomClient, playerId: string, playerName: string) 
     });
 }
 
-function selectGame(
+async function selectGame(
     client: TestRoomClient,
     playerId: string,
     playerName: string,
     gameType: "poker" | "backwards_poker",
 ) {
+    const cursor = client.cursor();
     client.send({
         type: "select_game",
         playerId,
         playerName,
         data: { gameType },
     });
+    await client.waitForMessage(
+        (message) =>
+            isRoomStateMessage(message) &&
+            message.data.selectedGameType === gameType,
+        { since: cursor },
+    );
 }
 
-function startGame(client: TestRoomClient, playerId: string, playerName: string) {
+function startGame(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({
         type: "start",
         playerId,
@@ -112,7 +132,11 @@ function startGame(client: TestRoomClient, playerId: string, playerName: string)
     });
 }
 
-function resumeRoom(client: TestRoomClient, playerId: string, playerName: string) {
+function resumeRoom(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({
         type: "resume_room",
         playerId,
@@ -152,7 +176,11 @@ function actFold(client: TestRoomClient, playerId: string, playerName: string) {
     });
 }
 
-function actCheck(client: TestRoomClient, playerId: string, playerName: string) {
+function actCheck(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({
         type: "poker:act",
         playerId,
@@ -170,7 +198,11 @@ function actCall(client: TestRoomClient, playerId: string, playerName: string) {
     });
 }
 
-function actAllIn(client: TestRoomClient, playerId: string, playerName: string) {
+function actAllIn(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({
         type: "poker:act",
         playerId,
@@ -186,7 +218,9 @@ async function waitForPokerState(
     options?: { since?: number; timeoutMs?: number },
 ) {
     return client.waitForMessage(
-        (message): message is MessageEnvelope & {
+        (
+            message,
+        ): message is MessageEnvelope & {
             type: "poker:state";
             data: PokerStatePayload;
         } =>
@@ -220,7 +254,9 @@ async function waitForRoomCondition<T>(
                     phase: instance.state.phase,
                     activeGameType: instance.state.activeGameType,
                     participants: instance.state.gameParticipants,
-                    pokerStreet: (instance.gameStateHolder.current as PokerState | null)?.street ?? null,
+                    pokerStreet:
+                        (instance.gameStateHolder.current as PokerState | null)
+                            ?.street ?? null,
                 },
                 null,
                 2,
@@ -246,9 +282,9 @@ describe("GameRoom poker sequences", () => {
             const aliceJoinCursor = alice.cursor();
             const bobJoinCursor = bob.cursor();
             const caraJoinCursor = cara.cursor();
-            joinRoom(alice, "p1", "Alice");
-            joinRoom(bob, "p2", "Bob");
-            joinRoom(cara, "p3", "Cara");
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
+            await joinRoom(cara, "p3", "Cara");
 
             await alice.waitForMessage(
                 (message) =>
@@ -274,7 +310,7 @@ describe("GameRoom poker sequences", () => {
             );
 
             const selectCursor = alice.cursor();
-            selectGame(alice, "p1", "Alice", "poker");
+            await selectGame(alice, "p1", "Alice", "poker");
             await alice.waitForMessage(
                 (message) =>
                     isRoomStateMessage(message) &&
@@ -289,7 +325,9 @@ describe("GameRoom poker sequences", () => {
             startGame(alice, "p1", "Alice");
 
             const roomState = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "room_state";
                     data: RoomStatePayload;
                 } =>
@@ -332,7 +370,9 @@ describe("GameRoom poker sequences", () => {
                 { since: startCursorCara },
             );
             const startupEvent = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "poker:event";
                     data: PokerEventPayload;
                 } =>
@@ -397,18 +437,26 @@ describe("GameRoom poker sequences", () => {
         const { client: bob } = await connectClient(roomId);
 
         try {
-            joinRoom(alice, "p1", "Alice");
-            joinRoom(bob, "p2", "Bob");
-            selectGame(alice, "p1", "Alice", "poker");
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
+            await selectGame(alice, "p1", "Alice", "poker");
             startGame(alice, "p1", "Alice");
 
-            await waitForPokerState(alice, "p1", (state) => state.myHoleCards.length === 2);
-            await waitForPokerState(bob, "p2", (state) => state.myHoleCards.length === 2);
+            await waitForPokerState(
+                alice,
+                "p1",
+                (state) => state.myHoleCards.length === 2,
+            );
+            await waitForPokerState(
+                bob,
+                "p2",
+                (state) => state.myHoleCards.length === 2,
+            );
 
             const { client: dana } = await connectClient(roomId);
             try {
                 const joinCursor = dana.cursor();
-                joinRoom(dana, "p4", "Dana");
+                await joinRoom(dana, "p4", "Dana");
 
                 await dana.waitForMessage(
                     (message) =>
@@ -438,12 +486,19 @@ describe("GameRoom poker sequences", () => {
                     name: "Dana",
                 });
 
-                const persisted = await withRoom(roomId, async (_, instance) => {
-                    return {
-                        participants: instance.state.gameParticipants,
-                        spectators: (instance.gameStateHolder.current as PokerState | null)?.spectators ?? [],
-                    };
-                });
+                const persisted = await withRoom(
+                    roomId,
+                    async (_, instance) => {
+                        return {
+                            participants: instance.state.gameParticipants,
+                            spectators:
+                                (
+                                    instance.gameStateHolder
+                                        .current as PokerState | null
+                                )?.spectators ?? [],
+                        };
+                    },
+                );
 
                 expect(persisted.participants).toEqual([
                     { playerId: "p1", status: "active" },
@@ -468,9 +523,9 @@ describe("GameRoom poker sequences", () => {
         const { client: bob } = await connectClient(roomId);
 
         try {
-            joinRoom(alice, "p1", "Alice");
-            joinRoom(bob, "p2", "Bob");
-            selectGame(alice, "p1", "Alice", "poker");
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
+            await selectGame(alice, "p1", "Alice", "poker");
             startGame(alice, "p1", "Alice");
 
             const aliceState = await waitForPokerState(alice, "p1");
@@ -513,15 +568,19 @@ describe("GameRoom poker sequences", () => {
                 { since: observerCursor },
             );
 
-            expect(updatedState.data.players.find((player) => player.id === actingPlayerId)?.status).toBe(
-                "disconnected",
-            );
+            expect(
+                updatedState.data.players.find(
+                    (player) => player.id === actingPlayerId,
+                )?.status,
+            ).toBe("disconnected");
 
             const persisted = await waitForRoomCondition(roomId, (instance) => {
                 const participant = instance.state.gameParticipants.find(
                     (entry) => entry.playerId === actingPlayerId,
                 );
-                const street = (instance.gameStateHolder.current as PokerState | null)?.street;
+                const street = (
+                    instance.gameStateHolder.current as PokerState | null
+                )?.street;
                 const clearGameTimer = instance.clearGameTimer;
 
                 if (
@@ -558,10 +617,10 @@ describe("GameRoom poker sequences", () => {
         const { client: cara } = await connectClient(roomId);
 
         try {
-            joinRoom(alice, "p1", "Alice");
-            joinRoom(bob, "p2", "Bob");
-            joinRoom(cara, "p3", "Cara");
-            selectGame(alice, "p1", "Alice", "poker");
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
+            await joinRoom(cara, "p3", "Cara");
+            await selectGame(alice, "p1", "Alice", "poker");
             startGame(alice, "p1", "Alice");
 
             await waitForPokerState(alice, "p1");
@@ -574,7 +633,9 @@ describe("GameRoom poker sequences", () => {
                 const participant = instance.state.gameParticipants.find(
                     (entry) => entry.playerId === "p2",
                 );
-                return participant?.status === "disconnected" ? participant : null;
+                return participant?.status === "disconnected"
+                    ? participant
+                    : null;
             });
 
             const { client: bobReconnect } = await connectClient(roomId);
@@ -603,7 +664,8 @@ describe("GameRoom poker sequences", () => {
                         state.players
                             .filter((player) => player.id !== "p2")
                             .every(
-                                (player) => player.visibleHoleCards.length === 0,
+                                (player) =>
+                                    player.visibleHoleCards.length === 0,
                             ) &&
                         state.eventLog.some(
                             (event) =>
@@ -635,10 +697,10 @@ describe("GameRoom poker sequences", () => {
         const { client: cara } = await connectClient(roomId);
 
         try {
-            joinRoom(alice, "p1", "Alice");
-            joinRoom(bob, "p2", "Bob");
-            joinRoom(cara, "p3", "Cara");
-            selectGame(alice, "p1", "Alice", "backwards_poker");
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
+            await joinRoom(cara, "p3", "Cara");
+            await selectGame(alice, "p1", "Alice", "backwards_poker");
 
             const startCursor = alice.cursor();
             startGame(alice, "p1", "Alice");
@@ -664,13 +726,14 @@ describe("GameRoom poker sequences", () => {
             );
 
             expect(
-                seatedState.data.players.find((player) => player.id === "p1")?.visibleHoleCards,
+                seatedState.data.players.find((player) => player.id === "p1")
+                    ?.visibleHoleCards,
             ).toEqual([]);
 
             const { client: dana } = await connectClient(roomId);
             try {
                 const joinCursor = dana.cursor();
-                joinRoom(dana, "p4", "Dana");
+                await joinRoom(dana, "p4", "Dana");
 
                 const spectatorState = await waitForPokerState(
                     dana,
@@ -701,9 +764,9 @@ describe("GameRoom poker sequences", () => {
         const { client: bob } = await connectClient(roomId);
 
         try {
-            joinRoom(alice, "p1", "Alice");
-            joinRoom(bob, "p2", "Bob");
-            selectGame(alice, "p1", "Alice", "poker");
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
+            await selectGame(alice, "p1", "Alice", "poker");
             startGame(alice, "p1", "Alice");
 
             await waitForPokerState(alice, "p1");
@@ -716,11 +779,14 @@ describe("GameRoom poker sequences", () => {
             const endedState = await waitForPokerState(
                 alice,
                 "p1",
-                (state) => state.street === "tournament_over" && state.endedByHost,
+                (state) =>
+                    state.street === "tournament_over" && state.endedByHost,
                 { since: endCursorAlice },
             );
             const gameOver = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "poker:game_over";
                     data: PokerGameOverPayload;
                 } =>
@@ -741,7 +807,9 @@ describe("GameRoom poker sequences", () => {
             returnToLobby(alice, "p1", "Alice");
 
             const lobbyState = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "room_state";
                     data: RoomStatePayload;
                 } =>
@@ -784,9 +852,9 @@ describe("GameRoom poker sequences", () => {
         const { client: bob } = await connectClient(roomId);
 
         try {
-            joinRoom(alice, "p1", "Alice");
-            joinRoom(bob, "p2", "Bob");
-            selectGame(alice, "p1", "Alice", "poker");
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
+            await selectGame(alice, "p1", "Alice", "poker");
             startGame(alice, "p1", "Alice");
 
             const initialState = await waitForPokerState(
@@ -805,20 +873,25 @@ describe("GameRoom poker sequences", () => {
                           phase: instance.state.phase,
                           participants: instance.state.gameParticipants,
                           street:
-                              (instance.gameStateHolder.current as PokerState | null)
-                                  ?.street ?? null,
+                              (
+                                  instance.gameStateHolder
+                                      .current as PokerState | null
+                              )?.street ?? null,
                       }
                     : null;
             });
 
-            const hibernatedSnapshot = await withRoom(roomId, async (ctx, instance) => {
-                return {
-                    alarm: await ctx.storage.getAlarm(),
-                    phase: instance.state.phase,
-                    participants: instance.state.gameParticipants,
-                    pokerState: instance.gameStateHolder.current,
-                };
-            });
+            const hibernatedSnapshot = await withRoom(
+                roomId,
+                async (ctx, instance) => {
+                    return {
+                        alarm: await ctx.storage.getAlarm(),
+                        phase: instance.state.phase,
+                        participants: instance.state.gameParticipants,
+                        pokerState: instance.gameStateHolder.current,
+                    };
+                },
+            );
 
             expect(hibernatedSnapshot.phase).toBe("hibernated");
             expect(hibernatedSnapshot.alarm).not.toBeNull();
@@ -826,9 +899,9 @@ describe("GameRoom poker sequences", () => {
                 { playerId: "p1", status: "disconnected" },
                 { playerId: "p2", status: "disconnected" },
             ]);
-            expect((hibernatedSnapshot.pokerState as PokerState).street).toMatch(
-                /^(preflop|flop|turn|river|showdown|hand_over)$/,
-            );
+            expect(
+                (hibernatedSnapshot.pokerState as PokerState).street,
+            ).toMatch(/^(preflop|flop|turn|river|showdown|hand_over)$/);
 
             const { client: resumedAlice } = await connectClient(roomId);
             try {
@@ -887,16 +960,19 @@ describe("GameRoom poker sequences", () => {
             const ranResetAlarm = await runDurableObjectAlarm(stub);
             expect(ranResetAlarm).toBe(true);
 
-            const resetSnapshot = await withRoom(roomId, async (_, instance) => {
-                return {
-                    phase: instance.state.phase,
-                    players: instance.state.players,
-                    hostId: instance.state.hostId,
-                    activeGameType: instance.state.activeGameType,
-                    participants: instance.state.gameParticipants,
-                    pokerState: instance.gameStateHolder.current,
-                };
-            });
+            const resetSnapshot = await withRoom(
+                roomId,
+                async (_, instance) => {
+                    return {
+                        phase: instance.state.phase,
+                        players: instance.state.players,
+                        hostId: instance.state.hostId,
+                        activeGameType: instance.state.activeGameType,
+                        participants: instance.state.gameParticipants,
+                        pokerState: instance.gameStateHolder.current,
+                    };
+                },
+            );
 
             expect(resetSnapshot).toEqual({
                 phase: "lobby",

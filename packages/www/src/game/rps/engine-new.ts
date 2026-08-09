@@ -2,15 +2,33 @@ import { Cause, Effect } from "effect";
 
 import type { GameEngine, SyncResponse } from "~/game/shared/game-engine-types";
 import type { BroadcastFn, SendToFn } from "~/game/shared/game-adapter-types";
-import { createLedger, type Ledger, type LedgerReduceError } from "~/game/shared/ledger";
-import { createDispatcher, type Dispatcher, type DispatcherEncodeError } from "~/game/shared/dispatcher";
+import {
+    createLedger,
+    type Ledger,
+    type LedgerReduceError,
+} from "~/game/shared/ledger";
+import {
+    createDispatcher,
+    type Dispatcher,
+    type DispatcherEncodeError,
+} from "~/game/shared/dispatcher";
 
 type EngineError = LedgerReduceError | DispatcherEncodeError;
 
 import type { RpsState, RpsAction, RpsChoice, BestOf } from "./types";
 import type { RpsEvent, RpsHiddenData } from "./events";
 import { rpsEventSchema } from "./events";
-import { initGame, validateNextRound, getCurrentRound, checkRoundComplete, collectRoundWinners, winsNeeded, resolveThrow, findActiveMatch, getPlayerMatchPosition } from "./mechanics";
+import {
+    initGame,
+    validateNextRound,
+    getCurrentRound,
+    checkRoundComplete,
+    collectRoundWinners,
+    winsNeeded,
+    resolveThrow,
+    findActiveMatch,
+    getPlayerMatchPosition,
+} from "./mechanics";
 import { reduce } from "./reduce";
 import { rpsClientMessageSchema } from "./messages";
 import { encodeRpsServerMessage, type RpsServerMessage } from "./schemas";
@@ -21,6 +39,11 @@ interface RpsEngineConfig {
     sendTo: SendToFn;
 }
 
+export interface RpsEngine extends GameEngine {
+    restoreGame(state: RpsState, hostId: string | null): void;
+    getPersistedState(): RpsState | null;
+}
+
 const COMPONENT = "rps-engine";
 
 interface ThrowTracker {
@@ -28,7 +51,7 @@ interface ThrowTracker {
     p2Choice: RpsChoice | null;
 }
 
-export function createRpsEngine(config: RpsEngineConfig): GameEngine {
+export function createRpsEngine(config: RpsEngineConfig): RpsEngine {
     let ledger: Ledger<RpsState, RpsEvent> | null = null;
     let playerIds: string[] = [];
     let hostPlayerId: string | null = null;
@@ -50,9 +73,13 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
         return ledger!.getState();
     }
 
-    function appendAndDispatch(event: RpsEvent, hidden?: { playerId: string; data: RpsHiddenData }) {
+    function appendAndDispatch(
+        event: RpsEvent,
+        hidden?: { playerId: string; data: RpsHiddenData },
+    ) {
         return Effect.gen(function* () {
             const result = yield* ledger!.append(event);
+            getState().eventIndex = result.index;
 
             yield* dispatcher.broadcastEvent({
                 index: result.index,
@@ -87,7 +114,9 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
 
     function validateThrow(
         playerId: string,
-    ): { ok: true; matchIndex: number; position: "p1" | "p2" } | { ok: false; error: string } {
+    ):
+        | { ok: true; matchIndex: number; position: "p1" | "p2" }
+        | { ok: false; error: string } {
         const state = getState();
 
         if (state.phase !== "throwing") {
@@ -113,7 +142,9 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
         const tracker = getOrCreateTracker(matchIndex);
 
         const alreadyThrown =
-            position === "p1" ? tracker.p1Choice !== null : tracker.p2Choice !== null;
+            position === "p1"
+                ? tracker.p1Choice !== null
+                : tracker.p2Choice !== null;
         if (alreadyThrown) {
             return { ok: false, error: "already_thrown" };
         }
@@ -121,7 +152,10 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
         return { ok: true, matchIndex, position };
     }
 
-    function processThrow(action: { playerId: string; choice: RpsChoice }): Effect.Effect<void, EngineError> {
+    function processThrow(action: {
+        playerId: string;
+        choice: RpsChoice;
+    }): Effect.Effect<void, EngineError> {
         return Effect.gen(function* () {
             const validation = validateThrow(action.playerId);
 
@@ -148,11 +182,16 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
             };
 
             yield* appendAndDispatch(
-                { type: "throw_registered", playerId: action.playerId, matchIndex },
+                {
+                    type: "throw_registered",
+                    playerId: action.playerId,
+                    matchIndex,
+                },
                 { playerId: action.playerId, data: hidden },
             );
 
-            const otherChoice = position === "p1" ? tracker.p2Choice : tracker.p1Choice;
+            const otherChoice =
+                position === "p1" ? tracker.p2Choice : tracker.p1Choice;
 
             if (otherChoice !== null) {
                 const p1Choice = tracker.p1Choice!;
@@ -180,7 +219,8 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
                 const needed = winsNeeded(state.bestOf);
 
                 if (p1NewWins >= needed || p2NewWins >= needed) {
-                    const matchWinnerId = p1NewWins >= needed ? match.player1Id : match.player2Id;
+                    const matchWinnerId =
+                        p1NewWins >= needed ? match.player1Id : match.player2Id;
 
                     yield* appendAndDispatch({
                         type: "match_completed",
@@ -207,7 +247,9 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
         });
     }
 
-    function processNextRound(playerId: string): Effect.Effect<void, EngineError> {
+    function processNextRound(
+        playerId: string,
+    ): Effect.Effect<void, EngineError> {
         return Effect.gen(function* () {
             if (hostPlayerId && playerId !== hostPlayerId) {
                 yield* sendError(playerId, "host_only");
@@ -242,7 +284,10 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
         });
     }
 
-    function processSetBestOf(playerId: string, bestOf: BestOf): Effect.Effect<void, EngineError> {
+    function processSetBestOf(
+        playerId: string,
+        bestOf: BestOf,
+    ): Effect.Effect<void, EngineError> {
         if (hostPlayerId && playerId !== hostPlayerId) {
             return sendError(playerId, "host_only");
         }
@@ -250,16 +295,33 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
         return appendAndDispatch({ type: "best_of_changed", bestOf });
     }
 
-    function sendSyncResponse(playerId: string, lastSnapshotIndex: number, lastEventIndex: number) {
-        const response = buildSyncResponse(playerId, lastSnapshotIndex, lastEventIndex);
-        config.sendTo(playerId, encodeRpsServerMessage({ type: "rps:sync_response", ...response } as RpsServerMessage));
+    function sendSyncResponse(
+        playerId: string,
+        lastSnapshotIndex: number,
+        lastEventIndex: number,
+    ) {
+        const response = buildSyncResponse(
+            playerId,
+            lastSnapshotIndex,
+            lastEventIndex,
+        );
+        config.sendTo(
+            playerId,
+            encodeRpsServerMessage({
+                type: "rps:sync_response",
+                ...response,
+            } as RpsServerMessage),
+        );
     }
 
     function sendError(playerId: string, message: string): Effect.Effect<void> {
         return Effect.sync(() => {
             config.sendTo(
                 playerId,
-                encodeRpsServerMessage({ type: "rps:error", data: { message } }),
+                encodeRpsServerMessage({
+                    type: "rps:error",
+                    data: { message },
+                }),
             );
         });
     }
@@ -268,13 +330,21 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
         const parsed = decodeUnknownSync(rpsClientMessageSchema, msg);
 
         if (parsed.type === "rps:throw") {
-            return { type: "throw", playerId: parsed.playerId, choice: parsed.data.choice };
+            return {
+                type: "throw",
+                playerId: parsed.playerId,
+                choice: parsed.data.choice,
+            };
         }
         if (parsed.type === "rps:next_round") {
             return { type: "next_round", playerId: parsed.playerId };
         }
         if (parsed.type === "rps:set_best_of") {
-            return { type: "set_best_of", playerId: parsed.playerId, bestOf: parsed.data.bestOf };
+            return {
+                type: "set_best_of",
+                playerId: parsed.playerId,
+                bestOf: parsed.data.bestOf,
+            };
         }
         if (parsed.type === "rps:sync") {
             return {
@@ -287,7 +357,11 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
         return null;
     }
 
-    function buildSyncResponse(playerId: string, lastSnapshotIndex: number, lastEventIndex: number): SyncResponse {
+    function buildSyncResponse(
+        playerId: string,
+        lastSnapshotIndex: number,
+        lastEventIndex: number,
+    ): SyncResponse {
         if (!ledger) {
             return {
                 snapshot: { index: 0, data: null },
@@ -312,6 +386,50 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
             }
         }
 
+        const state = ledger.getState();
+        const round = getCurrentRound(state);
+        if (round) {
+            for (const [matchIndex, tracker] of throwTracker) {
+                const match = round.matches[matchIndex];
+                if (!match) continue;
+
+                if (
+                    match.player1Id === playerId &&
+                    tracker.p1Choice &&
+                    !hidden.some(
+                        (entry) =>
+                            entry.data.type === "throw_choice" &&
+                            entry.data.choice === tracker.p1Choice,
+                    )
+                ) {
+                    hidden.push({
+                        index: snapshot.index,
+                        data: {
+                            type: "throw_choice",
+                            choice: tracker.p1Choice,
+                        },
+                    });
+                }
+                if (
+                    match.player2Id === playerId &&
+                    tracker.p2Choice &&
+                    !hidden.some(
+                        (entry) =>
+                            entry.data.type === "throw_choice" &&
+                            entry.data.choice === tracker.p2Choice,
+                    )
+                ) {
+                    hidden.push({
+                        index: snapshot.index,
+                        data: {
+                            type: "throw_choice",
+                            choice: tracker.p2Choice,
+                        },
+                    });
+                }
+            }
+        }
+
         return {
             snapshot: { index: snapshot.index, data: snapshot.state },
             events: events.map((e) => ({
@@ -328,6 +446,7 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
             const state = initGame(players);
             ledger = createLedger({
                 initialState: state,
+                initialIndex: state.eventIndex ?? 0,
                 reduce,
                 component: COMPONENT,
             });
@@ -346,6 +465,51 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
             );
         },
 
+        restoreGame(persistedState, hostId) {
+            const state = structuredClone(persistedState);
+            const round = getCurrentRound(state);
+
+            throwTracker.clear();
+            hiddenStore.clear();
+            if (round) {
+                for (const [matchIndex, match] of round.matches.entries()) {
+                    if (match.player1Choice || match.player2Choice) {
+                        throwTracker.set(matchIndex, {
+                            p1Choice: match.player1Choice,
+                            p2Choice: match.player2Choice,
+                        });
+                    }
+                    match.player1Choice = null;
+                    match.player2Choice = null;
+                }
+            }
+
+            ledger = createLedger({
+                initialState: state,
+                initialIndex: state.eventIndex ?? 0,
+                reduce,
+                component: COMPONENT,
+            });
+            playerIds = state.players.map((player) => player.id);
+            hostPlayerId = hostId;
+        },
+
+        getPersistedState() {
+            if (!ledger) return null;
+
+            const state = structuredClone(getState());
+            const round = getCurrentRound(state);
+            if (!round) return state;
+
+            for (const [matchIndex, tracker] of throwTracker) {
+                const match = round.matches[matchIndex];
+                if (!match) continue;
+                match.player1Choice = tracker.p1Choice;
+                match.player2Choice = tracker.p2Choice;
+            }
+            return state;
+        },
+
         processMessage(raw) {
             const json = JSON.parse(raw);
             const action = toAction(json);
@@ -360,7 +524,11 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
                     } else if (action.type === "set_best_of") {
                         yield* processSetBestOf(action.playerId, action.bestOf);
                     } else if (action.type === "sync") {
-                        sendSyncResponse(action.playerId, action.lastSnapshotIndex, action.lastEventIndex);
+                        sendSyncResponse(
+                            action.playerId,
+                            action.lastSnapshotIndex,
+                            action.lastEventIndex,
+                        );
                     }
                 }).pipe(
                     Effect.catchCause((cause) =>
@@ -438,7 +606,11 @@ export function createRpsEngine(config: RpsEngineConfig): GameEngine {
         },
 
         sync(playerId, lastSnapshotIndex, lastEventIndex) {
-            return buildSyncResponse(playerId, lastSnapshotIndex, lastEventIndex);
+            return buildSyncResponse(
+                playerId,
+                lastSnapshotIndex,
+                lastEventIndex,
+            );
         },
     };
 }

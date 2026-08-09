@@ -9,25 +9,41 @@ import {
     QuizSummary,
     QuizWithQuestions,
     TagWithCount,
+    createQuestionInputSchema,
+    createQuizInputSchema,
+    entityIdInputSchema,
+    reorderQuestionsInputSchema,
+    setQuizTagsInputSchema,
+    tagNameInputSchema,
 } from "./schemas";
 
 describe("QuestionType", () => {
     it("accepts valid question types", () => {
-        expect(Schema.decodeUnknownSync(QuestionType)("multiple_choice")).toBe("multiple_choice");
-        expect(Schema.decodeUnknownSync(QuestionType)("fill_in")).toBe("fill_in");
+        expect(Schema.decodeUnknownSync(QuestionType)("multiple_choice")).toBe(
+            "multiple_choice",
+        );
+        expect(Schema.decodeUnknownSync(QuestionType)("fill_in")).toBe(
+            "fill_in",
+        );
         expect(Schema.decodeUnknownSync(QuestionType)("open")).toBe("open");
-        expect(Schema.decodeUnknownSync(QuestionType)("placeholder")).toBe("placeholder");
+        expect(Schema.decodeUnknownSync(QuestionType)("placeholder")).toBe(
+            "placeholder",
+        );
     });
 
     it("rejects invalid question types", () => {
-        expect(() => Schema.decodeUnknownSync(QuestionType)("invalid")).toThrow();
+        expect(() =>
+            Schema.decodeUnknownSync(QuestionType)("invalid"),
+        ).toThrow();
     });
 });
 
 describe("MatchType", () => {
     it("accepts valid match types", () => {
         expect(Schema.decodeUnknownSync(MatchType)("exact")).toBe("exact");
-        expect(Schema.decodeUnknownSync(MatchType)("contains")).toBe("contains");
+        expect(Schema.decodeUnknownSync(MatchType)("contains")).toBe(
+            "contains",
+        );
         expect(Schema.decodeUnknownSync(MatchType)("any")).toBe("any");
     });
 
@@ -52,11 +68,18 @@ describe("AnswerOption", () => {
     });
 
     it("rejects missing fields", () => {
-        expect(() => Schema.decodeUnknownSync(AnswerOption)({ id: "opt-1" })).toThrow();
+        expect(() =>
+            Schema.decodeUnknownSync(AnswerOption)({ id: "opt-1" }),
+        ).toThrow();
     });
 
     it("rejects wrong types", () => {
-        expect(() => Schema.decodeUnknownSync(AnswerOption)({ ...valid, isCorrect: "yes" })).toThrow();
+        expect(() =>
+            Schema.decodeUnknownSync(AnswerOption)({
+                ...valid,
+                isCorrect: "yes",
+            }),
+        ).toThrow();
     });
 });
 
@@ -77,7 +100,12 @@ describe("AcceptedAnswer", () => {
     });
 
     it("rejects invalid matchType", () => {
-        expect(() => Schema.decodeUnknownSync(AcceptedAnswer)({ ...valid, matchType: "fuzzy" })).toThrow();
+        expect(() =>
+            Schema.decodeUnknownSync(AcceptedAnswer)({
+                ...valid,
+                matchType: "fuzzy",
+            }),
+        ).toThrow();
     });
 });
 
@@ -89,8 +117,20 @@ describe("Question", () => {
         text: "What is the capital of France?",
         sortOrder: 0,
         options: [
-            { id: "o-1", questionId: "q-1", text: "Paris", isCorrect: true, sortOrder: 0 },
-            { id: "o-2", questionId: "q-1", text: "London", isCorrect: false, sortOrder: 1 },
+            {
+                id: "o-1",
+                questionId: "q-1",
+                text: "Paris",
+                isCorrect: true,
+                sortOrder: 0,
+            },
+            {
+                id: "o-2",
+                questionId: "q-1",
+                text: "London",
+                isCorrect: false,
+                sortOrder: 1,
+            },
         ],
         acceptedAnswers: [],
     };
@@ -107,7 +147,14 @@ describe("Question", () => {
             type: "fill_in",
             options: [],
             acceptedAnswers: [
-                { id: "aa-1", questionId: "q-1", pattern: "paris", matchType: "exact", caseInsensitive: true, sortOrder: 0 },
+                {
+                    id: "aa-1",
+                    questionId: "q-1",
+                    pattern: "paris",
+                    matchType: "exact",
+                    caseInsensitive: true,
+                    sortOrder: 0,
+                },
             ],
         };
         const result = Schema.decodeUnknownSync(Question)(fillIn);
@@ -115,7 +162,9 @@ describe("Question", () => {
     });
 
     it("rejects invalid question type", () => {
-        expect(() => Schema.decodeUnknownSync(Question)({ ...valid, type: "bogus" })).toThrow();
+        expect(() =>
+            Schema.decodeUnknownSync(Question)({ ...valid, type: "bogus" }),
+        ).toThrow();
     });
 });
 
@@ -126,7 +175,12 @@ describe("QuizSummary", () => {
         description: "Test your geography knowledge",
         questionCount: 5,
         tags: [{ name: "Education", slug: "education" }],
-        typeBreakdown: { multipleChoice: 3, fillIn: 1, open: 1, placeholder: 0 },
+        typeBreakdown: {
+            multipleChoice: 3,
+            fillIn: 1,
+            open: 1,
+            placeholder: 0,
+        },
     };
 
     it("decodes a valid quiz summary", () => {
@@ -136,13 +190,18 @@ describe("QuizSummary", () => {
     });
 
     it("allows null description", () => {
-        const result = Schema.decodeUnknownSync(QuizSummary)({ ...valid, description: null });
+        const result = Schema.decodeUnknownSync(QuizSummary)({
+            ...valid,
+            description: null,
+        });
         expect(result.description).toBeNull();
     });
 
     it("rejects missing typeBreakdown", () => {
         const { typeBreakdown, ...noBreakdown } = valid;
-        expect(() => Schema.decodeUnknownSync(QuizSummary)(noBreakdown)).toThrow();
+        expect(() =>
+            Schema.decodeUnknownSync(QuizSummary)(noBreakdown),
+        ).toThrow();
     });
 });
 
@@ -171,7 +230,10 @@ describe("QuizWithQuestions", () => {
     });
 
     it("decodes with empty questions array", () => {
-        const result = Schema.decodeUnknownSync(QuizWithQuestions)({ ...valid, questions: [] });
+        const result = Schema.decodeUnknownSync(QuizWithQuestions)({
+            ...valid,
+            questions: [],
+        });
         expect(result.questions).toHaveLength(0);
     });
 });
@@ -190,7 +252,115 @@ describe("TagWithCount", () => {
 
     it("rejects missing quizCount", () => {
         expect(() =>
-            Schema.decodeUnknownSync(TagWithCount)({ id: "t-1", name: "Science", slug: "science" }),
+            Schema.decodeUnknownSync(TagWithCount)({
+                id: "t-1",
+                name: "Science",
+                slug: "science",
+            }),
+        ).toThrow();
+    });
+});
+
+describe("quiz command inputs", () => {
+    it("trims bounded text at the command boundary", () => {
+        const input = Schema.decodeUnknownSync(createQuizInputSchema)({
+            title: "  Geography  ",
+            description: "  World questions  ",
+        });
+
+        expect(input).toEqual({
+            title: "Geography",
+            description: "World questions",
+        });
+    });
+
+    it("rejects empty and oversized command fields", () => {
+        expect(() =>
+            Schema.decodeUnknownSync(createQuizInputSchema)({ title: "   " }),
+        ).toThrow();
+        expect(() =>
+            Schema.decodeUnknownSync(tagNameInputSchema)("x".repeat(81)),
+        ).toThrow();
+    });
+
+    it("bounds reorder command cardinality", () => {
+        expect(() =>
+            Schema.decodeUnknownSync(reorderQuestionsInputSchema)({
+                quizId: "quiz-1",
+                orderedIds: Array.from(
+                    { length: 501 },
+                    (_, index) => `q-${index}`,
+                ),
+            }),
+        ).toThrow();
+    });
+
+    it("accepts only bounded URL-safe entity identifiers", () => {
+        expect(Schema.decodeUnknownSync(entityIdInputSchema)("quiz_A-1")).toBe(
+            "quiz_A-1",
+        );
+        expect(() =>
+            Schema.decodeUnknownSync(entityIdInputSchema)("has spaces"),
+        ).toThrow();
+        expect(() =>
+            Schema.decodeUnknownSync(entityIdInputSchema)("x".repeat(65)),
+        ).toThrow();
+    });
+
+    it("trims nested question text and answers", () => {
+        const input = Schema.decodeUnknownSync(createQuestionInputSchema)({
+            quizId: "quiz-1",
+            type: "multiple_choice",
+            text: "  Capital of France?  ",
+            options: [
+                { text: "  Paris  ", isCorrect: true },
+                { text: "  London  ", isCorrect: false },
+            ],
+            acceptedAnswers: [],
+        });
+
+        expect(input.text).toBe("Capital of France?");
+        expect(input.options?.map((option) => option.text)).toEqual([
+            "Paris",
+            "London",
+        ]);
+    });
+
+    it("bounds question option and accepted-answer cardinality", () => {
+        expect(() =>
+            Schema.decodeUnknownSync(createQuestionInputSchema)({
+                quizId: "quiz-1",
+                type: "multiple_choice",
+                text: "Question",
+                options: Array.from({ length: 13 }, (_, index) => ({
+                    text: `Option ${index}`,
+                    isCorrect: index === 0,
+                })),
+            }),
+        ).toThrow();
+        expect(() =>
+            Schema.decodeUnknownSync(createQuestionInputSchema)({
+                quizId: "quiz-1",
+                type: "fill_in",
+                text: "Question",
+                acceptedAnswers: Array.from({ length: 51 }, () => ({
+                    pattern: "answer",
+                    matchType: "exact",
+                    caseInsensitive: true,
+                })),
+            }),
+        ).toThrow();
+    });
+
+    it("bounds quiz tag assignment cardinality", () => {
+        expect(() =>
+            Schema.decodeUnknownSync(setQuizTagsInputSchema)({
+                quizId: "quiz-1",
+                tagIds: Array.from(
+                    { length: 101 },
+                    (_, index) => `tag-${index}`,
+                ),
+            }),
         ).toThrow();
     });
 });

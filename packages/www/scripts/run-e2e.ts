@@ -1,11 +1,19 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import http from "node:http";
+import path from "node:path";
 
 type E2eSuite = {
     description: string;
     workerFiles: string[];
     browserProjects?: string[];
 };
+
+const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const pnpmCliPath = process.env.npm_execpath;
+const pnpmExecutable = pnpmCliPath ? process.execPath : pnpmCommand;
+const pnpmArgs = (args: string[]) =>
+    pnpmCliPath ? [pnpmCliPath, ...args] : args;
+const pnpmNeedsShell = !pnpmCliPath && process.platform === "win32";
 
 const E2E_SUITES: Record<string, E2eSuite> = {
     poker: {
@@ -53,7 +61,9 @@ function printUsage() {
     console.log("Modes:");
     console.log("- default: runs real workerd E2E suites");
     console.log("- --browser: runs browser fixture suites via Playwright Test");
-    console.log("- --headed: browser mode only; shows the actual Chromium window");
+    console.log(
+        "- --headed: browser mode only; shows the actual Chromium window",
+    );
     console.log("- --ui: browser mode only; opens Playwright UI mode");
     console.log(
         "- --update-screenshots: browser mode only; refreshes baseline screenshots",
@@ -90,10 +100,18 @@ async function waitForServer(url: string, timeoutMs: number): Promise<boolean> {
 }
 
 async function startDevServer(): Promise<ChildProcess> {
-    const child = spawn("npx", ["vite", "dev", "--host", "127.0.0.1", "--port", "3000"], {
-        stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
-    });
+    const viteCliPath = path.resolve(
+        process.cwd(),
+        "node_modules/vite/bin/vite.js",
+    );
+    const child = spawn(
+        process.execPath,
+        [viteCliPath, "dev", "--host", "127.0.0.1", "--port", "3000"],
+        {
+            stdio: ["ignore", "pipe", "pipe"],
+            env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" },
+        },
+    );
 
     child.stdout?.on("data", (d) => process.stdout.write(d));
     child.stderr?.on("data", (d) => process.stderr.write(d));
@@ -105,6 +123,28 @@ async function startDevServer(): Promise<ChildProcess> {
     }
 
     return child;
+}
+
+async function stopDevServer(child: ChildProcess): Promise<void> {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+
+    const exited = new Promise<void>((resolve) => {
+        child.once("exit", () => resolve());
+    });
+    child.kill("SIGTERM");
+
+    await Promise.race([
+        exited,
+        new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+    ]);
+
+    if (child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGKILL");
+        await Promise.race([
+            exited,
+            new Promise<void>((resolve) => setTimeout(resolve, 2_000)),
+        ]);
+    }
 }
 
 const args = process.argv.slice(2);
@@ -143,7 +183,7 @@ if (browserMode) {
     );
 
     const unsupportedGames = selectedGames.filter(
-        (game) => !(E2E_SUITES[game].browserProjects?.length),
+        (game) => !E2E_SUITES[game].browserProjects?.length,
     );
     if (unsupportedGames.length > 0) {
         console.error(
@@ -154,16 +194,17 @@ if (browserMode) {
 
     console.log(`Projects: ${browserProjects.join(", ")}`);
 
-    // Check if server is already running
     let serverAlreadyRunning = false;
     try {
-        const resp = await fetch("http://127.0.0.1:3000/", { signal: AbortSignal.timeout(2000) });
+        const resp = await fetch("http://127.0.0.1:3000/", {
+            signal: AbortSignal.timeout(2000),
+        });
         serverAlreadyRunning = resp.ok;
     } catch {}
 
     let server: ChildProcess | null = null;
     if (!serverAlreadyRunning) {
-    console.log("Starting dev server...");
+        console.log("Starting dev server...");
         server = await startDevServer();
         console.log("Dev server ready.");
     } else {
@@ -190,36 +231,38 @@ if (browserMode) {
         playwrightArgs.push("--update-snapshots");
     }
 
-    const result = spawnSync("pnpm", playwrightArgs, {
+    const result = spawnSync(pnpmExecutable, pnpmArgs(playwrightArgs), {
         stdio: "inherit",
+        shell: pnpmNeedsShell,
     });
 
     if (server) {
-        server.kill("SIGTERM");
+        await stopDevServer(server);
     }
 
-    process.exit(result.status ?? 1);
+    process.exitCode = result.status ?? 1;
+} else {
+    const workerFiles = unique(
+        selectedGames.flatMap((game) => E2E_SUITES[game].workerFiles),
+    );
+
+    console.log(`Files: ${workerFiles.join(", ")}`);
+
+    const result = spawnSync(
+        pnpmExecutable,
+        pnpmArgs([
+            "exec",
+            "vitest",
+            "run",
+            "--config",
+            "vitest.worker.config.ts",
+            ...workerFiles,
+        ]),
+        {
+            stdio: "inherit",
+            shell: pnpmNeedsShell,
+        },
+    );
+
+    process.exitCode = result.status ?? 1;
 }
-
-const workerFiles = unique(
-    selectedGames.flatMap((game) => E2E_SUITES[game].workerFiles),
-);
-
-console.log(`Files: ${workerFiles.join(", ")}`);
-
-const result = spawnSync(
-    "pnpm",
-    [
-        "exec",
-        "vitest",
-        "run",
-        "--config",
-        "vitest.worker.config.ts",
-        ...workerFiles,
-    ],
-    {
-        stdio: "inherit",
-    },
-);
-
-process.exit(result.status ?? 1);

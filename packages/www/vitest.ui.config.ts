@@ -1,14 +1,11 @@
 import { defineProject } from "vitest/config";
-import tsConfigPaths from "vite-tsconfig-paths";
 import viteSolid from "vite-plugin-solid";
 
 export default defineProject({
-    plugins: [
-        tsConfigPaths({
-            projects: ["./tsconfig.json"],
-        }),
-        viteSolid(),
-    ],
+    resolve: {
+        tsconfigPaths: true,
+    },
+    plugins: [viteSolid({ hot: false })],
     test: {
         name: "ui",
         include: ["src/**/*.test.{ts,tsx}"],

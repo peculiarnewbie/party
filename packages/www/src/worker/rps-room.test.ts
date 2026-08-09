@@ -38,7 +38,11 @@ function isRoomStateMessage(
 
 function isRpsSnapshotMessage(
     message: MessageEnvelope,
-): message is MessageEnvelope & { type: "rps:snapshot"; index: number; data: RpsState } {
+): message is MessageEnvelope & {
+    type: "rps:snapshot";
+    index: number;
+    data: RpsState;
+} {
     return message.type === "rps:snapshot";
 }
 
@@ -56,55 +60,129 @@ function isRpsGameOverMessage(
 
 function isRpsSyncResponseMessage(
     message: MessageEnvelope,
-): message is MessageEnvelope & { type: "rps:sync_response"; snapshot: { data: RpsState } } {
+): message is MessageEnvelope & {
+    type: "rps:sync_response";
+    snapshot: { data: RpsState };
+} {
     return message.type === "rps:sync_response";
 }
 
-function joinRoom(client: TestRoomClient, playerId: string, playerName: string) {
+async function joinRoom(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
+    const cursor = client.cursor();
     client.send({ type: "join", playerId, playerName, data: {} });
+    await client.waitForMessage(
+        (message) =>
+            isRoomStateMessage(message) &&
+            Array.isArray(message.data.players) &&
+            message.data.players.some(
+                (player: { id: string }) => player.id === playerId,
+            ),
+        { since: cursor },
+    );
 }
 
-function selectGame(client: TestRoomClient, playerId: string, playerName: string, gameType: string) {
-    client.send({ type: "select_game", playerId, playerName, data: { gameType } });
+async function selectGame(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+    gameType: string,
+) {
+    const cursor = client.cursor();
+    client.send({
+        type: "select_game",
+        playerId,
+        playerName,
+        data: { gameType },
+    });
+    await client.waitForMessage(
+        (message) =>
+            isRoomStateMessage(message) &&
+            message.data.selectedGameType === gameType,
+        { since: cursor },
+    );
 }
 
-function startGame(client: TestRoomClient, playerId: string, playerName: string) {
+function startGame(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({ type: "start", playerId, playerName, data: {} });
 }
 
-function sendThrow(client: TestRoomClient, playerId: string, playerName: string, choice: "rock" | "paper" | "scissors") {
+function sendThrow(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+    choice: "rock" | "paper" | "scissors",
+) {
     client.send({ type: "rps:throw", playerId, playerName, data: { choice } });
 }
 
-function sendNextRound(client: TestRoomClient, playerId: string, playerName: string) {
+function sendNextRound(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({ type: "rps:next_round", playerId, playerName, data: {} });
 }
 
-function sendSetBestOf(client: TestRoomClient, playerId: string, playerName: string, bestOf: 1 | 3 | 5) {
-    client.send({ type: "rps:set_best_of", playerId, playerName, data: { bestOf } });
+function sendSetBestOf(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+    bestOf: 1 | 3 | 5,
+) {
+    client.send({
+        type: "rps:set_best_of",
+        playerId,
+        playerName,
+        data: { bestOf },
+    });
 }
 
-function getLatestSnapshot(client: TestRoomClient): (MessageEnvelope & { type: "rps:snapshot"; data: RpsState }) | null {
+function getLatestSnapshot(
+    client: TestRoomClient,
+): (MessageEnvelope & { type: "rps:snapshot"; data: RpsState }) | null {
     for (let i = client.messages.length - 1; i >= 0; i--) {
         if (isRpsSnapshotMessage(client.messages[i])) {
-            return client.messages[i] as MessageEnvelope & { type: "rps:snapshot"; data: RpsState };
+            return client.messages[i] as MessageEnvelope & {
+                type: "rps:snapshot";
+                data: RpsState;
+            };
         }
     }
     return null;
 }
 
-function getEventsSince(client: TestRoomClient, since: number): MessageEnvelope[] {
+function getEventsSince(
+    client: TestRoomClient,
+    since: number,
+): MessageEnvelope[] {
     return client.messages.slice(since).filter(isRpsEventMessage);
 }
 
-function hasEventType(client: TestRoomClient, eventType: string, since?: number): boolean {
-    const events = since !== undefined ? getEventsSince(client, since) : client.messages.filter(isRpsEventMessage);
+function hasEventType(
+    client: TestRoomClient,
+    eventType: string,
+    since?: number,
+): boolean {
+    const events =
+        since !== undefined
+            ? getEventsSince(client, since)
+            : client.messages.filter(isRpsEventMessage);
     return events.some((e) => (e.data as { type: string }).type === eventType);
 }
 
 const CHOICES = ["rock", "paper", "scissors"] as const;
 
-function pickWinningChoice(loserChoice: "rock" | "paper" | "scissors"): "rock" | "paper" | "scissors" {
+function pickWinningChoice(
+    loserChoice: "rock" | "paper" | "scissors",
+): "rock" | "paper" | "scissors" {
     if (loserChoice === "rock") return "paper";
     if (loserChoice === "paper") return "scissors";
     return "rock";
@@ -127,13 +205,22 @@ describe("GameRoom RPS sequences", () => {
         const { client } = await connectClient(roomId);
 
         try {
+            const cursor = client.cursor();
             client.send({
-                type: "identify",
+                type: "join",
                 playerId: "p1",
                 playerName: "Alice",
                 data: {},
             });
-            await sleep(50);
+            await client.waitForMessage(
+                (message) =>
+                    isRoomStateMessage(message) &&
+                    Array.isArray(message.data.players) &&
+                    message.data.players.some(
+                        (player: { id: string }) => player.id === "p1",
+                    ),
+                { since: cursor },
+            );
 
             const attachments = await withRoom(roomId, (ctx) =>
                 ctx.getWebSockets().map((ws) => ws.deserializeAttachment()),
@@ -142,70 +229,90 @@ describe("GameRoom RPS sequences", () => {
             expect(attachments).toContainEqual({
                 id: expect.any(String),
                 playerId: "p1",
+                authenticated: true,
             });
         } finally {
             client.close();
         }
     });
 
-    it("runs a full 8-player tournament with bestOf=1", { timeout: 15000 }, async () => {
-        const roomId = nextRoomId();
-        const clients: TestRoomClient[] = [];
+    it(
+        "runs a full 8-player tournament with bestOf=1",
+        { timeout: 15000 },
+        async () => {
+            const roomId = nextRoomId();
+            const clients: TestRoomClient[] = [];
 
-        try {
-            for (const player of PLAYERS) {
-                const { client } = await connectClient(roomId);
-                clients.push(client);
-                joinRoom(client, player.id, player.name);
-                await sleep(50);
-            }
+            try {
+                for (const player of PLAYERS) {
+                    const { client } = await connectClient(roomId);
+                    clients.push(client);
+                    await joinRoom(client, player.id, player.name);
+                }
 
-            const host = clients[0];
-            selectGame(host, "p0", "Player 0", "rps");
-            await sleep(100);
-            startGame(host, "p0", "Player 0");
-            await sleep(500);
-
-            const snapshot = getLatestSnapshot(host);
-            expect(snapshot).not.toBeNull();
-            expect(snapshot!.data.phase).toBe("throwing");
-            expect(snapshot!.data.players).toHaveLength(PLAYER_COUNT);
-
-            const currentRound = snapshot!.data.rounds.find(
-                (r) => r.roundNumber === snapshot!.data.currentRound,
-            );
-            expect(currentRound).toBeDefined();
-            expect(currentRound!.matches.length).toBe(4);
-
-            for (const match of currentRound!.matches) {
-                const p1Idx = PLAYERS.findIndex((p) => p.id === match.player1Id);
-                const p2Idx = PLAYERS.findIndex((p) => p.id === match.player2Id);
-                expect(p1Idx).toBeGreaterThanOrEqual(0);
-                expect(p2Idx).toBeGreaterThanOrEqual(0);
-
-                sendThrow(clients[p1Idx], PLAYERS[p1Idx].id, PLAYERS[p1Idx].name, "rock");
-                await sleep(50);
-                sendThrow(clients[p2Idx], PLAYERS[p2Idx].id, PLAYERS[p2Idx].name, "paper");
+                const host = clients[0];
+                await selectGame(host, "p0", "Player 0", "rps");
                 await sleep(100);
+                startGame(host, "p0", "Player 0");
+                await sleep(500);
+
+                const snapshot = getLatestSnapshot(host);
+                expect(snapshot).not.toBeNull();
+                expect(snapshot!.data.phase).toBe("throwing");
+                expect(snapshot!.data.players).toHaveLength(PLAYER_COUNT);
+
+                const currentRound = snapshot!.data.rounds.find(
+                    (r) => r.roundNumber === snapshot!.data.currentRound,
+                );
+                expect(currentRound).toBeDefined();
+                expect(currentRound!.matches.length).toBe(4);
+
+                for (const match of currentRound!.matches) {
+                    const p1Idx = PLAYERS.findIndex(
+                        (p) => p.id === match.player1Id,
+                    );
+                    const p2Idx = PLAYERS.findIndex(
+                        (p) => p.id === match.player2Id,
+                    );
+                    expect(p1Idx).toBeGreaterThanOrEqual(0);
+                    expect(p2Idx).toBeGreaterThanOrEqual(0);
+
+                    sendThrow(
+                        clients[p1Idx],
+                        PLAYERS[p1Idx].id,
+                        PLAYERS[p1Idx].name,
+                        "rock",
+                    );
+                    await sleep(50);
+                    sendThrow(
+                        clients[p2Idx],
+                        PLAYERS[p2Idx].id,
+                        PLAYERS[p2Idx].name,
+                        "paper",
+                    );
+                    await sleep(100);
+                }
+
+                await sleep(500);
+
+                const hasEvents = clients.some((c) =>
+                    c.messages.some((m) => m.type === "rps:event"),
+                );
+                expect(hasEvents).toBe(true);
+
+                const errors = clients.flatMap((c) =>
+                    c.messages.filter((m) => m.type === "rps:error"),
+                );
+                expect(errors).toHaveLength(0);
+            } finally {
+                for (const client of clients) {
+                    try {
+                        client.close();
+                    } catch {}
+                }
             }
-
-            await sleep(500);
-
-            const hasEvents = clients.some((c) =>
-                c.messages.some((m) => m.type === "rps:event"),
-            );
-            expect(hasEvents).toBe(true);
-
-            const errors = clients.flatMap((c) =>
-                c.messages.filter((m) => m.type === "rps:error"),
-            );
-            expect(errors).toHaveLength(0);
-        } finally {
-            for (const client of clients) {
-                try { client.close(); } catch {}
-            }
-        }
-    });
+        },
+    );
 
     it("handles player disconnect during match", async () => {
         const roomId = nextRoomId();
@@ -215,12 +322,11 @@ describe("GameRoom RPS sequences", () => {
             for (const player of PLAYERS.slice(0, 4)) {
                 const { client } = await connectClient(roomId);
                 clients.push(client);
-                joinRoom(client, player.id, player.name);
-                await sleep(50);
+                await joinRoom(client, player.id, player.name);
             }
 
             const host = clients[0];
-            selectGame(host, "p0", "Player 0", "rps");
+            await selectGame(host, "p0", "Player 0", "rps");
             await sleep(100);
             startGame(host, "p0", "Player 0");
             await sleep(500);
@@ -248,7 +354,9 @@ describe("GameRoom RPS sequences", () => {
             expect(postDisconnectSnap).not.toBeNull();
         } finally {
             for (const client of clients) {
-                try { client.close(); } catch {}
+                try {
+                    client.close();
+                } catch {}
             }
         }
     });
@@ -262,11 +370,11 @@ describe("GameRoom RPS sequences", () => {
             const { client: bob } = await connectClient(roomId);
             clients.push(alice, bob);
 
-            joinRoom(alice, "p1", "Alice");
-            joinRoom(bob, "p2", "Bob");
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
             await sleep(100);
 
-            selectGame(alice, "p1", "Alice", "rps");
+            await selectGame(alice, "p1", "Alice", "rps");
             await sleep(100);
             startGame(alice, "p1", "Alice");
             await sleep(500);
@@ -297,7 +405,59 @@ describe("GameRoom RPS sequences", () => {
             clients.push(bobReconnect);
         } finally {
             for (const client of clients) {
-                try { client.close(); } catch {}
+                try {
+                    client.close();
+                } catch {}
+            }
+        }
+    });
+
+    it("restores an unrevealed throw after the in-memory adapter is evicted", async () => {
+        const roomId = nextRoomId();
+        const clients: TestRoomClient[] = [];
+
+        try {
+            const { client: alice } = await connectClient(roomId);
+            const { client: bob } = await connectClient(roomId);
+            clients.push(alice, bob);
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
+
+            await selectGame(alice, "p1", "Alice", "rps");
+            await sleep(100);
+            startGame(alice, "p1", "Alice");
+            const snapshot = await alice.waitForMessage(isRpsSnapshotMessage);
+            const match = snapshot.data.rounds[0].matches[0];
+            const first = match.player1Id === "p1" ? alice : bob;
+            const second = match.player2Id === "p1" ? alice : bob;
+            const firstName = match.player1Id === "p1" ? "Alice" : "Bob";
+            const secondName = match.player2Id === "p1" ? "Alice" : "Bob";
+
+            const registeredCursor = first.cursor();
+            sendThrow(first, match.player1Id, firstName, "rock");
+            await first.waitForMessage(
+                (message) =>
+                    isRpsEventMessage(message) &&
+                    message.data.type === "throw_registered",
+                { since: registeredCursor },
+            );
+            await withRoom(roomId, (_, instance) => {
+                instance.clearCachedAdapter();
+            });
+
+            const revealCursor = second.cursor();
+            sendThrow(second, match.player2Id, secondName, "scissors");
+            await second.waitForMessage(
+                (message) =>
+                    isRpsEventMessage(message) &&
+                    message.data.type === "throw_revealed",
+                { since: revealCursor },
+            );
+        } finally {
+            for (const client of clients) {
+                try {
+                    client.close();
+                } catch {}
             }
         }
     });

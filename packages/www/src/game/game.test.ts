@@ -191,6 +191,76 @@ describe("Game Logic", () => {
             });
         });
 
+        it.each(["", "has spaces", "x".repeat(65)])(
+            "rejects invalid player identifier %j",
+            async (playerId) => {
+                await expect(
+                    Effect.runPromise(
+                        decodeClientMessage({
+                            playerId,
+                            playerName: "Host",
+                            type: "join",
+                            data: {},
+                        }),
+                    ),
+                ).rejects.toMatchObject({
+                    _tag: "RoomMessageDecodeError",
+                });
+            },
+        );
+
+        it.each(["", "x".repeat(41)])(
+            "rejects invalid joined player name %j",
+            async (playerName) => {
+                await expect(
+                    Effect.runPromise(
+                        decodeClientMessage({
+                            playerId: pid("host"),
+                            playerName,
+                            type: "join",
+                            data: {},
+                        }),
+                    ),
+                ).rejects.toMatchObject({
+                    _tag: "RoomMessageDecodeError",
+                });
+            },
+        );
+
+        it.each(["x".repeat(42), "x".repeat(44), `${"x".repeat(42)}+`])(
+            "rejects malformed room capability %j",
+            async (sessionToken) => {
+                await expect(
+                    Effect.runPromise(
+                        decodeClientMessage({
+                            playerId: pid("host"),
+                            playerName: "Host",
+                            sessionToken,
+                            type: "identify",
+                            data: {},
+                        }),
+                    ),
+                ).rejects.toMatchObject({
+                    _tag: "RoomMessageDecodeError",
+                });
+            },
+        );
+
+        it("rejects oversized answer text at the wire boundary", async () => {
+            await expect(
+                Effect.runPromise(
+                    decodeClientMessage({
+                        playerId: pid("host"),
+                        playerName: "Host",
+                        type: "answer",
+                        data: { answer: "x".repeat(1_001) },
+                    }),
+                ),
+            ).rejects.toMatchObject({
+                _tag: "RoomMessageDecodeError",
+            });
+        });
+
         it("encodes shared server messages with the current wire shape", () => {
             const encoded = encodeServerMessage({
                 type: "room_state",
@@ -571,9 +641,7 @@ describe("Quiz Questions Schema", () => {
         const { Schema } = await import("effect");
         const questionSchema = Schema.Struct({
             id: Schema.mutableKey(Schema.Number),
-            text: Schema.mutableKey(
-                Schema.String.check(Schema.isMinLength(1)),
-            ),
+            text: Schema.mutableKey(Schema.String.check(Schema.isMinLength(1))),
             options: Schema.mutableKey(
                 Schema.Tuple([
                     Schema.String,

@@ -10,6 +10,7 @@ export interface RoomTransport {
     latest(type: string): unknown | null;
     connect(): void;
     disconnect(): void;
+    setSessionToken(token: string): void;
     dispose(): void;
     messageLog: Accessor<readonly TransportMessage[]>;
 }
@@ -18,6 +19,7 @@ export interface CreateWebSocketRoomTransportOptions {
     roomId: string;
     playerId: string;
     playerName: string;
+    sessionToken?: string | null;
     autoConnect?: boolean;
 }
 
@@ -40,6 +42,7 @@ export function createWebSocketRoomTransport(
 ): RoomTransport {
     let ws: WebSocket | null = null;
     let disposed = false;
+    let sessionToken = options.sessionToken ?? null;
     let messageId = 0;
     const subscribers = new Set<(message: Record<string, unknown>) => void>();
     const latestByType = new Map<string, unknown>();
@@ -67,6 +70,29 @@ export function createWebSocketRoomTransport(
         }
     };
 
+    const withSessionToken = (message: unknown): unknown => {
+        if (
+            typeof message !== "object" ||
+            message === null ||
+            !("type" in message) ||
+            (message.type !== "identify" && message.type !== "join")
+        ) {
+            return message;
+        }
+        return { ...message, sessionToken };
+    };
+
+    const redactSessionToken = (message: unknown): unknown => {
+        if (
+            typeof message !== "object" ||
+            message === null ||
+            !("sessionToken" in message)
+        ) {
+            return message;
+        }
+        return { ...message, sessionToken: "[redacted]" };
+    };
+
     const buildWsUrl = () => {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         return `${protocol}//${window.location.host}/api/room/${options.roomId}`;
@@ -90,6 +116,7 @@ export function createWebSocketRoomTransport(
             const identify = {
                 playerId: options.playerId,
                 playerName: options.playerName,
+                sessionToken,
                 type: "identify",
                 data: {},
             };
@@ -100,7 +127,7 @@ export function createWebSocketRoomTransport(
                     direction: "out",
                     timestamp: Date.now(),
                     type: "identify",
-                    payload: identify,
+                    payload: redactSessionToken(identify),
                     byteSize: payload.length,
                 });
             }
@@ -159,7 +186,8 @@ export function createWebSocketRoomTransport(
 
     const send = (message: unknown) => {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
-        const payload = JSON.stringify(message);
+        const authenticatedMessage = withSessionToken(message);
+        const payload = JSON.stringify(authenticatedMessage);
         ws.send(payload);
         if (import.meta.env.DEV) {
             const parsed = parseMessage(payload);
@@ -167,7 +195,7 @@ export function createWebSocketRoomTransport(
                 direction: "out",
                 timestamp: Date.now(),
                 type: parsed ? messageType(parsed) : "unknown",
-                payload: parsed ?? message,
+                payload: redactSessionToken(parsed ?? authenticatedMessage),
                 byteSize: payload.length,
             });
         }
@@ -200,6 +228,9 @@ export function createWebSocketRoomTransport(
         latest,
         connect,
         disconnect,
+        setSessionToken: (token) => {
+            sessionToken = token;
+        },
         dispose,
         messageLog,
     };
@@ -243,6 +274,7 @@ export function wrapWebSocketAsTransport(ws: WebSocket): RoomTransport {
         latest: (type) => latestByType.get(type) ?? null,
         connect: () => {},
         disconnect: () => ws.close(),
+        setSessionToken: () => {},
         dispose: () => {
             ws.removeEventListener("message", handler);
             subscribers.clear();

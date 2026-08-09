@@ -7,7 +7,9 @@ export type { BroadcastFn, SendToFn };
 
 export interface GameAdapter<TMessage = unknown> {
     messagePrefix: string;
-    decodeMessage(json: Record<string, unknown>): Effect.Effect<TMessage | null, never, never>;
+    decodeMessage(
+        json: Record<string, unknown>,
+    ): Effect.Effect<TMessage | null, never, never>;
     processMessage(
         message: TMessage,
         broadcast: BroadcastFn,
@@ -26,6 +28,7 @@ export interface GameAdapter<TMessage = unknown> {
         sendTo: SendToFn,
     ): void;
     endGame(broadcast: BroadcastFn, sendTo: SendToFn): void;
+    resumeGame?(broadcast: BroadcastFn, sendTo: SendToFn): void;
     onPlayerJoin?(
         playerId: string,
         playerName: string,
@@ -36,10 +39,9 @@ export interface GameAdapter<TMessage = unknown> {
 }
 
 export interface GameAdapterContext {
-    endGameAndPersist: (
-        broadcast: BroadcastFn,
-        sendTo: SendToFn,
-    ) => void;
+    endGameAndPersist: (broadcast: BroadcastFn, sendTo: SendToFn) => void;
+    persistGameSnapshot: () => void;
+    getHostPlayerId: () => string | null;
     setGameTimer: (clearFn: (() => void) | null) => void;
 }
 

@@ -77,6 +77,7 @@ export function initGame(
 
     if (players.length <= 1) {
         return {
+            eventIndex: 0,
             players: rpsPlayers,
             bestOf,
             rounds: [],
@@ -92,6 +93,7 @@ export function initGame(
     const totalRounds = Math.ceil(Math.log2(players.length));
 
     return {
+        eventIndex: 0,
         players: rpsPlayers,
         bestOf,
         rounds: [round],
@@ -158,7 +160,9 @@ export type ThrowValidationError =
 export function validateThrow(
     state: RpsState,
     playerId: string,
-): { ok: true; match: RpsMatch; position: "p1" | "p2" } | { ok: false; error: ThrowValidationError } {
+):
+    | { ok: true; match: RpsMatch; position: "p1" | "p2" }
+    | { ok: false; error: ThrowValidationError } {
     if (state.phase !== "throwing") {
         return { ok: false, error: { type: "not_in_throwing_phase" } };
     }
@@ -175,7 +179,9 @@ export function validateThrow(
 
     const position = getPlayerMatchPosition(match, playerId)!;
     const alreadyThrown =
-        position === "p1" ? match.player1Choice !== null : match.player2Choice !== null;
+        position === "p1"
+            ? match.player1Choice !== null
+            : match.player2Choice !== null;
     if (alreadyThrown) {
         return { ok: false, error: { type: "already_thrown" } };
     }
@@ -183,8 +189,7 @@ export function validateThrow(
     return { ok: true, match, position };
 }
 
-export type NextRoundValidationError =
-    | { type: "not_in_round_results" };
+export type NextRoundValidationError = { type: "not_in_round_results" };
 
 export function validateNextRound(
     state: RpsState,

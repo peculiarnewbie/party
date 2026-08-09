@@ -1,17 +1,16 @@
 import { Effect, Schema } from "effect";
 
-import {
-    gameTypes,
-    gameParticipantSchema,
-    playerSchema,
-} from "~/game";
+import { gameTypes, gameParticipantSchema, playerSchema } from "~/game";
 import type {
     GameParticipant,
     GameParticipantStatus,
     GameState,
     PlayerId,
 } from "~/game";
-import { nullablePlayerIdSchema, playerIdSchema } from "~/game/shared/branded-ids";
+import {
+    nullablePlayerIdSchema,
+    playerIdSchema,
+} from "~/game/shared/branded-ids";
 import type { BlackjackState } from "~/game/blackjack";
 import type { CheeseThiefState } from "~/game/cheese-thief";
 import type { CockroachPokerState } from "~/game/cockroach-poker";
@@ -58,6 +57,10 @@ type PersistedValueRow = {
 type PersistedParticipantRow = {
     player_id: string;
     status: GameParticipantStatus;
+};
+
+type PersistedPlayerCapabilityRow = {
+    capability_hash: string;
 };
 
 export type PersistedGameSnapshot =
@@ -148,9 +151,7 @@ const partialRoomStateSchema = Schema.Struct({
     players: Schema.optionalKey(
         Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
     ),
-    hostId: Schema.optionalKey(
-        Schema.mutableKey(nullablePlayerIdSchema),
-    ),
+    hostId: Schema.optionalKey(Schema.mutableKey(nullablePlayerIdSchema)),
     answers: Schema.optionalKey(
         Schema.mutableKey(Schema.Record(Schema.String, Schema.String)),
     ),
@@ -217,10 +218,8 @@ const gameStateSchemaMap: Record<string, Schema.Top> = {
     spicy: spicyStateSchema,
 };
 
-function getStateSchemaFor(
-    activeGameType: string | null,
-): Schema.Top | null {
-    return activeGameType ? gameStateSchemaMap[activeGameType] ?? null : null;
+function getStateSchemaFor(activeGameType: string | null): Schema.Top | null {
+    return activeGameType ? (gameStateSchemaMap[activeGameType] ?? null) : null;
 }
 
 function getSnapshotSchemaFor(
@@ -309,13 +308,15 @@ function decodePersistedValue<A>(
                 fallback:
                     typeof raw === "string"
                         ? "fallback"
-                        : extractMessageType(raw) ?? "fallback",
+                        : (extractMessageType(raw) ?? "fallback"),
             });
         },
     ).pipe(
         Effect.catchTag("PersistedStateDecodeError", (error) =>
-            Effect.gen(function*() {
-                yield* Effect.logWarning("persisted-state.decode-fallback").pipe(
+            Effect.gen(function* () {
+                yield* Effect.logWarning(
+                    "persisted-state.decode-fallback",
+                ).pipe(
                     Effect.annotateLogs({
                         component: "room-storage",
                         operation: "game-room.snapshot.load",
@@ -328,7 +329,7 @@ function decodePersistedValue<A>(
                 return fallback;
             }),
         ),
-    // TODO: remove cast when Effect Schema v4 narrows Schema.Top through generics
+        // TODO: remove cast when Effect Schema v4 narrows Schema.Top through generics
     ) as Effect.Effect<A, never>;
 }
 
@@ -375,8 +376,10 @@ function readParticipants(
             })),
         ),
         Effect.catchTag("PersistedStateDecodeError", (error) =>
-            Effect.gen(function*() {
-                yield* Effect.logWarning("persisted-participants.decode-fallback").pipe(
+            Effect.gen(function* () {
+                yield* Effect.logWarning(
+                    "persisted-participants.decode-fallback",
+                ).pipe(
                     Effect.annotateLogs({
                         component: "room-storage",
                         operation: "game-room.snapshot.load",
@@ -405,7 +408,23 @@ function writeParticipants(
                 sessionId,
             );
 
-            for (const [index, participant] of participants.entries()) {
+            const batchSize = 20;
+            for (
+                let offset = 0;
+                offset < participants.length;
+                offset += batchSize
+            ) {
+                const batch = participants.slice(offset, offset + batchSize);
+                const placeholders = batch
+                    .map(() => "(?, ?, ?, ?, ?)")
+                    .join(", ");
+                const bindings = batch.flatMap((participant, index) => [
+                    sessionId,
+                    participant.playerId,
+                    participant.status,
+                    now + offset + index,
+                    now,
+                ]);
                 ctx.storage.sql.exec(
                     `
                         INSERT INTO game_participants (
@@ -414,13 +433,9 @@ function writeParticipants(
                             status,
                             joined_at,
                             updated_at
-                        ) VALUES (?, ?, ?, ?, ?)
+                        ) VALUES ${placeholders}
                     `,
-                    sessionId,
-                    participant.playerId,
-                    participant.status,
-                    now + index,
-                    now,
+                    ...bindings,
                 );
             }
         },
@@ -478,10 +493,90 @@ export function ensureSchema(ctx: DurableObjectState) {
                     PRIMARY KEY (session_id, player_id)
                 )
             `);
+            ctx.storage.sql.exec(`
+                CREATE TABLE IF NOT EXISTS player_capabilities (
+                    player_id TEXT PRIMARY KEY,
+                    capability_hash TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                )
+            `);
         },
         catch: (error) =>
             new StorageWriteError({
                 operation: "ensureSchema",
+                message: formatUnknownError(error),
+            }),
+    });
+}
+
+export function loadPlayerCapabilityHash(
+    ctx: DurableObjectState,
+    playerId: string,
+): Effect.Effect<string | null, StorageReadError, never> {
+    return Effect.try({
+        try: () =>
+            ctx.storage.sql
+                .exec<PersistedPlayerCapabilityRow>(
+                    "SELECT capability_hash FROM player_capabilities WHERE player_id = ?",
+                    playerId,
+                )
+                .toArray()[0]?.capability_hash ?? null,
+        catch: (error) =>
+            new StorageReadError({
+                operation: "loadPlayerCapabilityHash",
+                key: playerId,
+                message: formatUnknownError(error),
+            }),
+    });
+}
+
+export function persistPlayerCapabilityHash(
+    ctx: DurableObjectState,
+    playerId: string,
+    capabilityHash: string,
+): Effect.Effect<void, StorageWriteError, never> {
+    return Effect.try({
+        try: () => {
+            ctx.storage.sql.exec(
+                `
+                    INSERT INTO player_capabilities (
+                        player_id,
+                        capability_hash,
+                        created_at
+                    ) VALUES (?, ?, ?)
+                    ON CONFLICT(player_id) DO UPDATE SET
+                        capability_hash = excluded.capability_hash,
+                        created_at = excluded.created_at
+                `,
+                playerId,
+                capabilityHash,
+                Date.now(),
+            );
+        },
+        catch: (error) =>
+            new StorageWriteError({
+                operation: "persistPlayerCapabilityHash",
+                key: playerId,
+                message: formatUnknownError(error),
+            }),
+    });
+}
+
+export function deletePlayerCapability(
+    ctx: DurableObjectState,
+    playerId: string,
+): Effect.Effect<void, StorageWriteError, never> {
+    return Effect.try({
+        try: () => {
+            ctx.storage.sql.exec(
+                "DELETE FROM player_capabilities WHERE player_id = ?",
+                playerId,
+            );
+        },
+        catch: (error) =>
+            new StorageWriteError({
+                operation: "deletePlayerCapability",
+                key: playerId,
                 message: formatUnknownError(error),
             }),
     });
@@ -494,7 +589,7 @@ export function loadRoomState(
     PersistedStateDecodeError | StorageReadError,
     never
 > {
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
         const row = yield* readMetaRow(ctx, ROOM_STATE_KEY);
         const persisted = yield* decodePersistedValue<Partial<GameState>>(
             ROOM_STATE_KEY,
@@ -524,7 +619,7 @@ export function persistRoomState(
     ctx: DurableObjectState,
     state: GameState,
 ): Effect.Effect<void, StorageWriteError, never> {
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
         const encodedState = encodeWithSchema(
             roomStateJsonSchema,
             state as typeof roomStateSchema.Type,
@@ -553,19 +648,20 @@ export function loadGameSnapshot(
     PersistedStateDecodeError | StorageReadError,
     never
 > {
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
         const schema = getSnapshotSchemaFor(activeGameType);
         if (!schema) {
             return null;
         }
 
         const row = yield* readMetaRow(ctx, GAME_SNAPSHOT_KEY);
-        const snapshot = yield* decodePersistedValue<PersistedGameSnapshot | null>(
-            GAME_SNAPSHOT_KEY,
-            row?.value ?? null,
-            schema,
-            null,
-        );
+        const snapshot =
+            yield* decodePersistedValue<PersistedGameSnapshot | null>(
+                GAME_SNAPSHOT_KEY,
+                row?.value ?? null,
+                schema,
+                null,
+            );
 
         return snapshot;
     });
@@ -579,7 +675,7 @@ export function persistGameSnapshot(
         return deleteMetaRow(ctx, GAME_SNAPSHOT_KEY);
     }
 
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
         const encodedSnapshot = encodeWithSchema(
             persistedGameSnapshotJsonSchema,
             snapshot as typeof persistedGameSnapshotSchema.Type,

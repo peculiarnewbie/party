@@ -1,8 +1,6 @@
 import type { Page } from "@playwright/test";
 import type { GameType } from "../../src/game";
-import type {
-    DevToolsSnapshot,
-} from "../../src/room/devtools-api";
+import type { DevToolsSnapshot } from "../../src/room/devtools-api";
 import { PARTY_DEVTOOLS_API_VERSION } from "../../src/room/devtools-api";
 import { E2E_BASE_URL } from "./e2e.config";
 
@@ -10,10 +8,13 @@ export class MultiplayerRoomPage {
     constructor(private readonly page: Page) {}
 
     async gotoRoom(roomId: string) {
-        await this.page.goto(new URL(`/room/${roomId}`, E2E_BASE_URL).toString(), {
-            waitUntil: "domcontentloaded",
-            timeout: 30_000,
-        });
+        await this.page.goto(
+            new URL(`/room/${roomId}`, E2E_BASE_URL).toString(),
+            {
+                waitUntil: "domcontentloaded",
+                timeout: 30_000,
+            },
+        );
         await this.page.waitForSelector('[data-testid="room-lobby"]');
         await this.waitForDevtools();
     }
@@ -91,6 +92,10 @@ export class MultiplayerRoomPage {
 
     async waitForPokerRoom() {
         await this.page.waitForSelector('[data-testid="poker-room"]');
+    }
+
+    async waitForBlackjackRoom() {
+        await this.page.waitForSelector('[data-testid="blackjack-room"]');
     }
 
     async waitForMyTurn() {

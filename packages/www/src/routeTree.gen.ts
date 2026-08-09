@@ -14,9 +14,7 @@ import { Route as RoomIndexRouteImport } from './routes/room/index'
 import { Route as DevIndexRouteImport } from './routes/dev/index'
 import { Route as DevAssetRouteImport } from './routes/dev/asset'
 import { Route as DevGameRouteImport } from './routes/dev/$game'
-import { Route as ApiUsersRouteImport } from './routes/api/users'
 import { Route as RoomRoomIdIndexRouteImport } from './routes/room/$roomId/index'
-import { Route as ApiUsersUserIdRouteImport } from './routes/api/users.$userId'
 import { Route as ApiRoomRoomIdRouteImport } from './routes/api/room/$roomId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -44,20 +42,10 @@ const DevGameRoute = DevGameRouteImport.update({
   path: '/dev/$game',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiUsersRoute = ApiUsersRouteImport.update({
-  id: '/api/users',
-  path: '/api/users',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RoomRoomIdIndexRoute = RoomRoomIdIndexRouteImport.update({
   id: '/room/$roomId/',
   path: '/room/$roomId/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const ApiUsersUserIdRoute = ApiUsersUserIdRouteImport.update({
-  id: '/$userId',
-  path: '/$userId',
-  getParentRoute: () => ApiUsersRoute,
 } as any)
 const ApiRoomRoomIdRoute = ApiRoomRoomIdRouteImport.update({
   id: '/api/room/$roomId',
@@ -67,77 +55,64 @@ const ApiRoomRoomIdRoute = ApiRoomRoomIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/api/users': typeof ApiUsersRouteWithChildren
   '/dev/$game': typeof DevGameRoute
   '/dev/asset': typeof DevAssetRoute
   '/dev/': typeof DevIndexRoute
   '/room/': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
-  '/api/users/$userId': typeof ApiUsersUserIdRoute
   '/room/$roomId/': typeof RoomRoomIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/api/users': typeof ApiUsersRouteWithChildren
   '/dev/$game': typeof DevGameRoute
   '/dev/asset': typeof DevAssetRoute
   '/dev': typeof DevIndexRoute
   '/room': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
-  '/api/users/$userId': typeof ApiUsersUserIdRoute
   '/room/$roomId': typeof RoomRoomIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/api/users': typeof ApiUsersRouteWithChildren
   '/dev/$game': typeof DevGameRoute
   '/dev/asset': typeof DevAssetRoute
   '/dev/': typeof DevIndexRoute
   '/room/': typeof RoomIndexRoute
   '/api/room/$roomId': typeof ApiRoomRoomIdRoute
-  '/api/users/$userId': typeof ApiUsersUserIdRoute
   '/room/$roomId/': typeof RoomRoomIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/api/users'
     | '/dev/$game'
     | '/dev/asset'
     | '/dev/'
     | '/room/'
     | '/api/room/$roomId'
-    | '/api/users/$userId'
     | '/room/$roomId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/api/users'
     | '/dev/$game'
     | '/dev/asset'
     | '/dev'
     | '/room'
     | '/api/room/$roomId'
-    | '/api/users/$userId'
     | '/room/$roomId'
   id:
     | '__root__'
     | '/'
-    | '/api/users'
     | '/dev/$game'
     | '/dev/asset'
     | '/dev/'
     | '/room/'
     | '/api/room/$roomId'
-    | '/api/users/$userId'
     | '/room/$roomId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ApiUsersRoute: typeof ApiUsersRouteWithChildren
   DevGameRoute: typeof DevGameRoute
   DevAssetRoute: typeof DevAssetRoute
   DevIndexRoute: typeof DevIndexRoute
@@ -183,26 +158,12 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof DevGameRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/users': {
-      id: '/api/users'
-      path: '/api/users'
-      fullPath: '/api/users'
-      preLoaderRoute: typeof ApiUsersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/room/$roomId/': {
       id: '/room/$roomId/'
       path: '/room/$roomId'
       fullPath: '/room/$roomId/'
       preLoaderRoute: typeof RoomRoomIdIndexRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/api/users/$userId': {
-      id: '/api/users/$userId'
-      path: '/$userId'
-      fullPath: '/api/users/$userId'
-      preLoaderRoute: typeof ApiUsersUserIdRouteImport
-      parentRoute: typeof ApiUsersRoute
     }
     '/api/room/$roomId': {
       id: '/api/room/$roomId'
@@ -214,21 +175,8 @@ declare module '@tanstack/solid-router' {
   }
 }
 
-interface ApiUsersRouteChildren {
-  ApiUsersUserIdRoute: typeof ApiUsersUserIdRoute
-}
-
-const ApiUsersRouteChildren: ApiUsersRouteChildren = {
-  ApiUsersUserIdRoute: ApiUsersUserIdRoute,
-}
-
-const ApiUsersRouteWithChildren = ApiUsersRoute._addFileChildren(
-  ApiUsersRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ApiUsersRoute: ApiUsersRouteWithChildren,
   DevGameRoute: DevGameRoute,
   DevAssetRoute: DevAssetRoute,
   DevIndexRoute: DevIndexRoute,

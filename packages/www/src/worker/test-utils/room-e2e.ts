@@ -1,7 +1,4 @@
-import {
-    env,
-    runInDurableObject,
-} from "cloudflare:test";
+import { env, runInDurableObject } from "cloudflare:test";
 import { expect } from "vitest";
 
 import type { GameRoom } from "~/worker/ws";
@@ -11,13 +8,33 @@ export type MessageEnvelope = {
     data: Record<string, unknown>;
 };
 
+const sessionTokens = new Map<string, string>();
+
 export class TestRoomClient {
     readonly messages: MessageEnvelope[] = [];
+    readonly closeEvents: CloseEvent[] = [];
 
-    constructor(readonly socket: WebSocket) {
+    constructor(
+        readonly roomId: string,
+        readonly socket: WebSocket,
+    ) {
         socket.accept();
         socket.addEventListener("message", (event) => {
-            this.messages.push(parseMessage(event.data));
+            const message = parseMessage(event.data);
+            if (
+                message.type === "room_session" &&
+                typeof message.data.playerId === "string" &&
+                typeof message.data.sessionToken === "string"
+            ) {
+                sessionTokens.set(
+                    `${this.roomId}:${message.data.playerId}`,
+                    message.data.sessionToken,
+                );
+            }
+            this.messages.push(message);
+        });
+        socket.addEventListener("close", (event) => {
+            this.closeEvents.push(event);
         });
     }
 
@@ -26,7 +43,32 @@ export class TestRoomClient {
     }
 
     send(message: Record<string, unknown>) {
+        const playerId =
+            typeof message.playerId === "string" ? message.playerId : null;
+        const type = typeof message.type === "string" ? message.type : null;
+        const sessionToken =
+            playerId && (type === "identify" || type === "join")
+                ? (sessionTokens.get(`${this.roomId}:${playerId}`) ?? null)
+                : undefined;
+        this.socket.send(
+            JSON.stringify(
+                sessionToken === undefined
+                    ? message
+                    : { ...message, sessionToken },
+            ),
+        );
+    }
+
+    sendRaw(message: Record<string, unknown>) {
         this.socket.send(JSON.stringify(message));
+    }
+
+    sendText(message: string) {
+        this.socket.send(message);
+    }
+
+    sendBinary(message: ArrayBuffer | ArrayBufferView) {
+        this.socket.send(message);
     }
 
     close(code = 1000, reason = "test complete") {
@@ -67,6 +109,17 @@ export class TestRoomClient {
             )}`,
         );
     }
+
+    async waitForClose(timeoutMs = 5_000): Promise<CloseEvent> {
+        const timeoutAt = Date.now() + timeoutMs;
+        while (Date.now() < timeoutAt) {
+            const event = this.closeEvents[0];
+            if (event) return event;
+            await sleep(20);
+        }
+
+        throw new Error("Timed out waiting for websocket close event");
+    }
 }
 
 function parseMessage(raw: unknown): MessageEnvelope {
@@ -98,7 +151,7 @@ export async function connectClient(roomId: string) {
     expect(response.status).toBe(101);
     expect(response.webSocket).toBeDefined();
 
-    const client = new TestRoomClient(response.webSocket as WebSocket);
+    const client = new TestRoomClient(roomId, response.webSocket as WebSocket);
     await client.waitForMessage(isMessageType("room_state"));
     return { stub, client };
 }

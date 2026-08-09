@@ -88,13 +88,29 @@ type MessageEnvelope = {
     data: Record<string, unknown>;
 };
 
+const sessionTokens = new Map<string, string>();
+
 class TestRoomClient {
     readonly messages: MessageEnvelope[] = [];
 
-    constructor(readonly socket: WebSocket) {
+    constructor(
+        readonly roomId: string,
+        readonly socket: WebSocket,
+    ) {
         socket.accept();
         socket.addEventListener("message", (event) => {
-            this.messages.push(parseMessage(event.data));
+            const message = parseMessage(event.data);
+            if (
+                message.type === "room_session" &&
+                typeof message.data.playerId === "string" &&
+                typeof message.data.sessionToken === "string"
+            ) {
+                sessionTokens.set(
+                    `${this.roomId}:${message.data.playerId}`,
+                    message.data.sessionToken,
+                );
+            }
+            this.messages.push(message);
         });
     }
 
@@ -103,7 +119,20 @@ class TestRoomClient {
     }
 
     send(message: Record<string, unknown>) {
-        this.socket.send(JSON.stringify(message));
+        const playerId =
+            typeof message.playerId === "string" ? message.playerId : null;
+        const type = typeof message.type === "string" ? message.type : null;
+        const sessionToken =
+            playerId && (type === "identify" || type === "join")
+                ? (sessionTokens.get(`${this.roomId}:${playerId}`) ?? null)
+                : undefined;
+        this.socket.send(
+            JSON.stringify(
+                sessionToken === undefined
+                    ? message
+                    : { ...message, sessionToken },
+            ),
+        );
     }
 
     close(code = 1000, reason = "test complete") {
@@ -199,7 +228,7 @@ async function connectClient(roomId: string) {
     expect(response.status).toBe(101);
     expect(response.webSocket).toBeDefined();
 
-    const client = new TestRoomClient(response.webSocket as WebSocket);
+    const client = new TestRoomClient(roomId, response.webSocket as WebSocket);
     await client.waitForMessage(isRoomStateMessage);
     return { stub, client };
 }
@@ -219,16 +248,31 @@ async function sleep(intervalMs: number) {
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
 }
 
-function joinRoom(client: TestRoomClient, playerId: string, playerName: string) {
+async function joinRoom(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
+    const cursor = client.cursor();
     client.send({
         type: "join",
         playerId,
         playerName,
         data: {},
     });
+    await client.waitForMessage(
+        (message) =>
+            isRoomStateMessage(message) &&
+            message.data.players.some((player) => player.id === playerId),
+        { since: cursor },
+    );
 }
 
-function identify(client: TestRoomClient, playerId: string, playerName: string) {
+function identify(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({
         type: "identify",
         playerId,
@@ -237,21 +281,32 @@ function identify(client: TestRoomClient, playerId: string, playerName: string) 
     });
 }
 
-function selectGame(
+async function selectGame(
     client: TestRoomClient,
     playerId: string,
     playerName: string,
     gameType: "yahtzee" | "lying_yahtzee",
 ) {
+    const cursor = client.cursor();
     client.send({
         type: "select_game",
         playerId,
         playerName,
         data: { gameType },
     });
+    await client.waitForMessage(
+        (message) =>
+            isRoomStateMessage(message) &&
+            message.data.selectedGameType === gameType,
+        { since: cursor },
+    );
 }
 
-function startGame(client: TestRoomClient, playerId: string, playerName: string) {
+function startGame(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({
         type: "start",
         playerId,
@@ -260,7 +315,11 @@ function startGame(client: TestRoomClient, playerId: string, playerName: string)
     });
 }
 
-function resumeRoom(client: TestRoomClient, playerId: string, playerName: string) {
+function resumeRoom(
+    client: TestRoomClient,
+    playerId: string,
+    playerName: string,
+) {
     client.send({
         type: "resume_room",
         playerId,
@@ -362,7 +421,9 @@ describe("GameRoom yahtzee sequences", () => {
             await joinRoom(bob, "p2", "Bob");
 
             const roomState = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "room_state";
                     data: RoomStatePayload;
                 } =>
@@ -383,7 +444,7 @@ describe("GameRoom yahtzee sequences", () => {
             expect(roomState.data.selectedGameType).toBe("quiz");
 
             const selectCursor = alice.cursor();
-            selectGame(alice, "p1", "Alice", "yahtzee");
+            await selectGame(alice, "p1", "Alice", "yahtzee");
             await alice.waitForMessage(
                 (message) =>
                     isRoomStateMessage(message) &&
@@ -406,7 +467,9 @@ describe("GameRoom yahtzee sequences", () => {
                 { since: startCursorAlice },
             );
             const aliceInitialState = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -418,7 +481,9 @@ describe("GameRoom yahtzee sequences", () => {
                 { since: startCursorAlice },
             );
             const bobInitialState = await bob.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -437,7 +502,9 @@ describe("GameRoom yahtzee sequences", () => {
             roll(alice, "p1", "Alice");
 
             const rollAction = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:action";
                     data: YahtzeeActionPayload;
                 } =>
@@ -447,7 +514,9 @@ describe("GameRoom yahtzee sequences", () => {
                 { since: rollCursorAlice },
             );
             const aliceRolledState = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -459,7 +528,9 @@ describe("GameRoom yahtzee sequences", () => {
                 { since: rollCursorAlice },
             );
             const bobObservedState = await bob.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -488,7 +559,9 @@ describe("GameRoom yahtzee sequences", () => {
                 { since: scoreCursorAlice },
             );
             const aliceAfterScore = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -496,12 +569,13 @@ describe("GameRoom yahtzee sequences", () => {
                     message.data.myId === "p1" &&
                     !message.data.isMyTurn &&
                     message.data.currentPlayerId === "p2" &&
-                    findPlayerScore(message.data, "p1", "chance") !==
-                        undefined,
+                    findPlayerScore(message.data, "p1", "chance") !== undefined,
                 { since: scoreCursorAlice },
             );
             const bobAfterScore = await bob.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -533,9 +607,9 @@ describe("GameRoom yahtzee sequences", () => {
                 { playerId: "p2", status: "active" },
             ]);
             expect(persisted.yahtzeeState).not.toBeNull();
-            expect((persisted.yahtzeeState as YahtzeeState).currentPlayerIndex).toBe(
-                1,
-            );
+            expect(
+                (persisted.yahtzeeState as YahtzeeState).currentPlayerIndex,
+            ).toBe(1);
         } finally {
             alice.close();
             bob.close();
@@ -550,7 +624,7 @@ describe("GameRoom yahtzee sequences", () => {
         try {
             await joinRoom(alice, "p1", "Alice");
             await joinRoom(bob, "p2", "Bob");
-            selectGame(alice, "p1", "Alice", "lying_yahtzee");
+            await selectGame(alice, "p1", "Alice", "lying_yahtzee");
             startGame(alice, "p1", "Alice");
 
             await alice.waitForMessage(
@@ -570,7 +644,9 @@ describe("GameRoom yahtzee sequences", () => {
             const rollCursor = alice.cursor();
             roll(alice, "p1", "Alice");
             const rolledState = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -597,7 +673,9 @@ describe("GameRoom yahtzee sequences", () => {
                 { since: claimCursorAlice },
             );
             const bobPendingClaim = await bob.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -610,16 +688,18 @@ describe("GameRoom yahtzee sequences", () => {
                 { since: claimCursorBob },
             );
 
-            expect(bobPendingClaim.data.pendingClaim?.claimedPoints).toBeGreaterThan(
-                0,
-            );
+            expect(
+                bobPendingClaim.data.pendingClaim?.claimedPoints,
+            ).toBeGreaterThan(0);
 
             const resolveCursorAlice = alice.cursor();
             const resolveCursorBob = bob.cursor();
             challengeClaim(bob, "p2", "Bob");
 
             const resolution = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:action";
                     data: YahtzeeActionPayload;
                 } =>
@@ -630,7 +710,9 @@ describe("GameRoom yahtzee sequences", () => {
                 { since: resolveCursorAlice },
             );
             const bobAfterChallenge = await bob.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -665,7 +747,7 @@ describe("GameRoom yahtzee sequences", () => {
         try {
             await joinRoom(alice, "p1", "Alice");
             await joinRoom(bob, "p2", "Bob");
-            selectGame(alice, "p1", "Alice", "yahtzee");
+            await selectGame(alice, "p1", "Alice", "yahtzee");
             startGame(alice, "p1", "Alice");
             await alice.waitForMessage(
                 (message) =>
@@ -718,7 +800,9 @@ describe("GameRoom yahtzee sequences", () => {
                     { since: identifyCursor },
                 );
                 const rehydratedState = await bobReconnect.waitForMessage(
-                    (message): message is MessageEnvelope & {
+                    (
+                        message,
+                    ): message is MessageEnvelope & {
                         type: "yahtzee:state";
                         data: YahtzeeStatePayload;
                     } =>
@@ -751,7 +835,7 @@ describe("GameRoom yahtzee sequences", () => {
         try {
             await joinRoom(alice, "p1", "Alice");
             await joinRoom(bob, "p2", "Bob");
-            selectGame(alice, "p1", "Alice", "yahtzee");
+            await selectGame(alice, "p1", "Alice", "yahtzee");
             startGame(alice, "p1", "Alice");
             await alice.waitForMessage(
                 (message) =>
@@ -767,7 +851,9 @@ describe("GameRoom yahtzee sequences", () => {
 
             roll(alice, "p1", "Alice");
             const rolledState = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -779,7 +865,9 @@ describe("GameRoom yahtzee sequences", () => {
             const holdCursor = alice.cursor();
             toggleHold(alice, "p1", "Alice", 0);
             const heldState = await alice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -816,14 +904,17 @@ describe("GameRoom yahtzee sequences", () => {
                 );
             });
 
-            const hibernatedSnapshot = await withRoom(roomId, async (ctx, instance) => {
-                return {
-                    alarm: await ctx.storage.getAlarm(),
-                    phase: instance.state.phase,
-                    participants: instance.state.gameParticipants,
-                    yahtzeeState: instance.gameStateHolder.current,
-                };
-            });
+            const hibernatedSnapshot = await withRoom(
+                roomId,
+                async (ctx, instance) => {
+                    return {
+                        alarm: await ctx.storage.getAlarm(),
+                        phase: instance.state.phase,
+                        participants: instance.state.gameParticipants,
+                        yahtzeeState: instance.gameStateHolder.current,
+                    };
+                },
+            );
 
             expect(hibernatedSnapshot.phase).toBe("hibernated");
             expect(hibernatedSnapshot.alarm).not.toBeNull();
@@ -831,12 +922,12 @@ describe("GameRoom yahtzee sequences", () => {
                 { playerId: "p1", status: "disconnected" },
                 { playerId: "p2", status: "disconnected" },
             ]);
-            expect((hibernatedSnapshot.yahtzeeState as YahtzeeState).held[0]).toBe(
-                true,
-            );
-            expect((hibernatedSnapshot.yahtzeeState as YahtzeeState).dice).toEqual(
-                rolledState.data.dice,
-            );
+            expect(
+                (hibernatedSnapshot.yahtzeeState as YahtzeeState).held[0],
+            ).toBe(true);
+            expect(
+                (hibernatedSnapshot.yahtzeeState as YahtzeeState).dice,
+            ).toEqual(rolledState.data.dice);
 
             const { client: resumedAlice } = await connectClient(roomId);
             const identifyCursor = resumedAlice.cursor();
@@ -863,7 +954,9 @@ describe("GameRoom yahtzee sequences", () => {
                 { since: resumeCursor },
             );
             const resumedState = await resumedAlice.waitForMessage(
-                (message): message is MessageEnvelope & {
+                (
+                    message,
+                ): message is MessageEnvelope & {
                     type: "yahtzee:state";
                     data: YahtzeeStatePayload;
                 } =>
@@ -903,16 +996,19 @@ describe("GameRoom yahtzee sequences", () => {
             const ranResetAlarm = await runDurableObjectAlarm(stub);
             expect(ranResetAlarm).toBe(true);
 
-            const resetSnapshot = await withRoom(roomId, async (_, instance) => {
-                return {
-                    phase: instance.state.phase,
-                    players: instance.state.players,
-                    hostId: instance.state.hostId,
-                    activeGameType: instance.state.activeGameType,
-                    participants: instance.state.gameParticipants,
-                    yahtzeeState: instance.gameStateHolder.current,
-                };
-            });
+            const resetSnapshot = await withRoom(
+                roomId,
+                async (_, instance) => {
+                    return {
+                        phase: instance.state.phase,
+                        players: instance.state.players,
+                        hostId: instance.state.hostId,
+                        activeGameType: instance.state.activeGameType,
+                        participants: instance.state.gameParticipants,
+                        yahtzeeState: instance.gameStateHolder.current,
+                    };
+                },
+            );
 
             expect(resetSnapshot).toEqual({
                 phase: "lobby",
@@ -926,7 +1022,9 @@ describe("GameRoom yahtzee sequences", () => {
             const { client: freshClient } = await connectClient(roomId);
             try {
                 const freshState = await freshClient.waitForMessage(
-                    (message): message is MessageEnvelope & {
+                    (
+                        message,
+                    ): message is MessageEnvelope & {
                         type: "room_state";
                         data: RoomStatePayload;
                     } =>

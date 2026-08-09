@@ -180,21 +180,17 @@ function createMockContext() {
                     if (
                         normalized.startsWith("INSERT INTO game_participants")
                     ) {
-                        const [
-                            sessionId,
-                            playerId,
-                            status,
-                            joinedAt,
-                            updatedAt,
-                        ] = params as [string, string, string, number, number];
-                        const rows = participants.get(sessionId) ?? [];
-                        rows.push({
-                            player_id: playerId,
-                            status,
-                            joined_at: joinedAt,
-                            updated_at: updatedAt,
-                        });
-                        participants.set(sessionId, rows);
+                        for (let index = 0; index < params.length; index += 5) {
+                            const sessionId = params[index] as string;
+                            const rows = participants.get(sessionId) ?? [];
+                            rows.push({
+                                player_id: params[index + 1] as string,
+                                status: params[index + 2] as string,
+                                joined_at: params[index + 3] as number,
+                                updated_at: params[index + 4] as number,
+                            });
+                            participants.set(sessionId, rows);
+                        }
                         return { toArray: () => [] as Row[] };
                     }
 
