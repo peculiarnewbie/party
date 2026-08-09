@@ -1,6 +1,7 @@
 export type {
     ScoringCategory,
     Dice,
+    RolledDice,
     HeldDice,
     YahtzeeMode,
     YahtzeePhase,
@@ -32,15 +33,16 @@ export const CATEGORY_LABELS = {
     large_straight: "Lg Straight",
     yahtzee: "YAHTZEE",
     chance: "Chance",
-} as const satisfies Record<
-    import("./schemas").ScoringCategory,
-    string
->;
+} as const satisfies Record<import("./schemas").ScoringCategory, string>;
 
 export type YahtzeeAction =
     | { type: "roll"; playerId: string }
     | { type: "toggle_hold"; playerId: string; diceIndex: number }
-    | { type: "score"; playerId: string; category: import("./schemas").ScoringCategory }
+    | {
+          type: "score";
+          playerId: string;
+          category: import("./schemas").ScoringCategory;
+      }
     | {
           type: "claim";
           playerId: string;

@@ -48,6 +48,8 @@ export function createRound(
             player2Wins: 0,
             player1Choice: null,
             player2Choice: null,
+            player1HasThrown: false,
+            player2HasThrown: false,
             winnerId: null,
             status: "active",
         });

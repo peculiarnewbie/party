@@ -54,8 +54,12 @@ export const perudoStateSchema = Schema.Struct({
     bidHistory: Schema.mutableKey(Schema.mutable(Schema.Array(bidSchema))),
     roundNumber: Schema.mutableKey(Schema.Number),
     palificoRound: Schema.mutableKey(Schema.Boolean),
-    lastChallengeResult: Schema.mutableKey(Schema.NullOr(challengeResultSchema)),
-    winners: Schema.mutableKey(Schema.NullOr(Schema.mutable(Schema.Array(Schema.String)))),
+    lastChallengeResult: Schema.mutableKey(
+        Schema.NullOr(challengeResultSchema),
+    ),
+    winners: Schema.mutableKey(
+        Schema.NullOr(Schema.mutable(Schema.Array(Schema.String))),
+    ),
     totalDiceInPlay: Schema.mutableKey(Schema.Number),
     revealTimerActive: Schema.mutableKey(Schema.Boolean),
 });
@@ -67,7 +71,9 @@ const perudoPlayerInfoSchema = Schema.Struct({
     eliminated: Schema.mutableKey(Schema.Boolean),
     isCurrentPlayer: Schema.mutableKey(Schema.Boolean),
     isStartingPlayer: Schema.mutableKey(Schema.Boolean),
-    dice: Schema.mutableKey(Schema.NullOr(Schema.mutable(Schema.Array(faceValueSchema)))),
+    dice: Schema.mutableKey(
+        Schema.NullOr(Schema.mutable(Schema.Array(faceValueSchema))),
+    ),
 });
 
 const nextHigherBidSchema = Schema.Struct({
@@ -82,23 +88,24 @@ export const perudoPlayerViewSchema = Schema.Struct({
     currentBid: Schema.mutableKey(Schema.NullOr(bidSchema)),
     bidHistory: Schema.mutableKey(Schema.mutable(Schema.Array(bidSchema))),
     palificoRound: Schema.mutableKey(Schema.Boolean),
-    lastChallengeResult: Schema.mutableKey(Schema.NullOr(challengeResultSchema)),
-    winners: Schema.mutableKey(Schema.NullOr(Schema.mutable(Schema.Array(Schema.String)))),
+    lastChallengeResult: Schema.mutableKey(
+        Schema.NullOr(challengeResultSchema),
+    ),
+    winners: Schema.mutableKey(
+        Schema.NullOr(Schema.mutable(Schema.Array(Schema.String))),
+    ),
     totalDiceInPlay: Schema.mutableKey(Schema.Number),
     revealTimerActive: Schema.mutableKey(Schema.Boolean),
     isMyTurn: Schema.mutableKey(Schema.Boolean),
     currentPlayerId: Schema.mutableKey(Schema.String),
-    players: Schema.mutableKey(Schema.mutable(Schema.Array(perudoPlayerInfoSchema))),
+    players: Schema.mutableKey(
+        Schema.mutable(Schema.Array(perudoPlayerInfoSchema)),
+    ),
     canBid: Schema.mutableKey(Schema.Boolean),
     canChallenge: Schema.mutableKey(Schema.Boolean),
     mustBet: Schema.mutableKey(Schema.Boolean),
     nextHigherBid: Schema.mutableKey(Schema.NullOr(nextHigherBidSchema)),
 });
-
-const diceRollsSchema = Schema.Record(
-    Schema.String,
-    Schema.mutable(Schema.Array(faceValueSchema)),
-);
 
 export const perudoResultSchema = Schema.Union([
     Schema.Struct({
@@ -109,7 +116,6 @@ export const perudoResultSchema = Schema.Union([
         type: Schema.mutableKey(Schema.Literal("round_started")),
         roundNumber: Schema.mutableKey(Schema.Number),
         palificoRound: Schema.mutableKey(Schema.Boolean),
-        diceRolls: Schema.mutableKey(diceRollsSchema),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("bid_placed")),
@@ -126,6 +132,9 @@ export const perudoResultSchema = Schema.Union([
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("player_eliminated")),
         playerId: Schema.mutableKey(Schema.String),
+        challengerId: Schema.mutableKey(Schema.String),
+        bidderId: Schema.mutableKey(Schema.String),
+        bid: Schema.mutableKey(bidSchema),
         loserId: Schema.mutableKey(Schema.String),
         loserNewCount: Schema.mutableKey(Schema.Number),
         nextPlayerIndex: Schema.mutableKey(Schema.Number),
@@ -165,7 +174,9 @@ export type PerudoState = SchemaType<typeof perudoStateSchema>;
 export type PerudoPlayerInfo = SchemaType<typeof perudoPlayerInfoSchema>;
 export type PerudoPlayerView = SchemaType<typeof perudoPlayerViewSchema>;
 export type PerudoResult = SchemaType<typeof perudoResultSchema>;
-export type PerudoGameOverPayload = SchemaType<typeof perudoGameOverPayloadSchema>;
+export type PerudoGameOverPayload = SchemaType<
+    typeof perudoGameOverPayloadSchema
+>;
 export type PerudoServerMessage = SchemaType<typeof perudoServerMessageSchema>;
 
 export type PerudoSideMessage = Exclude<
@@ -173,7 +184,9 @@ export type PerudoSideMessage = Exclude<
     { type: "perudo:state" }
 >;
 
-export const decodePerudoPlayerView = createPlayerViewDecoder(perudoPlayerViewSchema);
+export const decodePerudoPlayerView = createPlayerViewDecoder(
+    perudoPlayerViewSchema,
+);
 export const decodePerudoSideMessage = createServerMessageDecoder(
     "perudo:state",
     perudoServerMessageSchema,

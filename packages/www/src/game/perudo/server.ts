@@ -6,11 +6,18 @@ import {
     initGame,
     processAction,
     removePlayer as removePerudoPlayer,
-    startNewRound,
+    openBidding,
     endGameByHost,
     finishReveal,
 } from "./engine";
 import { getPlayerView } from "./views";
+
+type PerudoServerOptions = {
+    scheduleFinishReveal?: (
+        broadcast: (msg: string) => void,
+        sendTo: (playerId: string, msg: string) => void,
+    ) => void;
+};
 
 function sendServerMessage(
     send: (message: string) => void,
@@ -19,7 +26,10 @@ function sendServerMessage(
     send(encodePerudoServerMessage(message));
 }
 
-export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
+export const perudoServer = (
+    stateRef: { current: PerudoState | null },
+    options: PerudoServerOptions = {},
+) => ({
     sendStateToPlayer(
         playerId: string,
         sendTo: (playerId: string, msg: string) => void,
@@ -71,7 +81,14 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
                 playerId: message.playerId,
             };
         } else if (message.type === "perudo:start_round") {
-            const result = startNewRound(state);
+            const result = openBidding(state);
+            if (result.type === "error") {
+                sendServerMessage((msg) => sendTo(message.playerId, msg), {
+                    type: "perudo:error",
+                    data: { message: result.message },
+                });
+                return;
+            }
             broadcast(
                 encodePerudoServerMessage({
                     type: "perudo:action",
@@ -106,10 +123,7 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
             }),
         );
 
-        if (
-            result.type === "player_eliminated" ||
-            result.type === "game_over"
-        ) {
+        if (result.type === "player_eliminated") {
             state.revealTimerActive = true;
         }
 
@@ -124,6 +138,10 @@ export const perudoServer = (stateRef: { current: PerudoState | null }) => ({
                 type: "perudo:state",
                 data: getPlayerView(state, player.id),
             });
+        }
+
+        if (result.type === "player_eliminated") {
+            options.scheduleFinishReveal?.(broadcast, sendTo);
         }
 
         if (result.type === "game_over") {

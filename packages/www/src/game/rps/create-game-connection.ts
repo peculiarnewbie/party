@@ -1,4 +1,4 @@
-import { createMemo, createSignal } from "solid-js";
+import { createSignal } from "solid-js";
 import { decodeUnknownSync } from "~/effect/schema-helpers";
 import type { RoomTransport } from "~/room/room-transport";
 import type { GameConnection } from "../connection";
@@ -22,7 +22,7 @@ export function createRpsGameConnection(
     const handlers = new Set<(event: RpsSideEvent) => void>();
     let syncPending = false;
 
-    const view = createMemo(() => fold.view() ?? snapshotView());
+    const view = () => fold.view() ?? snapshotView();
 
     const handleMessage = (raw: Record<string, unknown>) => {
         if (typeof raw.type !== "string" || !raw.type.startsWith("rps:")) {

@@ -53,6 +53,8 @@ const rpsMatchStateSchema = Schema.Struct({
     player2Wins: Schema.mutableKey(Schema.Number),
     player1Choice: Schema.mutableKey(Schema.NullOr(rpsChoiceSchema)),
     player2Choice: Schema.mutableKey(Schema.NullOr(rpsChoiceSchema)),
+    player1HasThrown: Schema.optionalKey(Schema.mutableKey(Schema.Boolean)),
+    player2HasThrown: Schema.optionalKey(Schema.mutableKey(Schema.Boolean)),
     winnerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
     status: Schema.mutableKey(matchStatusSchema),
 });

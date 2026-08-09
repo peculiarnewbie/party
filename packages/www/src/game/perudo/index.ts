@@ -16,6 +16,7 @@ export {
     processAction,
     removePlayer,
     startNewRound,
+    openBidding,
     endGameByHost,
     finishReveal,
     countDiceWithValue,

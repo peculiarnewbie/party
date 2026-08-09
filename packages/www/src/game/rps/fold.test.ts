@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { fold, createInitialFoldState, getPlayerChoice, hasPlayerThrown } from "./fold";
+import {
+    fold,
+    createInitialFoldState,
+    getPlayerChoice,
+    hasPlayerThrown,
+} from "./fold";
 import type { RpsEvent, RpsHiddenData } from "./events";
 import type { RpsState } from "./types";
 
@@ -58,7 +63,9 @@ describe("fold", () => {
 
         const result = fold(fs, event, hidden);
 
-        expect(result.publicState).toBe(fs.publicState);
+        expect(result.publicState.rounds[0].matches[0].player1HasThrown).toBe(
+            true,
+        );
         expect(getPlayerChoice(result, 0, "alice")).toBe("rock");
         expect(hasPlayerThrown(result, 0, "alice")).toBe(true);
         expect(hasPlayerThrown(result, 0, "bob")).toBe(false);
@@ -77,24 +84,32 @@ describe("fold", () => {
         const result = fold(fs, event);
 
         expect(getPlayerChoice(result, 0, "alice")).toBeNull();
-        expect(hasPlayerThrown(result, 0, "alice")).toBe(false);
+        expect(hasPlayerThrown(result, 0, "alice")).toBe(true);
     });
 
     it("throw_revealed clears tracked choices and updates state", () => {
         const state = makeTwoPlayerState();
         let fs = createInitialFoldState(state);
 
-        fs = fold(fs, {
-            type: "throw_registered",
-            playerId: "alice",
-            matchIndex: 0,
-        }, { type: "throw_choice", choice: "rock" });
+        fs = fold(
+            fs,
+            {
+                type: "throw_registered",
+                playerId: "alice",
+                matchIndex: 0,
+            },
+            { type: "throw_choice", choice: "rock" },
+        );
 
-        fs = fold(fs, {
-            type: "throw_registered",
-            playerId: "bob",
-            matchIndex: 0,
-        }, { type: "throw_choice", choice: "scissors" });
+        fs = fold(
+            fs,
+            {
+                type: "throw_registered",
+                playerId: "bob",
+                matchIndex: 0,
+            },
+            { type: "throw_choice", choice: "scissors" },
+        );
 
         fs = fold(fs, {
             type: "throw_revealed",
@@ -103,11 +118,17 @@ describe("fold", () => {
             player2Choice: "scissors",
             winnerId: "alice",
         });
+        fs = fold(fs, {
+            type: "match_completed",
+            matchIndex: 0,
+            winnerId: "alice",
+        });
 
         expect(getPlayerChoice(fs, 0, "alice")).toBeNull();
         expect(hasPlayerThrown(fs, 0, "alice")).toBe(false);
         expect(fs.publicState.rounds[0].matches[0].throws).toHaveLength(1);
         expect(fs.publicState.rounds[0].matches[0].player1Wins).toBe(1);
+        expect(fs.publicState.phase).toBe("round_results");
     });
 
     it("tournament_over sets phase and winnerId", () => {
@@ -170,17 +191,25 @@ describe("fold", () => {
 
         let fs = createInitialFoldState(state);
 
-        fs = fold(fs, {
-            type: "throw_registered",
-            playerId: "a",
-            matchIndex: 0,
-        }, { type: "throw_choice", choice: "rock" });
+        fs = fold(
+            fs,
+            {
+                type: "throw_registered",
+                playerId: "a",
+                matchIndex: 0,
+            },
+            { type: "throw_choice", choice: "rock" },
+        );
 
-        fs = fold(fs, {
-            type: "throw_registered",
-            playerId: "c",
-            matchIndex: 1,
-        }, { type: "throw_choice", choice: "paper" });
+        fs = fold(
+            fs,
+            {
+                type: "throw_registered",
+                playerId: "c",
+                matchIndex: 1,
+            },
+            { type: "throw_choice", choice: "paper" },
+        );
 
         expect(getPlayerChoice(fs, 0, "a")).toBe("rock");
         expect(getPlayerChoice(fs, 1, "c")).toBe("paper");

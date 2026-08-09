@@ -412,6 +412,65 @@ describe("GameRoom RPS sequences", () => {
         }
     });
 
+    it("keeps an opponent's pending throw when reconnecting before replying", async () => {
+        const roomId = nextRoomId();
+        const clients: TestRoomClient[] = [];
+
+        try {
+            const { client: alice } = await connectClient(roomId);
+            const { client: bob } = await connectClient(roomId);
+            clients.push(alice, bob);
+            await joinRoom(alice, "p1", "Alice");
+            await joinRoom(bob, "p2", "Bob");
+
+            await selectGame(alice, "p1", "Alice", "rps");
+            await sleep(100);
+            startGame(alice, "p1", "Alice");
+            const snapshot = await alice.waitForMessage(isRpsSnapshotMessage);
+            const match = snapshot.data.rounds[0].matches[0];
+            const first = match.player1Id === "p1" ? alice : bob;
+            const second = match.player2Id === "p1" ? alice : bob;
+            const firstName = match.player1Id === "p1" ? "Alice" : "Bob";
+            const secondName = match.player2Id === "p1" ? "Alice" : "Bob";
+
+            const registeredCursor = first.cursor();
+            sendThrow(first, match.player1Id, firstName, "rock");
+            await first.waitForMessage(
+                (message) =>
+                    isRpsEventMessage(message) &&
+                    message.data.type === "throw_registered",
+                { since: registeredCursor },
+            );
+
+            second.close();
+            await sleep(300);
+            const { client: reconnected } = await connectClient(roomId);
+            clients.push(reconnected);
+            reconnected.send({
+                type: "identify",
+                playerId: match.player2Id,
+                playerName: secondName,
+                data: {},
+            });
+            await reconnected.waitForMessage(isRpsSyncResponseMessage);
+
+            const revealCursor = reconnected.cursor();
+            sendThrow(reconnected, match.player2Id, secondName, "scissors");
+            await reconnected.waitForMessage(
+                (message) =>
+                    isRpsEventMessage(message) &&
+                    message.data.type === "throw_revealed",
+                { since: revealCursor },
+            );
+        } finally {
+            for (const client of clients) {
+                try {
+                    client.close();
+                } catch {}
+            }
+        }
+    });
+
     it("restores an unrevealed throw after the in-memory adapter is evicted", async () => {
         const roomId = nextRoomId();
         const clients: TestRoomClient[] = [];

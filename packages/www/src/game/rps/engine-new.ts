@@ -479,6 +479,10 @@ export function createRpsEngine(config: RpsEngineConfig): RpsEngine {
                             p2Choice: match.player2Choice,
                         });
                     }
+                    match.player1HasThrown =
+                        match.player1HasThrown || match.player1Choice !== null;
+                    match.player2HasThrown =
+                        match.player2HasThrown || match.player2Choice !== null;
                     match.player1Choice = null;
                     match.player2Choice = null;
                 }

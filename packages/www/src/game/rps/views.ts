@@ -48,8 +48,10 @@ export function getPlayerView(
                 if (isMyMatch && match.status === "active") {
                     myChoice = isP1 ? match.player1Choice : match.player2Choice;
                     opponentHasThrown = isP1
-                        ? match.player2Choice !== null
-                        : match.player1Choice !== null;
+                        ? (match.player2HasThrown ??
+                          match.player2Choice !== null)
+                        : (match.player1HasThrown ??
+                          match.player1Choice !== null);
                 }
 
                 return {
@@ -84,7 +86,8 @@ export function getPlayerView(
         (round) => round.roundNumber === state.currentRound,
     );
 
-    const myMatch = currentRoundView?.matches.find((match) => match.isMyMatch) ?? null;
+    const myMatch =
+        currentRoundView?.matches.find((match) => match.isMyMatch) ?? null;
 
     const needsToThrow =
         state.phase === "throwing" &&

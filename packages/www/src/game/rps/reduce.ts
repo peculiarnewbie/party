@@ -1,6 +1,13 @@
 import type { RpsState, RpsThrow } from "./types";
 import type { RpsEvent } from "./events";
-import { getCurrentRound, collectRoundWinners, shuffle, createRound, winsNeeded, checkRoundComplete } from "./mechanics";
+import {
+    getCurrentRound,
+    collectRoundWinners,
+    shuffle,
+    createRound,
+    winsNeeded,
+    checkRoundComplete,
+} from "./mechanics";
 
 export function reduce(state: RpsState, event: RpsEvent): RpsState {
     switch (event.type) {
@@ -8,7 +15,7 @@ export function reduce(state: RpsState, event: RpsEvent): RpsState {
             return { ...state, bestOf: event.bestOf };
 
         case "throw_registered":
-            return state;
+            return applyThrowRegistered(state, event);
 
         case "throw_revealed":
             return applyThrowRevealed(state, event);
@@ -20,13 +27,49 @@ export function reduce(state: RpsState, event: RpsEvent): RpsState {
             return applyRoundAdvanced(state, event);
 
         case "tournament_over":
-            return { ...state, phase: "tournament_over", winnerId: event.winnerId };
+            return {
+                ...state,
+                phase: "tournament_over",
+                winnerId: event.winnerId,
+            };
     }
+}
+
+function applyThrowRegistered(
+    state: RpsState,
+    event: { matchIndex: number; playerId: string },
+): RpsState {
+    const round = getCurrentRound(state);
+    const match = round?.matches[event.matchIndex];
+    if (!round || !match) return state;
+
+    const newMatch = {
+        ...match,
+        player1HasThrown:
+            match.player1HasThrown || match.player1Id === event.playerId,
+        player2HasThrown:
+            match.player2HasThrown || match.player2Id === event.playerId,
+    };
+    const newMatches = [...round.matches];
+    newMatches[event.matchIndex] = newMatch;
+    const newRound = { ...round, matches: newMatches };
+
+    return {
+        ...state,
+        rounds: state.rounds.map((entry) =>
+            entry.roundNumber === state.currentRound ? newRound : entry,
+        ),
+    };
 }
 
 function applyThrowRevealed(
     state: RpsState,
-    event: { matchIndex: number; player1Choice: string; player2Choice: string; winnerId: string | null },
+    event: {
+        matchIndex: number;
+        player1Choice: string;
+        player2Choice: string;
+        winnerId: string | null;
+    },
 ): RpsState {
     const round = getCurrentRound(state);
     if (!round) return state;
@@ -54,6 +97,8 @@ function applyThrowRevealed(
         player2Wins,
         player1Choice: null,
         player2Choice: null,
+        player1HasThrown: false,
+        player2HasThrown: false,
     };
 
     const newMatches = [...round.matches];
@@ -91,7 +136,13 @@ function applyMatchCompleted(
         r.roundNumber === state.currentRound ? newRound : r,
     );
 
-    return { ...state, rounds: newRounds };
+    return {
+        ...state,
+        rounds: newRounds,
+        phase: newMatches.every((entry) => entry.status === "complete")
+            ? "round_results"
+            : state.phase,
+    };
 }
 
 function applyRoundAdvanced(

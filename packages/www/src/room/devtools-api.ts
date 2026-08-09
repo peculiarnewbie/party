@@ -5,8 +5,14 @@ import type {
     RoomStatePayload,
 } from "~/game";
 import { GAME_RULES } from "~/game";
+import { createRpsGameConnection } from "~/game/rps/create-game-connection";
+import type { RpsConnection } from "~/game/rps/connection";
 import type { RoomClientPool } from "./types";
-import type { ConnectionStatus, DevPlayerIdentity, TransportMessage } from "./types";
+import type {
+    ConnectionStatus,
+    DevPlayerIdentity,
+    TransportMessage,
+} from "./types";
 
 export const PARTY_DEVTOOLS_API_VERSION = 1;
 
@@ -70,7 +76,10 @@ export interface PartyDevtoolsApi {
     getEventLog(filter?: EventLogFilter): TransportMessage[];
     getRoomState(playerId?: string): RoomStatePayload | null;
     getGameView(playerId?: string): unknown | null;
-    on(event: PartyDevtoolsEvent, handler: (payload: unknown) => void): () => void;
+    on(
+        event: PartyDevtoolsEvent,
+        handler: (payload: unknown) => void,
+    ): () => void;
     clearDevPlayers(): void;
 }
 
@@ -110,10 +119,11 @@ function joinClientWhenConnected(
     attempt();
 }
 
-export function createPartyDevtoolsApi(
-    pool: RoomClientPool,
-): PartyDevtoolsApi {
-    const listeners = new Map<PartyDevtoolsEvent, Set<(payload: unknown) => void>>();
+export function createPartyDevtoolsApi(pool: RoomClientPool): PartyDevtoolsApi {
+    const listeners = new Map<
+        PartyDevtoolsEvent,
+        Set<(payload: unknown) => void>
+    >();
 
     const emit = (event: PartyDevtoolsEvent, payload: unknown) => {
         for (const handler of listeners.get(event) ?? []) {
@@ -121,7 +131,10 @@ export function createPartyDevtoolsApi(
         }
     };
 
-    const on = (event: PartyDevtoolsEvent, handler: (payload: unknown) => void) => {
+    const on = (
+        event: PartyDevtoolsEvent,
+        handler: (payload: unknown) => void,
+    ) => {
         if (!listeners.has(event)) {
             listeners.set(event, new Set());
         }
@@ -152,8 +165,9 @@ export function createPartyDevtoolsApi(
                 connectionStatus: client.status(),
                 isHost: roomState?.hostId === identity.id,
                 isJoined:
-                    roomState?.players.some((player) => player.id === identity.id) ??
-                    false,
+                    roomState?.players.some(
+                        (player) => player.id === identity.id,
+                    ) ?? false,
                 gameStatus: participant?.status ?? null,
                 gameViewSummary: summarizeGameView(
                     client.transport.latest(
@@ -161,7 +175,8 @@ export function createPartyDevtoolsApi(
                     ),
                 ),
                 supportedForSwitching:
-                    activeGame === null || !UNSUPPORTED_SWITCH_GAMES.has(activeGame),
+                    activeGame === null ||
+                    !UNSUPPORTED_SWITCH_GAMES.has(activeGame),
             };
         });
 
@@ -206,7 +221,9 @@ export function createPartyDevtoolsApi(
         };
         const interval = setInterval(checkStatus, 250);
         if (typeof window !== "undefined") {
-            window.addEventListener("beforeunload", () => clearInterval(interval));
+            window.addEventListener("beforeunload", () =>
+                clearInterval(interval),
+            );
         }
     }
 
@@ -290,10 +307,16 @@ export function createPartyDevtoolsApi(
                     })),
                 )
                 .filter((entry) => {
-                    if (filter?.playerId && entry.playerId !== filter.playerId) {
+                    if (
+                        filter?.playerId &&
+                        entry.playerId !== filter.playerId
+                    ) {
                         return false;
                     }
-                    if (filter?.direction && entry.direction !== filter.direction) {
+                    if (
+                        filter?.direction &&
+                        entry.direction !== filter.direction
+                    ) {
                         return false;
                     }
                     if (
@@ -302,7 +325,10 @@ export function createPartyDevtoolsApi(
                     ) {
                         return false;
                     }
-                    if (filter?.since !== undefined && entry.id <= filter.since) {
+                    if (
+                        filter?.since !== undefined &&
+                        entry.id <= filter.since
+                    ) {
                         return false;
                     }
                     return true;
@@ -317,6 +343,29 @@ export function createPartyDevtoolsApi(
             const roomState = client.roomState();
             const activeGame = roomState?.activeGameType;
             if (!activeGame) return null;
+            if (activeGame === "rps") {
+                let created = false;
+                const connection = client.getGameConnection<RpsConnection>(
+                    "rps",
+                    () => {
+                        created = true;
+                        return createRpsGameConnection(
+                            client.transport,
+                            () => ({
+                                playerId: client.identity().id,
+                                playerName: client.identity().name,
+                            }),
+                        );
+                    },
+                );
+                if (created) {
+                    connection.send({
+                        type: "rps:sync",
+                        data: { lastSnapshotIndex: 0, lastEventIndex: 0 },
+                    });
+                }
+                return connection.view();
+            }
             const stateType =
                 activeGame === "quiz"
                     ? "__quiz_no_state__"
@@ -340,7 +389,9 @@ export function createPartyDevtoolsApi(
             };
             const type = prefixMap[activeGame];
             if (!type) return null;
-            const latest = client.transport.latest(type) as { data?: unknown } | null;
+            const latest = client.transport.latest(type) as {
+                data?: unknown;
+            } | null;
             return latest?.data ?? null;
         },
         on,

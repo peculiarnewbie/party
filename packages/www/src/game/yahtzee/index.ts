@@ -6,6 +6,7 @@ export type {
     YahtzeePhase,
     ScoringCategory,
     Dice,
+    RolledDice,
     HeldDice,
     FinalScore,
     YahtzeeMode,
@@ -56,5 +57,9 @@ export {
     decodeYahtzeeSideMessage,
     encodeYahtzeeServerMessage,
 } from "./messages";
-export { decodeYahtzeePlayerView, yahtzeeStateSchema, yahtzeePlayerViewSchema } from "./schemas";
+export {
+    decodeYahtzeePlayerView,
+    yahtzeeStateSchema,
+    yahtzeePlayerViewSchema,
+} from "./schemas";
 export { yahtzeeServer } from "./server";

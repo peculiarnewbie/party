@@ -1,8 +1,16 @@
 import type { Page } from "@playwright/test";
 import type { GameType } from "../../src/game";
-import type { DevToolsSnapshot } from "../../src/room/devtools-api";
+import type {
+    DevToolsSnapshot,
+    EventLogFilter,
+} from "../../src/room/devtools-api";
 import { PARTY_DEVTOOLS_API_VERSION } from "../../src/room/devtools-api";
+import type { TransportMessage } from "../../src/room/types";
 import { E2E_BASE_URL } from "./e2e.config";
+
+export type PlayerGameMessage<
+    TMessage extends { type: string; data: Record<string, unknown> },
+> = TMessage extends unknown ? Pick<TMessage, "type" | "data"> : never;
 
 export class MultiplayerRoomPage {
     constructor(private readonly page: Page) {}
@@ -17,6 +25,8 @@ export class MultiplayerRoomPage {
         );
         await this.page.waitForSelector('[data-testid="room-lobby"]');
         await this.waitForDevtools();
+        const snapshot = await this.snapshot();
+        await this.waitForPlayerConnected(snapshot.activePlayerId);
     }
 
     async waitForDevtools() {
@@ -31,16 +41,58 @@ export class MultiplayerRoomPage {
         return this.page.evaluate(() => window.__PARTY_DEVTOOLS__!.snapshot());
     }
 
+    async eventLog(filter?: EventLogFilter): Promise<TransportMessage[]> {
+        return this.page.evaluate(
+            (value) => window.__PARTY_DEVTOOLS__!.getEventLog(value),
+            filter,
+        );
+    }
+
+    async gameView<TView>(playerId?: string): Promise<TView> {
+        const view = await this.page.evaluate(
+            (id) => window.__PARTY_DEVTOOLS__!.getGameView(id),
+            playerId,
+        );
+        if (view === null) {
+            throw new Error("Game view is not available");
+        }
+        return view as TView;
+    }
+
+    async waitForGameView<TView>(playerId?: string): Promise<TView> {
+        await this.page.waitForFunction(
+            (id) => window.__PARTY_DEVTOOLS__!.getGameView(id) !== null,
+            playerId,
+            { timeout: 15_000 },
+        );
+        return this.gameView<TView>(playerId);
+    }
+
+    async sendGameMessage(message: {
+        type: string;
+        data?: Record<string, unknown>;
+    }) {
+        await this.page.evaluate(({ type, data }) => {
+            window.__PARTY_DEVTOOLS__!.sendGameMessage(type, data);
+        }, message);
+    }
+
     async joinAsBrowser(name: string): Promise<string> {
         await this.page.locator('[data-testid="room-name-input"]').fill(name);
         await this.page.locator('[data-testid="room-join-button"]').click();
-        await this.page.waitForFunction(() => {
-            return (
-                document.querySelector('[data-testid="room-leave-button"]') !==
-                    null ||
-                document.querySelector('[data-testid="poker-room"]') !== null
-            );
-        });
+        await this.page.waitForFunction(
+            () => {
+                return (
+                    document.querySelector(
+                        '[data-testid="room-leave-button"]',
+                    ) !== null ||
+                    document.querySelector('[data-testid="poker-room"]') !==
+                        null
+                );
+            },
+            undefined,
+            { timeout: 20_000 },
+        );
         await this.waitForJoined(1);
         const snap = await this.snapshot();
         const browserPlayer = snap.players.find(
@@ -78,6 +130,27 @@ export class MultiplayerRoomPage {
             (id) => window.__PARTY_DEVTOOLS__!.snapshot().activePlayerId === id,
             playerId,
         );
+    }
+
+    async disconnectPlayer(playerId: string) {
+        await this.page.evaluate((id) => {
+            window.__PARTY_DEVTOOLS__!.disconnect(id);
+        }, playerId);
+        await this.page.waitForFunction(
+            (id) =>
+                window
+                    .__PARTY_DEVTOOLS__!.snapshot()
+                    .players.find((player) => player.id === id)
+                    ?.connectionStatus === "disconnected",
+            playerId,
+        );
+    }
+
+    async reconnectPlayer(playerId: string) {
+        await this.page.evaluate((id) => {
+            window.__PARTY_DEVTOOLS__!.connect(id);
+        }, playerId);
+        await this.waitForPlayerConnected(playerId);
     }
 
     async selectGame(gameType: GameType) {

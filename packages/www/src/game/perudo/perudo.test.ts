@@ -5,6 +5,7 @@ import {
     isValidBid,
     countDiceWithValue,
     startNewRound,
+    openBidding,
     removePlayer,
     endGameByHost,
     finishReveal,
@@ -388,6 +389,26 @@ describe("startNewRound", () => {
         expect(state.roundNumber).toBe(1);
         startNewRound(state);
         expect(state.roundNumber).toBe(2);
+    });
+});
+
+describe("openBidding", () => {
+    it("opens the current round without rerolling private dice", () => {
+        const state = initGame(
+            PLAYERS,
+            fixedRollFn([1, 2, 3, 4, 5, 6, 5, 4, 3, 2]),
+        );
+        const diceBefore = state.players.map((player) => [...player.dice]);
+
+        const result = openBidding(state);
+
+        expect(result).toEqual({
+            type: "round_started",
+            roundNumber: 1,
+            palificoRound: false,
+        });
+        expect(state.phase).toBe("bidding");
+        expect(state.players.map((player) => player.dice)).toEqual(diceBefore);
     });
 });
 

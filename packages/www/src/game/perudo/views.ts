@@ -28,7 +28,11 @@ export function getPlayerView(
             eliminated: p.eliminated,
             isCurrentPlayer: isCurrent,
             isStartingPlayer: isStarting,
-            dice: p.id === playerId && !p.eliminated ? [...p.dice] : null,
+            dice:
+                (p.id === playerId || state.phase === "revealing") &&
+                !p.eliminated
+                    ? [...p.dice]
+                    : null,
         };
     });
 

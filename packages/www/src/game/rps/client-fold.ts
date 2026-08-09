@@ -1,4 +1,4 @@
-import { createSignal, createMemo } from "solid-js";
+import { createSignal } from "solid-js";
 
 import type { RpsState, RpsChoice } from "./types";
 import type { RpsEvent, RpsHiddenData } from "./events";
@@ -26,7 +26,7 @@ export function createRpsFold(playerId: string): RpsClientFold {
     const [lastEventIndex, setLastEventIndex] = createSignal(0);
     const hiddenByIndex = new Map<number, RpsHiddenData>();
 
-    const view = createMemo(() => {
+    const view = () => {
         const s = state();
         if (!s) return null;
         const v = getPlayerView(s, playerId);
@@ -36,7 +36,7 @@ export function createRpsFold(playerId: string): RpsClientFold {
             v.needsToThrow = false;
         }
         return v;
-    });
+    };
 
     function processEvent(index: number, event: RpsEvent) {
         const current = state();

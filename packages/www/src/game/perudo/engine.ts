@@ -167,6 +167,11 @@ function resolveChallenge(
         loserNewCount = bidder.dice.length;
     }
 
+    state.totalDiceInPlay = state.players.reduce(
+        (total, player) => total + player.dice.length,
+        0,
+    );
+
     const activePlayers = getActivePlayers(state);
 
     if (activePlayers.length === 1) {
@@ -210,6 +215,9 @@ function resolveChallenge(
     return {
         type: "player_eliminated",
         playerId: loserId,
+        challengerId,
+        bidderId: currentBid.playerId,
+        bid: currentBid,
         loserId,
         loserNewCount,
         nextPlayerIndex: nextStartingPlayerIndex,
@@ -245,18 +253,10 @@ function startNextRound(
     state.phase = "round_start";
     state.revealTimerActive = false;
 
-    const diceRolls: Record<string, FaceValue[]> = {};
-    for (const player of state.players) {
-        if (!player.eliminated) {
-            diceRolls[player.id] = [...player.dice];
-        }
-    }
-
     return {
         type: "round_started",
         roundNumber: state.roundNumber,
         palificoRound: state.palificoRound,
-        diceRolls,
     };
 }
 
@@ -387,6 +387,19 @@ export function startNewRound(
     }
 
     return startNextRound(state, rollFn);
+}
+
+export function openBidding(state: PerudoState): PerudoResult {
+    if (state.phase !== "round_start") {
+        return { type: "error", message: "Round is not ready to start" };
+    }
+
+    state.phase = "bidding";
+    return {
+        type: "round_started",
+        roundNumber: state.roundNumber,
+        palificoRound: state.palificoRound,
+    };
 }
 
 export function removePlayer(

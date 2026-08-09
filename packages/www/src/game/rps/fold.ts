@@ -4,7 +4,10 @@ import { reduce } from "./reduce";
 
 export interface RpsFoldState {
     readonly publicState: RpsState;
-    readonly choices: ReadonlyMap<number, { p1: string | null; p2: string | null }>;
+    readonly choices: ReadonlyMap<
+        number,
+        { p1: string | null; p2: string | null }
+    >;
     readonly thrownPlayers: ReadonlyMap<number, Set<string>>;
 }
 
@@ -23,7 +26,7 @@ export function fold(
 ): RpsFoldState {
     const newPublicState = reduce(foldState.publicState, event);
 
-    if (event.type === "throw_registered" && hidden) {
+    if (event.type === "throw_registered") {
         const existing = foldState.choices.get(event.matchIndex) ?? {
             p1: null,
             p2: null,
@@ -36,17 +39,16 @@ export function fold(
 
         if (match) {
             const isP1 = match.player1Id === event.playerId;
-            const updated = isP1
-                ? { ...existing, p1: hidden.choice }
-                : { ...existing, p2: hidden.choice };
-
             const newChoices = new Map(foldState.choices);
-            newChoices.set(event.matchIndex, updated);
+            if (hidden) {
+                const updated = isP1
+                    ? { ...existing, p1: hidden.choice }
+                    : { ...existing, p2: hidden.choice };
+                newChoices.set(event.matchIndex, updated);
+            }
 
             const newThrown = new Map(foldState.thrownPlayers);
-            const thrownSet = new Set(
-                newThrown.get(event.matchIndex) ?? [],
-            );
+            const thrownSet = new Set(newThrown.get(event.matchIndex) ?? []);
             thrownSet.add(event.playerId);
             newThrown.set(event.matchIndex, thrownSet);
 
