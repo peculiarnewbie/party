@@ -38,6 +38,14 @@ import {
     verifyPlayerCapability,
 } from "~/worker/player-capability";
 
+import { makeRpsRpcHandler } from "./rps-rpc";
+import { RpsRequestError, rpsCommandSchema } from "~/game/rps/rpc";
+import {
+    rpsServerMessageSchema,
+    type RpsServerMessage,
+} from "~/game/rps/schemas";
+import type { RpsClientMessage } from "~/game/rps/messages";
+
 const HIBERNATION_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 const MAX_WEBSOCKET_MESSAGE_BYTES = 64 * 1024;
 
@@ -469,8 +477,194 @@ export class GameRoom extends DurableObject {
         });
     }
 
+    private rpsRpc(request: Request): Promise<Response> {
+        const playerId = request.headers.get("X-Player-Id") ?? "";
+        const token =
+            request.headers.get("Authorization")?.replace(/^Bearer /, "") ?? "";
+        const room = this;
+        const authenticate = Effect.fn("Room.authenticateRps")(function* (
+            gameSessionId: string,
+        ) {
+            const hash = yield* loadPlayerCapabilityHash(
+                room.ctx,
+                playerId,
+            ).pipe(Effect.orDie);
+            if (
+                !hash ||
+                !(yield* Effect.promise(() =>
+                    verifyPlayerCapability(token, hash),
+                ))
+            ) {
+                return yield* new RpsRequestError({
+                    reason: "unauthorized",
+                    message: "Reconnect to the room to play.",
+                });
+            }
+            if (
+                room.state.gameSessionId !== gameSessionId ||
+                room.state.activeGameType !== "rps" ||
+                room.state.phase !== "playing"
+            ) {
+                return yield* new RpsRequestError({
+                    reason: "stale_session",
+                    message: "This game has ended. Reconnect to the room.",
+                });
+            }
+            const player = room.state.players.find(
+                (entry) => entry.id === playerId,
+            );
+            if (
+                !player ||
+                room.getGameParticipant(playerId)?.status !== "active"
+            ) {
+                return yield* new RpsRequestError({
+                    reason: "unauthorized",
+                    message: "Join this game before playing.",
+                });
+            }
+            return player;
+        });
+        const execute = (
+            message: RpsClientMessage,
+            receipt?: { id: string; payload: string },
+        ) =>
+            Effect.try({
+                try: () => {
+                    const sql = room.ctx.storage.sql;
+                    sql.exec(
+                        "CREATE TABLE IF NOT EXISTS rps_rpc_receipts (session_id TEXT NOT NULL, player_id TEXT NOT NULL, command_id TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(session_id, player_id, command_id))",
+                    );
+                    if (receipt) {
+                        const previous = sql
+                            .exec<{
+                                payload: string;
+                            }>("SELECT payload FROM rps_rpc_receipts WHERE session_id = ? AND player_id = ? AND command_id = ?", room.state.gameSessionId, playerId, receipt.id)
+                            .toArray()[0];
+                        if (previous) {
+                            if (previous.payload !== receipt.payload)
+                                throw new RpsRequestError({
+                                    reason: "rejected",
+                                    message:
+                                        "Command identifier was already used.",
+                                });
+                            return [];
+                        }
+                    }
+                    const outgoing: { playerId?: string; raw: string }[] = [];
+                    const replies: RpsServerMessage[] = [];
+                    const { getAdapter } = room.createSocketOperations();
+                    const adapter = getAdapter();
+                    if (!adapter) throw new Error("RPS adapter unavailable");
+                    room.ctx.storage.transactionSync(() => {
+                        adapter.processMessage(
+                            message,
+                            (raw) => outgoing.push({ raw }),
+                            (target, raw) => {
+                                const decoded = Schema.decodeUnknownSync(
+                                    rpsServerMessageSchema,
+                                )(JSON.parse(raw));
+                                if (target === playerId) {
+                                    if (decoded.type === "rps:error")
+                                        throw new RpsRequestError({
+                                            reason: "rejected",
+                                            message: decoded.data.message,
+                                        });
+                                    replies.push(decoded);
+                                }
+                                outgoing.push({ playerId: target, raw });
+                            },
+                        );
+                        Effect.runSync(
+                            persistSnapshotToStorage(
+                                room.ctx,
+                                room.getCurrentGameSnapshot(),
+                            ),
+                        );
+                        if (receipt) {
+                            sql.exec(
+                                "DELETE FROM rps_rpc_receipts WHERE session_id != ?",
+                                room.state.gameSessionId,
+                            );
+                            sql.exec(
+                                "INSERT INTO rps_rpc_receipts VALUES (?, ?, ?, ?)",
+                                room.state.gameSessionId,
+                                playerId,
+                                receipt.id,
+                                receipt.payload,
+                            );
+                        }
+                    });
+                    for (const entry of outgoing) {
+                        if (entry.playerId)
+                            room.sendTo(entry.playerId, entry.raw);
+                        else room.broadcast(entry.raw);
+                    }
+                    return replies;
+                },
+                catch: (error) => {
+                    room.clearCachedAdapter();
+                    room.loadPersistedState();
+                    return error instanceof RpsRequestError
+                        ? error
+                        : new RpsRequestError({
+                              reason: "unavailable",
+                              message:
+                                  "The move could not be completed. Reconnect to resynchronize.",
+                          });
+                },
+            });
+        return makeRpsRpcHandler({
+            command: Effect.fn("Room.rpsCommand")(function* (input) {
+                const player = yield* authenticate(input.gameSessionId);
+                const command = Schema.decodeUnknownSync(rpsCommandSchema)(
+                    input.command,
+                );
+                yield* execute(
+                    { ...command, playerId, playerName: player.name },
+                    { id: input.commandId, payload: JSON.stringify(command) },
+                );
+            }),
+            sync: Effect.fn("Room.rpsSync")(function* (input) {
+                const player = yield* authenticate(input.gameSessionId);
+                const replies = yield* execute({
+                    type: "rps:sync",
+                    data: input,
+                    playerId,
+                    playerName: player.name,
+                });
+                const sync = replies.find(
+                    (entry) => entry.type === "rps:sync_response",
+                );
+                if (!sync)
+                    return yield* new RpsRequestError({
+                        reason: "unavailable",
+                        message: "Game state is unavailable.",
+                    });
+                return sync;
+            }),
+        })(request);
+    }
+
     async fetch(request: Request): Promise<Response> {
         await this.ready;
+        if (/\/rpc\/?$/.test(new URL(request.url).pathname)) {
+            if (request.method !== "POST")
+                return new Response("Method not allowed", { status: 405 });
+            if (request.headers.get("Origin") !== new URL(request.url).origin)
+                return new Response("Origin not allowed", { status: 403 });
+            if (
+                !request.headers
+                    .get("Content-Type")
+                    ?.startsWith("application/json")
+            )
+                return new Response("Expected JSON", { status: 415 });
+            const work = this.messageQueue.then(() => this.rpsRpc(request));
+            this.messageQueue = work.then(
+                () => undefined,
+                () => undefined,
+            );
+            return work;
+        }
 
         const webSocketPair = new WebSocketPair();
         const [client, serverWs] = Object.values(webSocketPair);

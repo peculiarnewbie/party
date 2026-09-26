@@ -197,7 +197,7 @@ function endGame(
     state: SpicyState,
     reason: SpicyEndReason,
     forcedWinners?: string[],
-): SpicyResult {
+): Extract<SpicyResult, { type: "game_over" }> {
     const finalScores = computeFinalScores(state.players);
     const highestScore = Math.max(...finalScores.map((score) => score.points));
     const winners =
@@ -622,6 +622,8 @@ export function removePlayer(
     return null;
 }
 
-export function endGameByHost(state: SpicyState): SpicyResult {
+export function endGameByHost(
+    state: SpicyState,
+): Extract<SpicyResult, { type: "game_over" }> {
     return endGame(state, "host_ended");
 }

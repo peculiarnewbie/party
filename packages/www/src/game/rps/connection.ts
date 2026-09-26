@@ -4,10 +4,12 @@ import type { RpsPlayerView, RpsSideMessage } from "./schemas";
 
 export type RpsSideEvent = RpsSideMessage;
 
-export type RpsClientOutgoing = Omit<
-    RpsClientMessage,
-    "playerId" | "playerName"
->;
+export type RpsClientOutgoing = {
+    [K in RpsClientMessage["type"]]: Omit<
+        Extract<RpsClientMessage, { type: K }>,
+        "playerId" | "playerName"
+    >;
+}[RpsClientMessage["type"]];
 
 export type RpsConnection = GameConnection<
     RpsPlayerView,

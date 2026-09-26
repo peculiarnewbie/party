@@ -196,7 +196,9 @@ export function DefaultCatchBoundary({ error }: ErrorComponentProps) {
 ### RPC and server boundaries
 
 - Quiz-manager browser operations use the shared Effect RPC contract in `packages/quiz-manager/src/rpc/contract.ts`
-- Effect owns RPC requests, typed errors, validation, cancellation,
+- RPS commands and resynchronization use `packages/www/src/game/rps/rpc.ts`; room updates retain hibernatable WebSockets
+- Effect owns RPC requests, typed errors, validation, cancellation, and the RPS client update stream
+- Durable Objects serialize HTTP commands alongside WebSocket messages, persist state and command receipts before acknowledgement, and authenticate player capabilities
 - Other games continue using their existing schema-validated WebSocket protocols
 - Keep Worker bindings and database services out of browser imports
 - Worker entrypoints route `/api/*` and serve the Vite SPA through `env.ASSETS`; no TanStack Start server functions or SSR

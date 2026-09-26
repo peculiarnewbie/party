@@ -2,8 +2,7 @@ import { createSignal } from "solid-js";
 
 import type { RpsState, RpsChoice } from "./types";
 import type { RpsEvent, RpsHiddenData } from "./events";
-import type { RpsPlayerView } from "./schemas";
-import type { SyncResponse } from "~/game/shared/game-engine-types";
+import type { RpsPlayerView, RpsSyncResponse } from "./schemas";
 import { reduce } from "./reduce";
 import { getPlayerView } from "./views";
 
@@ -14,7 +13,7 @@ export interface RpsClientFold {
     processEvent(index: number, event: RpsEvent): void;
     processHidden(index: number, hidden: RpsHiddenData): void;
     applySnapshot(index: number, snapshotState: RpsState): void;
-    applySync(sync: SyncResponse): void;
+    applySync(sync: RpsSyncResponse): void;
     syncInfo: () => { lastSnapshotIndex: number; lastEventIndex: number };
     reset(): void;
 }
@@ -85,7 +84,7 @@ export function createRpsFold(playerId: string): RpsClientFold {
         hiddenByIndex.clear();
     }
 
-    function applySync(sync: SyncResponse) {
+    function applySync(sync: RpsSyncResponse) {
         const newestIncomingIndex = sync.events.reduce(
             (latest, entry) => Math.max(latest, entry.index),
             sync.snapshot.index,
@@ -93,7 +92,7 @@ export function createRpsFold(playerId: string): RpsClientFold {
         if (newestIncomingIndex < eventIndex) return;
 
         if (sync.snapshot.data) {
-            setState(sync.snapshot.data as RpsState);
+            setState(sync.snapshot.data);
             setLastSnapshotIndex(sync.snapshot.index);
             setLastEventIndex(sync.snapshot.index);
             setMyChoice(null);
@@ -104,12 +103,12 @@ export function createRpsFold(playerId: string): RpsClientFold {
             (a, b) => a.index - b.index,
         );
         for (const entry of hiddenEntries) {
-            processHidden(entry.index, entry.data as RpsHiddenData);
+            processHidden(entry.index, entry.data);
         }
 
         const eventEntries = [...sync.events].sort((a, b) => a.index - b.index);
         for (const entry of eventEntries) {
-            processEvent(entry.index, entry.data as RpsEvent);
+            processEvent(entry.index, entry.data);
         }
     }
 

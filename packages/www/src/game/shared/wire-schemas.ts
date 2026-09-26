@@ -2,10 +2,7 @@ import { Schema } from "effect";
 
 export const emptyDataSchema = Schema.Struct({});
 
-export const unknownRecordSchema = Schema.Record(
-    Schema.String,
-    Schema.Unknown,
-);
+export const unknownRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
 
 export const positiveIntSchema = Schema.Number.check(
     Schema.isInt(),
@@ -22,10 +19,10 @@ export const shortTextSchema = Schema.String.check(
     Schema.isMaxLength(200),
 );
 
-export function serverMessageWithData<S extends Schema.Top>(
-    type: string,
-    dataSchema: S,
-) {
+export function serverMessageWithData<
+    const Type extends string,
+    S extends Schema.Top,
+>(type: Type, dataSchema: S) {
     return Schema.Struct({
         type: Schema.mutableKey(Schema.Literal(type)),
         data: Schema.mutableKey(dataSchema),

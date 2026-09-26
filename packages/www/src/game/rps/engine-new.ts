@@ -1,4 +1,4 @@
-import { Cause, Effect } from "effect";
+import { Effect } from "effect";
 
 import type { GameEngine, SyncResponse } from "~/game/shared/game-engine-types";
 import type { BroadcastFn, SendToFn } from "~/game/shared/game-adapter-types";
@@ -534,16 +534,7 @@ export function createRpsEngine(config: RpsEngineConfig): RpsEngine {
                             action.lastEventIndex,
                         );
                     }
-                }).pipe(
-                    Effect.catchCause((cause) =>
-                        Effect.logError("rps-engine.process.failed").pipe(
-                            Effect.annotateLogs({
-                                component: COMPONENT,
-                                error: Cause.pretty(cause),
-                            }),
-                        ),
-                    ),
-                ),
+                }),
             );
         },
 

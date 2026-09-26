@@ -1,10 +1,18 @@
 import { createSignal, type Accessor } from "solid-js";
 import type { ConnectionStatus, TransportMessage } from "./types";
 
+import { Schema } from "effect";
+import { createRpsRpcClient } from "~/game/rps/rpc-client";
+
+const roomSessionSchema = Schema.Struct({
+    data: Schema.Struct({ gameSessionId: Schema.NullOr(Schema.String) }),
+});
+
 const MESSAGE_LOG_LIMIT = 500;
 
 export interface RoomTransport {
     status: Accessor<ConnectionStatus>;
+    rps?: ReturnType<typeof createRpsRpcClient>;
     send(message: unknown): void;
     subscribe(handler: (message: Record<string, unknown>) => void): () => void;
     latest(type: string): unknown | null;
@@ -44,6 +52,7 @@ export function createWebSocketRoomTransport(
     let disposed = false;
     let sessionToken = options.sessionToken ?? null;
     let messageId = 0;
+    let gameSessionId: string | null = null;
     const subscribers = new Set<(message: Record<string, unknown>) => void>();
     const latestByType = new Map<string, unknown>();
 
@@ -65,6 +74,12 @@ export function createWebSocketRoomTransport(
     const publish = (message: Record<string, unknown>) => {
         const type = messageType(message);
         latestByType.set(type, message);
+        if (type === "room_state") {
+            const decoded =
+                Schema.decodeUnknownOption(roomSessionSchema)(message);
+            if (decoded._tag === "Some")
+                gameSessionId = decoded.value.data.gameSessionId;
+        }
         for (const handler of subscribers) {
             handler(message);
         }
@@ -223,6 +238,12 @@ export function createWebSocketRoomTransport(
 
     return {
         status,
+        rps: createRpsRpcClient({
+            url: `/api/room/${options.roomId}/rpc`,
+            playerId: options.playerId,
+            sessionToken: () => sessionToken,
+            gameSessionId: () => gameSessionId,
+        }),
         send,
         subscribe,
         latest,

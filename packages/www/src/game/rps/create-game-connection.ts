@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { decodeUnknownSync } from "~/effect/schema-helpers";
+import { Effect, Queue, Schema, Stream } from "effect";
 import type { RoomTransport } from "~/room/room-transport";
 import type { GameConnection } from "../connection";
 import { createRpsFold } from "./client-fold";
@@ -19,13 +19,16 @@ export function createRpsGameConnection(
     const [snapshotView, setSnapshotView] = createSignal<
         import("./schemas").RpsPlayerView | null
     >(() => {
-        const cached = transport.latest("rps:state") as {
-            data?: import("./schemas").RpsPlayerView;
-        } | null;
-        return cached?.data ?? null;
+        const decoded = Schema.decodeUnknownOption(rpsServerMessageSchema)(
+            transport.latest("rps:state"),
+        );
+        return decoded._tag === "Some" && decoded.value.type === "rps:state"
+            ? decoded.value.data
+            : null;
     });
     const handlers = new Set<(event: RpsSideEvent) => void>();
     let syncPending = false;
+    const lifetime = new AbortController();
 
     const view = () => fold.view() ?? snapshotView();
 
@@ -34,65 +37,107 @@ export function createRpsGameConnection(
             return;
         }
 
-        let message: { type: string; [key: string]: unknown };
-        try {
-            message = decodeUnknownSync(rpsServerMessageSchema, raw) as {
-                type: string;
-                [key: string]: unknown;
-            };
-        } catch {
-            return;
-        }
+        const decoded = Schema.decodeUnknownOption(rpsServerMessageSchema)(raw);
+        if (decoded._tag === "None") return;
+        const message = decoded.value;
 
         if (message.type === "rps:state") {
-            setSnapshotView(
-                () => message.data as import("./schemas").RpsPlayerView,
-            );
+            setSnapshotView(() => message.data);
             return;
         }
 
         if (message.type === "rps:snapshot") {
-            fold.applySnapshot(
-                message.index as number,
-                message.data as import("./types").RpsState,
-            );
+            fold.applySnapshot(message.index, message.data);
         } else if (message.type === "rps:event") {
             const syncInfo = fold.syncInfo();
-            const index = message.index as number;
+            const index = message.index;
             if (index > syncInfo.lastEventIndex + 1) {
                 if (!syncPending) {
                     syncPending = true;
-                    transport.send({
-                        type: "rps:sync",
-                        data: syncInfo,
-                        playerId: envelope().playerId,
-                        playerName: envelope().playerName,
-                    });
+                    send({ type: "rps:sync", data: syncInfo });
                 }
                 return;
             }
-            fold.processEvent(
-                index,
-                message.data as import("./events").RpsEvent,
-            );
+            fold.processEvent(index, message.data);
         } else if (message.type === "rps:hidden") {
-            fold.processHidden(
-                message.index as number,
-                message.data as import("./events").RpsHiddenData,
-            );
+            fold.processHidden(message.index, message.data);
         } else if (message.type === "rps:sync_response") {
             syncPending = false;
-            fold.applySync(
-                message as unknown as import("~/game/shared/game-engine-types").SyncResponse,
-            );
+            fold.applySync(message);
         }
 
         for (const handler of handlers) {
-            handler(message as unknown as RpsSideEvent);
+            handler(message);
         }
     };
 
-    const unsubscribe = transport.subscribe(handleMessage);
+    const send = (message: RpsClientOutgoing) => {
+        if (transport.rps) {
+            Effect.runFork(
+                transport.rps(message).pipe(
+                    Effect.tap((reply) =>
+                        Effect.sync(() => {
+                            if (reply) handleMessage(reply);
+                        }),
+                    ),
+                    Effect.catch((error) =>
+                        Effect.sync(() => {
+                            syncPending = false;
+                            const event: RpsSideEvent = {
+                                type: "rps:error",
+                                data: {
+                                    message:
+                                        error._tag === "RpsRequestError"
+                                            ? error.message
+                                            : "Connection interrupted. Reconnect to resynchronize.",
+                                },
+                            };
+                            for (const handler of handlers) handler(event);
+                        }),
+                    ),
+                ),
+                { signal: lifetime.signal },
+            );
+            return;
+        }
+        const env = envelope();
+        transport.send({
+            ...message,
+            playerId: env.playerId,
+            playerName: env.playerName,
+        });
+    };
+
+    const updates = Stream.callback<Record<string, unknown>>((queue) =>
+        Effect.acquireRelease(
+            Effect.sync(() =>
+                transport.subscribe((message) => {
+                    Queue.offerUnsafe(queue, message);
+                }),
+            ),
+            (unsubscribe) => Effect.sync(unsubscribe),
+        ),
+    );
+    Effect.runFork(
+        updates.pipe(
+            Stream.runForEach((message) =>
+                Effect.sync(() => handleMessage(message)),
+            ),
+        ),
+        { signal: lifetime.signal },
+    );
+    queueMicrotask(() => {
+        if (lifetime.signal.aborted) return;
+        for (const type of ["rps:snapshot", "rps:sync_response"]) {
+            const message = transport.latest(type);
+            if (message && typeof message === "object") {
+                const decoded = Schema.decodeUnknownOption(
+                    rpsServerMessageSchema,
+                )(message);
+                if (decoded._tag === "Some") handleMessage(decoded.value);
+            }
+        }
+    });
 
     const connection: GameConnection<
         import("./schemas").RpsPlayerView,
@@ -100,20 +145,13 @@ export function createRpsGameConnection(
         RpsSideEvent
     > = {
         view,
-        send: (message) => {
-            const env = envelope();
-            transport.send({
-                ...message,
-                playerId: env.playerId,
-                playerName: env.playerName,
-            });
-        },
+        send,
         subscribe: (handler) => {
             handlers.add(handler);
             return () => handlers.delete(handler);
         },
         dispose: () => {
-            unsubscribe();
+            lifetime.abort();
             handlers.clear();
             fold.reset();
         },

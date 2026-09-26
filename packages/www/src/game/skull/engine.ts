@@ -758,7 +758,9 @@ export function removePlayer(state: SkullState, playerId: string) {
     return null;
 }
 
-export function endGameByHost(state: SkullState): SkullResult {
+export function endGameByHost(
+    state: SkullState,
+): Extract<SkullResult, { type: "game_over" }> {
     state.phase = "game_over";
     state.attempt = null;
     state.penaltyPlayerId = null;

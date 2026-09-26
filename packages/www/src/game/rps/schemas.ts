@@ -185,7 +185,7 @@ const rpsHiddenMessageSchema = Schema.Struct({
     data: Schema.mutableKey(rpsHiddenDataWireSchema),
 });
 
-const rpsSyncResponseMessageSchema = Schema.Struct({
+export const rpsSyncResponseMessageSchema = Schema.Struct({
     type: Schema.mutableKey(Schema.Literal("rps:sync_response")),
     snapshot: Schema.mutableKey(
         Schema.Struct({
@@ -243,91 +243,17 @@ export type RpsPlayerView = SchemaType<typeof rpsPlayerViewSchema>;
 export type RpsResult = SchemaType<typeof rpsResultSchema>;
 export type RpsGameOverPayload = SchemaType<typeof rpsGameOverPayloadSchema>;
 export type RpsServerMessage = SchemaType<typeof rpsServerMessageSchema>;
-export type RpsSideMessage =
-    | { type: "rps:action"; data: RpsResult }
-    | { type: "rps:error"; data: GameErrorPayload }
-    | { type: "rps:game_over"; data: RpsGameOverPayload }
-    | { type: "rps:snapshot"; index: number; data: RpsState }
-    | { type: "rps:event"; index: number; data: RpsEvent }
-    | { type: "rps:hidden"; index: number; data: RpsHiddenData }
-    | {
-          type: "rps:sync_response";
-          snapshot: { index: number; data: RpsState };
-          events: { index: number; type: string; data: RpsEvent }[];
-          hidden: { index: number; data: RpsHiddenData }[];
-      };
+export type RpsSideMessage = Exclude<RpsServerMessage, { type: "rps:state" }>;
+export type RpsSyncResponse = Omit<
+    SchemaType<typeof rpsSyncResponseMessageSchema>,
+    "type"
+>;
 
 export const decodeRpsPlayerView = createPlayerViewDecoder(rpsPlayerViewSchema);
 export function decodeRpsSideMessage(raw: unknown): RpsSideMessage | null {
     try {
-        const message = decodeUnknownSync(
-            rpsServerMessageSchema,
-            raw,
-        ) as RpsServerMessage;
-
-        if (message.type === "rps:state") {
-            return null;
-        }
-
-        if (message.type === "rps:action") {
-            return { type: "rps:action", data: message.data as RpsResult };
-        }
-
-        if (message.type === "rps:error") {
-            return {
-                type: "rps:error",
-                data: message.data as GameErrorPayload,
-            };
-        }
-
-        if (message.type === "rps:game_over") {
-            return {
-                type: "rps:game_over",
-                data: message.data as RpsGameOverPayload,
-            };
-        }
-
-        if (message.type === "rps:snapshot") {
-            const ledgerMessage = message as unknown as {
-                index: number;
-                data: RpsState;
-            };
-            return {
-                type: "rps:snapshot",
-                index: ledgerMessage.index,
-                data: ledgerMessage.data,
-            };
-        }
-
-        if (message.type === "rps:event") {
-            const ledgerMessage = message as unknown as {
-                index: number;
-                data: RpsEvent;
-            };
-            return {
-                type: "rps:event",
-                index: ledgerMessage.index,
-                data: ledgerMessage.data,
-            };
-        }
-
-        if (message.type === "rps:hidden") {
-            const ledgerMessage = message as unknown as {
-                index: number;
-                data: RpsHiddenData;
-            };
-            return {
-                type: "rps:hidden",
-                index: ledgerMessage.index,
-                data: ledgerMessage.data,
-            };
-        }
-
-        if (message.type === "rps:sync_response") {
-            return message as RpsSideMessage;
-        }
-
-        return null;
+        const message = decodeUnknownSync(rpsServerMessageSchema, raw);
+        return message.type === "rps:state" ? null : message;
     } catch {
         return null;
     }
