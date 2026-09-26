@@ -1,4 +1,10 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    onCleanup,
+    onSettled,
+} from "solid-js";
 import { nanoid } from "nanoid";
 import { getCookie, setCookie } from "~/utils/cookies";
 import {
@@ -8,7 +14,12 @@ import {
     savePersistedDevRoom,
 } from "./dev-room-persistence";
 import { createRoomClient } from "./room-client";
-import type { DevPlayerIdentity, PersistedDevRoom, RoomClient, RoomClientPool } from "./types";
+import type {
+    DevPlayerIdentity,
+    PersistedDevRoom,
+    RoomClient,
+    RoomClientPool,
+} from "./types";
 
 const DEV_PLAYER_NAMES = [
     "Alice",
@@ -86,7 +97,9 @@ export function createRoomClientPool(
             : browserPlayerId;
 
     const [activePlayerId, setActivePlayerId] = createSignal(initialActiveId);
-    const [panelOpen, setPanelOpen] = createSignal(persisted?.panelOpen ?? false);
+    const [panelOpen, setPanelOpen] = createSignal(
+        persisted?.panelOpen ?? false,
+    );
     const [clientVersion, setClientVersion] = createSignal(0);
 
     const clients = createMemo(() => {
@@ -112,8 +125,7 @@ export function createRoomClientPool(
         selectedTab: persisted?.selectedTab ?? "players",
     });
 
-    createEffect(() => {
-        const state = buildPersistedState();
+    createEffect(buildPersistedState, (state) => {
         savePersistedDevRoom(options.roomId, state);
         options.onPersistedChange?.(state);
     });
@@ -125,7 +137,8 @@ export function createRoomClientPool(
 
     const addPlayer = (name?: string) => {
         const id = nanoid(10);
-        const playerName = name?.trim() || nextDevPlayerName(clients());
+        const playerName =
+            name?.trim() || nextDevPlayerName([...clientMap.values()]);
         const client = createRoomClient({
             roomId: options.roomId,
             identity: {
@@ -168,7 +181,7 @@ export function createRoomClientPool(
         clientMap.clear();
     };
 
-    onMount(() => {
+    onSettled(() => {
         for (const client of clientMap.values()) {
             if (client.status() === "disconnected") {
                 client.connect();

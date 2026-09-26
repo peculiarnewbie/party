@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { tanstackStart } from "@tanstack/solid-start/plugin/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import viteSolid from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
 
@@ -16,5 +16,9 @@ export default defineConfig({
         port: 3000,
         host: "127.0.0.1",
     },
-    plugins: [tailwindcss(), tanstackStart(), viteSolid({ ssr: true })],
+    plugins: [
+        tailwindcss(),
+        tanstackRouter({ target: "solid", autoCodeSplitting: true }),
+        viteSolid(),
+    ],
 });

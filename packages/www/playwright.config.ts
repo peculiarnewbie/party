@@ -25,6 +25,11 @@ export default defineConfig({
     },
     projects: [
         {
+            name: "quiz-manager-admin",
+            testMatch: "quiz-manager-admin.spec.ts",
+            use: { baseURL: "http://127.0.0.1:3001" },
+        },
+        {
             name: "rps-seeded",
             testMatch: "rps-seeded.spec.ts",
             use: { viewport: { width: 1440, height: 1200 } },

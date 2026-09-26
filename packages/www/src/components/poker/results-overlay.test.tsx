@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { ResultsOverlay } from "./results-overlay";
@@ -81,9 +82,8 @@ describe("ResultsOverlay", () => {
                 onReturnToLobby={onReturnToLobby}
             />
         ));
-        fireEvent.click(
-            host.getByRole("button", { name: /return to lobby/i }),
-        );
+        fireEvent.click(host.getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 

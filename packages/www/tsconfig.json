@@ -1,33 +1,33 @@
 {
-  "$schema": "https://raw.githubusercontent.com/Effect-TS/language-service/refs/heads/main/schema.json",
-  "include": ["**/*.ts", "**/*.tsx"],
-  "compilerOptions": {
-    "strict": true,
-    "esModuleInterop": true,
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
-    "module": "Preserve",
-    "moduleResolution": "Bundler",
-    "moduleDetection": "force",
-    "verbatimModuleSyntax": true,
-    "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["@cloudflare/workers-types"],
-    "isolatedModules": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "target": "ES2022",
-    "allowJs": true,
-    "forceConsistentCasingInFileNames": true,
-    "incremental": true,
-    "baseUrl": ".",
-    "paths": {
-      "~/*": ["./src/*"]
-    },
-    "plugins": [
-      {
-        "name": "@effect/language-service"
-      }
-    ],
-    "noEmit": true
-  }
+    "$schema": "https://raw.githubusercontent.com/Effect-TS/language-service/refs/heads/main/schema.json",
+    "include": ["**/*.ts", "**/*.tsx"],
+    "compilerOptions": {
+        "strict": true,
+        "esModuleInterop": true,
+        "jsx": "preserve",
+        "jsxImportSource": "@solidjs/web",
+        "module": "Preserve",
+        "moduleResolution": "Bundler",
+        "moduleDetection": "force",
+        "verbatimModuleSyntax": true,
+        "lib": ["DOM", "DOM.Iterable", "ES2022"],
+        "types": ["@cloudflare/workers-types", "vite/client"],
+        "isolatedModules": true,
+        "resolveJsonModule": true,
+        "skipLibCheck": true,
+        "target": "ES2022",
+        "allowJs": true,
+        "forceConsistentCasingInFileNames": true,
+        "incremental": true,
+        "baseUrl": ".",
+        "paths": {
+            "~/*": ["./src/*"]
+        },
+        "plugins": [
+            {
+                "name": "@effect/language-service"
+            }
+        ],
+        "noEmit": true
+    }
 }

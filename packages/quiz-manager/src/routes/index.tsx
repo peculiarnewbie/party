@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { createFileRoute, useNavigate } from "@tanstack/solid-router";
-import { createSignal, createResource, For, Show } from "solid-js";
-import { listQuizzes, deleteQuiz } from "~/server/quiz-fns";
+import { Loading, refresh, For, Show } from "solid-js";
+import { callQuiz, createQuizQuery, createQuizActions } from "~/rpc/client";
 
 export const Route = createFileRoute("/")({
     component: Dashboard,
@@ -9,18 +8,18 @@ export const Route = createFileRoute("/")({
 
 function Dashboard() {
     const navigate = useNavigate();
-    const [quizzes, { refetch }] = createResource(() => listQuizzes());
-    const [deleting, setDeleting] = createSignal<string | null>(null);
+    const quizzes = createQuizQuery(() =>
+        callQuiz((client) => client.listQuizzes()),
+    );
+    const refetch = () => refresh(quizzes);
+    const { pending: deleting, error, run } = createQuizActions();
 
-    async function handleDelete(id: string) {
+    function handleDelete(id: string) {
         if (!confirm("Delete this quiz and all its questions?")) return;
-        setDeleting(id);
-        try {
-            await deleteQuiz({ data: id });
-            refetch();
-        } finally {
-            setDeleting(null);
-        }
+        run(
+            callQuiz((client) => client.deleteQuiz(id)),
+            refetch,
+        );
     }
 
     function typeLabel(b: {
@@ -58,8 +57,12 @@ function Dashboard() {
             </header>
 
             <main class="max-w-5xl mx-auto px-6 py-10">
-                <Show
-                    when={!quizzes.loading}
+                <Show when={error()}>
+                    <p role="alert" class="text-[#c0261a] mb-4">
+                        {error()}
+                    </p>
+                </Show>
+                <Loading
                     fallback={
                         <div class="text-center text-[#7a7060] font-bebas text-xl tracking-wide py-20">
                             Loading...
@@ -111,7 +114,9 @@ function Dashboard() {
                                                     >
                                                         {quiz.title}
                                                     </a>
-                                                    <Show when={quiz.description}>
+                                                    <Show
+                                                        when={quiz.description}
+                                                    >
                                                         <p class="text-sm text-[#7a7060] mt-0.5">
                                                             {quiz.description}
                                                         </p>
@@ -120,7 +125,11 @@ function Dashboard() {
                                                 <td class="px-5 py-4 text-sm text-[#5a5040]">
                                                     {quiz.questionCount}
                                                     <span class="text-[#9a9080] ml-1">
-                                                        ({typeLabel(quiz.typeBreakdown)})
+                                                        (
+                                                        {typeLabel(
+                                                            quiz.typeBreakdown,
+                                                        )}
+                                                        )
                                                     </span>
                                                 </td>
                                                 <td class="px-5 py-4">
@@ -136,11 +145,17 @@ function Dashboard() {
                                                 </td>
                                                 <td class="px-5 py-4 text-right">
                                                     <button
-                                                        onClick={() => handleDelete(quiz.id)}
-                                                        disabled={deleting() === quiz.id}
+                                                        onClick={() =>
+                                                            handleDelete(
+                                                                quiz.id,
+                                                            )
+                                                        }
+                                                        disabled={deleting()}
                                                         class="text-sm font-bebas tracking-wider text-[#c0261a] hover:text-[#8b1a10] disabled:opacity-40 transition-colors cursor-pointer"
                                                     >
-                                                        {deleting() === quiz.id ? "..." : "DELETE"}
+                                                        {deleting()
+                                                            ? "..."
+                                                            : "DELETE"}
                                                     </button>
                                                 </td>
                                             </tr>
@@ -150,7 +165,7 @@ function Dashboard() {
                             </table>
                         </div>
                     </Show>
-                </Show>
+                </Loading>
             </main>
         </div>
     );

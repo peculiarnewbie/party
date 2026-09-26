@@ -1,4 +1,4 @@
-import { onMount } from "solid-js";
+import { onSettled } from "solid-js";
 import { SampleQuizRoom } from "~/components/sample-quiz-room";
 import type { QuizFixtureId } from "~/game/quiz/fixtures";
 import { getQuizFixture } from "~/game/quiz/fixtures";
@@ -72,7 +72,7 @@ export function QuizFixtureHarness(props: QuizFixtureHarnessProps) {
 
     const isHost = fixture.hostPlayerId === props.playerId;
 
-    onMount(() => {
+    onSettled(() => {
         window.__QUIZ_FIXTURE__ = fixtureState;
     });
 

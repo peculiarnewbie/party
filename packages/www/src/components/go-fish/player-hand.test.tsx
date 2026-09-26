@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { PlayerHand } from "./player-hand";
@@ -35,6 +36,7 @@ describe("PlayerHand", () => {
         ));
         const buttons = getAllByRole("button");
         fireEvent.click(buttons[0]!);
+        flush();
         expect(onSelectRank).toHaveBeenCalledTimes(1);
         expect(onSelectRank).toHaveBeenCalledWith(7);
     });
@@ -51,6 +53,7 @@ describe("PlayerHand", () => {
         ));
         const buttons = getAllByRole("button");
         fireEvent.click(buttons[0]!);
+        flush();
         expect(onSelectRank).not.toHaveBeenCalled();
         expect(buttons[0]).toBeDisabled();
     });

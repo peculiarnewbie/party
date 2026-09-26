@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 
@@ -5,9 +6,12 @@ const navigateMock = vi.fn();
 
 vi.mock("@tanstack/solid-router", () => ({
     useNavigate: () => navigateMock,
-    Link: (props: { to: string; children: unknown; class?: string }) =>
+    Link: (props: { to: string; children: unknown; class?: string }) => (
         // biome-ignore lint/a11y/useValidAnchor: test shim
-        <a href={props.to} class={props.class}>{props.children as any}</a>,
+        <a href={props.to} class={props.class}>
+            {props.children as any}
+        </a>
+    ),
 }));
 
 import { FixtureIsland } from "./fixture-island";
@@ -71,6 +75,7 @@ describe("FixtureIsland", () => {
         expect(queryByTestId("fixture-chip-beta")).toBeNull();
 
         fireEvent.mouseEnter(island);
+        flush();
 
         expect(getByTestId("fixture-chip-alpha")).toBeInTheDocument();
         expect(getByTestId("fixture-chip-beta")).toBeInTheDocument();
@@ -88,7 +93,9 @@ describe("FixtureIsland", () => {
         ));
 
         fireEvent.mouseEnter(getByTestId("fixture-island"));
+        flush();
         fireEvent.click(getByTestId("fixture-chip-beta"));
+        flush();
 
         expect(navigateMock).toHaveBeenCalledWith({
             to: "/dev/$game",
@@ -107,7 +114,9 @@ describe("FixtureIsland", () => {
         ));
 
         fireEvent.mouseEnter(getByTestId("fixture-island"));
+        flush();
         fireEvent.click(getByTestId("player-chip-p3"));
+        flush();
 
         expect(navigateMock).toHaveBeenCalledWith({
             to: "/dev/$game",
@@ -127,6 +136,7 @@ describe("FixtureIsland", () => {
         void getByTestId("fixture-island");
 
         fireEvent.keyDown(window, { key: "]" });
+        flush();
         expect(navigateMock).toHaveBeenLastCalledWith({
             to: "/dev/$game",
             params: { game: "poker" },
@@ -134,6 +144,7 @@ describe("FixtureIsland", () => {
         });
 
         fireEvent.keyDown(window, { key: "[" });
+        flush();
         expect(navigateMock).toHaveBeenLastCalledWith({
             to: "/dev/$game",
             params: { game: "poker" },
@@ -152,6 +163,7 @@ describe("FixtureIsland", () => {
         void getByTestId("fixture-island");
 
         fireEvent.keyDown(window, { key: "." });
+        flush();
         expect(navigateMock).toHaveBeenLastCalledWith({
             to: "/dev/$game",
             params: { game: "poker" },

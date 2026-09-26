@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { OpponentZone } from "./opponent-zone";
@@ -52,6 +53,7 @@ describe("OpponentZone", () => {
             />
         ));
         fireEvent.click(getByRole("button"));
+        flush();
         expect(onSelect).toHaveBeenCalledWith("p2");
     });
 
@@ -72,6 +74,7 @@ describe("OpponentZone", () => {
         const button = getByRole("button");
         expect(button).toBeDisabled();
         fireEvent.click(button);
+        flush();
         expect(onSelect).not.toHaveBeenCalled();
     });
 });

@@ -1,43 +1,9 @@
-# Start Basic Cloudflare
+# Party app
 
-## Getting Started
+Solid 2 and TanStack Router render the browser app from `src/client.tsx`. The Cloudflare Worker in `src/worker/index.ts` handles room WebSockets, then serves Vite assets through `env.ASSETS` with SPA fallback.
 
-### Install the dependencies
+Run `pnpm dev`, `pnpm build`, and `pnpm test:unit` from this package. Run `pnpm test:e2e -- --browser all` from the workspace root for browser coverage. The browser test runner starts an isolated local Alchemy stack with local test credentials.
 
-```bash
-pnpm i
-```
+Infrastructure and bindings are declared in `alchemy.run.ts`; TypeScript bindings live in `src/env.d.ts`. Games use schema-validated WebSocket adapters.
 
-### Start the development server
-
-```bash
-pnpm dev
-```
-
-### Build for Production
-
-```bash
-pnpm build
-```
-
-### Preview the production build
-
-```bash
-pnpm preview
-```
-
-### Deploy to Cloudflare
-
-```sh
-pnpm run deploy
-```
-
-## Accessing bindings
-
-You can access Cloudflare bindings in server functions by using importable `env`:
-
-```ts
-import { env } from 'cloudflare:workers'
-```
-
-See `src/routes/index.tsx` for an example.
+Solid 2 batches signal writes. Protocol ordering therefore uses synchronous internal state, with signals projecting the current view. UI tests flush queued signal writes before asserting DOM changes. The test setup also normalizes happy-dom's numeric `textContent` assignment to match browsers.

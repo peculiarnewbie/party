@@ -1,5 +1,6 @@
 import {
     createEffect,
+    untrack,
     createMemo,
     createSignal,
     For,
@@ -105,8 +106,7 @@ function describeEvent(
     }
     if (result.type === "challenge_resolved") {
         const winner = playerName(result.winnerId).toUpperCase();
-        const trait =
-            result.challengedTrait === "number" ? "NUMBER" : "SPICE";
+        const trait = result.challengedTrait === "number" ? "NUMBER" : "SPICE";
         return `${winner} wins the ${trait} challenge on ${describeCard(result.actualCard).toUpperCase()}`;
     }
     if (result.type === "last_card_confirmed") {
@@ -126,17 +126,21 @@ function describeEvent(
 
 export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
     const view = () => props.connection.view();
-    const [selectedCardId, setSelectedCardId] = createSignal<string | null>(null);
+    const [selectedCardId, setSelectedCardId] = createSignal<string | null>(
+        null,
+    );
     const [declaredNumber, setDeclaredNumber] = createSignal<number>(1);
     const [declaredSpice, setDeclaredSpice] = createSignal<SpiceType>("chili");
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
     const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
 
     const playerName = (playerId: string) =>
-        view()?.players.find((player) => player.id === playerId)?.name ?? "Unknown";
+        view()?.players.find((player) => player.id === playerId)?.name ??
+        "Unknown";
 
     const selectedCard = createMemo(
-        () => view()?.myHand.find((card) => card.id === selectedCardId()) ?? null,
+        () =>
+            view()?.myHand.find((card) => card.id === selectedCardId()) ?? null,
     );
 
     onCleanup(
@@ -163,25 +167,37 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
         }),
     );
 
-    createEffect(() => {
-        const currentView = view();
-        if (!currentView) return;
+    createEffect(view, (currentView) =>
+        untrack(() => {
+            if (!currentView) return;
 
-        const availableCardIds = currentView.myHand.map((card) => card.id);
-        if (!selectedCardId() || !availableCardIds.includes(selectedCardId()!)) {
-            setSelectedCardId(currentView.myHand[0]?.id ?? null);
-        }
+            const availableCardIds = currentView.myHand.map((card) => card.id);
+            if (
+                !selectedCardId() ||
+                !availableCardIds.includes(selectedCardId()!)
+            ) {
+                setSelectedCardId(currentView.myHand[0]?.id ?? null);
+            }
 
-        if (!currentView.allowedDeclarationNumbers.includes(declaredNumber())) {
-            setDeclaredNumber(currentView.allowedDeclarationNumbers[0] ?? 1);
-        }
+            if (
+                !currentView.allowedDeclarationNumbers.includes(
+                    declaredNumber(),
+                )
+            ) {
+                setDeclaredNumber(
+                    currentView.allowedDeclarationNumbers[0] ?? 1,
+                );
+            }
 
-        if (!currentView.allowedDeclarationSpices.includes(declaredSpice())) {
-            setDeclaredSpice(
-                currentView.allowedDeclarationSpices[0] ?? "chili",
-            );
-        }
-    });
+            if (
+                !currentView.allowedDeclarationSpices.includes(declaredSpice())
+            ) {
+                setDeclaredSpice(
+                    currentView.allowedDeclarationSpices[0] ?? "chili",
+                );
+            }
+        }),
+    );
 
     const currentPlayerName = () => {
         const currentView = view();
@@ -190,7 +206,10 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
     };
 
     return (
-        <div data-testid="spicy-room" class="min-h-screen bg-[radial-gradient(circle_at_top,#f6eed9_0%,#ecddbd_36%,#d6c09c_100%)] text-[#2b1c18]">
+        <div
+            data-testid="spicy-room"
+            class="min-h-screen bg-[radial-gradient(circle_at_top,#f6eed9_0%,#ecddbd_36%,#d6c09c_100%)] text-[#2b1c18]"
+        >
             <div class="border-b-2 border-[#7a2e25] bg-[#efe2c3]/90 px-4 py-4 backdrop-blur">
                 <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
                     <div>
@@ -214,7 +233,8 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                     <div class="font-karla text-[.82rem] text-[#5f4a40]">
                                         {currentView().phase === "game_over"
                                             ? END_REASON_LABELS[
-                                                  currentView().endReason ?? "host_ended"
+                                                  currentView().endReason ??
+                                                      "host_ended"
                                               ]
                                             : `${currentPlayerName()} is up`}
                                     </div>
@@ -272,7 +292,8 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                     CARDS IN STACK
                                                 </div>
                                                 <div class="font-bebas text-[2rem] leading-none tracking-[.08em] text-[#7a2e25]">
-                                                    {currentView().stackTop?.stackSize ?? 0}
+                                                    {currentView().stackTop
+                                                        ?.stackSize ?? 0}
                                                 </div>
                                             </div>
                                         </div>
@@ -280,12 +301,15 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                         <div class="grid gap-4 md:grid-cols-[1fr_auto]">
                                             <div class="rounded-sm border-2 border-[#c8ae8e] bg-[#efe2c3] p-4">
                                                 <Show
-                                                    when={currentView().stackTop}
+                                                    when={
+                                                        currentView().stackTop
+                                                    }
                                                     fallback={
                                                         <div class="text-[.95rem] leading-relaxed text-[#5f4a40]">
-                                                            Open with any declared
-                                                            1, 2, or 3 in the spice of
-                                                            your choice.
+                                                            Open with any
+                                                            declared 1, 2, or 3
+                                                            in the spice of your
+                                                            choice.
                                                         </div>
                                                     }
                                                 >
@@ -295,12 +319,17 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                                 TOP CARD OWNER
                                                             </div>
                                                             <div class="font-bebas text-[1.3rem] tracking-[.08em]">
-                                                                {playerName(top().ownerId)}
+                                                                {playerName(
+                                                                    top()
+                                                                        .ownerId,
+                                                                )}
                                                             </div>
                                                             <div class="text-[.95rem] leading-relaxed text-[#5f4a40]">
-                                                                Number must keep climbing.
-                                                                Spice stays locked until a
-                                                                new stack begins.
+                                                                Number must keep
+                                                                climbing. Spice
+                                                                stays locked
+                                                                until a new
+                                                                stack begins.
                                                             </div>
                                                         </div>
                                                     )}
@@ -309,31 +338,45 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
 
                                             <div class="flex items-center gap-3">
                                                 <ChallengeButton
-                                                    disabled={!currentView().canChallenge}
+                                                    disabled={
+                                                        !currentView()
+                                                            .canChallenge
+                                                    }
                                                     label="Challenge Number"
                                                     accent="#d5a621"
                                                     onClick={() =>
                                                         props.connection.send({
                                                             type: "spicy:challenge",
-                                                            data: { trait: "number" },
+                                                            data: {
+                                                                trait: "number",
+                                                            },
                                                         })
                                                     }
                                                 />
                                                 <ChallengeButton
-                                                    disabled={!currentView().canChallenge}
+                                                    disabled={
+                                                        !currentView()
+                                                            .canChallenge
+                                                    }
                                                     label="Challenge Spice"
                                                     accent="#0a8f82"
                                                     onClick={() =>
                                                         props.connection.send({
                                                             type: "spicy:challenge",
-                                                            data: { trait: "spice" },
+                                                            data: {
+                                                                trait: "spice",
+                                                            },
                                                         })
                                                     }
                                                 />
                                             </div>
                                         </div>
 
-                                        <Show when={currentView().canConfirmLastCard}>
+                                        <Show
+                                            when={
+                                                currentView().canConfirmLastCard
+                                            }
+                                        >
                                             <div class="mt-4 border-2 border-[#2b1c18] bg-[#fff5e0] px-4 py-3 shadow-[4px_4px_0_#2b1c18]">
                                                 <div class="font-bebas text-[.72rem] tracking-[.24em] text-[#9d8773]">
                                                     LAST CARD WINDOW
@@ -341,17 +384,22 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                 <div class="mt-1 flex flex-wrap items-center justify-between gap-3">
                                                     <div class="text-[.95rem] text-[#5f4a40]">
                                                         {playerName(
-                                                            currentView().pendingLastCardPlayerId ?? "",
+                                                            currentView()
+                                                                .pendingLastCardPlayerId ??
+                                                                "",
                                                         )}{" "}
-                                                        is trying to lock in a trophy.
+                                                        is trying to lock in a
+                                                        trophy.
                                                     </div>
                                                     <button
                                                         type="button"
                                                         onClick={() =>
-                                                            props.connection.send({
-                                                                type: "spicy:confirm_last_card",
-                                                                data: {},
-                                                            })
+                                                            props.connection.send(
+                                                                {
+                                                                    type: "spicy:confirm_last_card",
+                                                                    data: {},
+                                                                },
+                                                            )
                                                         }
                                                         class="border-2 border-[#2b1c18] bg-[#2b1c18] px-4 py-2 font-bebas text-[.9rem] tracking-[.16em] text-[#fff5e0] shadow-[3px_3px_0_#7a2e25] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#7a2e25]"
                                                     >
@@ -367,7 +415,8 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                             DECLARE
                                         </div>
                                         <div class="mt-1 font-bebas text-[2rem] leading-none tracking-[.08em]">
-                                            {declaredNumber()} {SPICE_LABELS[declaredSpice()]}
+                                            {declaredNumber()}{" "}
+                                            {SPICE_LABELS[declaredSpice()]}
                                         </div>
 
                                         <div class="mt-4">
@@ -429,7 +478,9 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                                     : "border-[#f2c8bc] bg-transparent text-[#fff5e0]"
                                                             }`}
                                                         >
-                                                            {SPICE_LABELS[spice].toUpperCase()}
+                                                            {SPICE_LABELS[
+                                                                spice
+                                                            ].toUpperCase()}
                                                         </button>
                                                     )}
                                                 </For>
@@ -440,14 +491,16 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                             <button
                                                 type="button"
                                                 disabled={
-                                                    !currentView().canPlayCard ||
+                                                    !currentView()
+                                                        .canPlayCard ||
                                                     !selectedCard()
                                                 }
                                                 onClick={() =>
                                                     props.connection.send({
                                                         type: "spicy:play_card",
                                                         data: {
-                                                            cardId: selectedCard()!.id,
+                                                            cardId: selectedCard()!
+                                                                .id,
                                                             declaredNumber:
                                                                 declaredNumber(),
                                                             declaredSpice:
@@ -461,7 +514,9 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                             </button>
                                             <button
                                                 type="button"
-                                                disabled={!currentView().canPass}
+                                                disabled={
+                                                    !currentView().canPass
+                                                }
                                                 onClick={() =>
                                                     props.connection.send({
                                                         type: "spicy:pass",
@@ -483,7 +538,8 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                 YOUR HAND
                                             </div>
                                             <div class="font-bebas text-[1.7rem] leading-none tracking-[.08em]">
-                                                {currentView().myHand.length} cards
+                                                {currentView().myHand.length}{" "}
+                                                cards
                                             </div>
                                         </div>
                                         <div class="font-karla text-[.92rem] text-[#5f4a40]">
@@ -498,10 +554,13 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                 <button
                                                     type="button"
                                                     onClick={() =>
-                                                        setSelectedCardId(card.id)
+                                                        setSelectedCardId(
+                                                            card.id,
+                                                        )
                                                     }
                                                     class={`relative min-h-[142px] overflow-hidden border-2 p-4 text-left shadow-[4px_4px_0_#2b1c18] transition-all duration-[120ms] ${
-                                                        selectedCardId() === card.id
+                                                        selectedCardId() ===
+                                                        card.id
                                                             ? "border-[#2b1c18] -translate-x-0.5 -translate-y-0.5 bg-[#fff5e0]"
                                                             : "border-[#c8ae8e] bg-[#efe2c3] hover:-translate-x-0.5 hover:-translate-y-0.5"
                                                     }`}
@@ -523,14 +582,18 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                     <div
                                                         class="mt-3 font-bebas text-[2.3rem] leading-none tracking-[.08em]"
                                                         style={{
-                                                            color: cardFace(card)
-                                                                .accent,
+                                                            color: cardFace(
+                                                                card,
+                                                            ).accent,
                                                         }}
                                                     >
                                                         {cardFace(card).title}
                                                     </div>
                                                     <div class="mt-1 font-bebas text-[1rem] tracking-[.14em] text-[#2b1c18]">
-                                                        {cardFace(card).subtitle}
+                                                        {
+                                                            cardFace(card)
+                                                                .subtitle
+                                                        }
                                                     </div>
                                                     <div class="mt-4 text-[.88rem] text-[#5f4a40]">
                                                         {cardFace(card).detail}
@@ -563,14 +626,24 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                                                 {player.name}
                                                             </div>
                                                             <div class="text-[.85rem] text-[#d6b39e]">
-                                                                {player.handCount} in hand,{" "}
-                                                                {player.wonCardCount} won
+                                                                {
+                                                                    player.handCount
+                                                                }{" "}
+                                                                in hand,{" "}
+                                                                {
+                                                                    player.wonCardCount
+                                                                }{" "}
+                                                                won
                                                             </div>
                                                         </div>
                                                         <div class="text-right">
                                                             <div class="font-bebas text-[1.1rem] tracking-[.08em] text-[#f1c14d]">
-                                                                {player.trophies} trophy
-                                                                {player.trophies === 1
+                                                                {
+                                                                    player.trophies
+                                                                }{" "}
+                                                                trophy
+                                                                {player.trophies ===
+                                                                1
                                                                     ? ""
                                                                     : "ies"}
                                                             </div>
@@ -596,7 +669,9 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                     </div>
                                 </div>
 
-                                <Show when={currentView().phase === "game_over"}>
+                                <Show
+                                    when={currentView().phase === "game_over"}
+                                >
                                     <div class="border-2 border-[#7a2e25] bg-[#fff5e0] p-5 shadow-[6px_6px_0_#7a2e25]">
                                         <div class="font-bebas text-[.72rem] tracking-[.24em] text-[#9d8773]">
                                             FINAL SCORES
@@ -604,29 +679,48 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                         <div class="mt-2 font-bebas text-[1.8rem] leading-none tracking-[.08em]">
                                             {currentView()
                                                 .winners?.map((id) =>
-                                                    playerName(id).toUpperCase(),
+                                                    playerName(
+                                                        id,
+                                                    ).toUpperCase(),
                                                 )
                                                 .join(" / ")}
                                         </div>
                                         <div class="mt-1 text-[.92rem] text-[#5f4a40]">
-                                            {END_REASON_LABELS[
-                                                currentView().endReason ??
-                                                    "host_ended"
-                                            ]}
+                                            {
+                                                END_REASON_LABELS[
+                                                    currentView().endReason ??
+                                                        "host_ended"
+                                                ]
+                                            }
                                         </div>
 
                                         <div class="mt-4 space-y-2">
-                                            <For each={currentView().finalScores ?? []}>
+                                            <For
+                                                each={
+                                                    currentView().finalScores ??
+                                                    []
+                                                }
+                                            >
                                                 {(score) => (
                                                     <div class="flex items-center justify-between gap-4 border-t border-[#dbc5a7] pt-3 first:border-t-0 first:pt-0">
                                                         <div>
                                                             <div class="font-bebas text-[1rem] tracking-[.08em]">
-                                                                {playerName(score.playerId)}
+                                                                {playerName(
+                                                                    score.playerId,
+                                                                )}
                                                             </div>
                                                             <div class="text-[.82rem] text-[#5f4a40]">
-                                                                {score.wonCardCount} won +{" "}
-                                                                {score.trophies * 10} trophy
-                                                                pts - {score.handCount} hand
+                                                                {
+                                                                    score.wonCardCount
+                                                                }{" "}
+                                                                won +{" "}
+                                                                {score.trophies *
+                                                                    10}{" "}
+                                                                trophy pts -{" "}
+                                                                {
+                                                                    score.handCount
+                                                                }{" "}
+                                                                hand
                                                             </div>
                                                         </div>
                                                         <div class="font-bebas text-[1.5rem] tracking-[.08em] text-[#7a2e25]">
@@ -653,18 +747,19 @@ export const SpicyRoom: Component<SpicyRoomProps> = (props) => {
                                     </div>
                                     <div class="mt-3 space-y-3 text-[.92rem] leading-relaxed text-[#5f4a40]">
                                         <p>
-                                            Start each stack with a declared 1, 2,
-                                            or 3. Keep the spice locked until the
-                                            stack resets.
+                                            Start each stack with a declared 1,
+                                            2, or 3. Keep the spice locked until
+                                            the stack resets.
                                         </p>
                                         <p>
-                                            Any player except the top-card owner can
-                                            challenge the number or the spice.
+                                            Any player except the top-card owner
+                                            can challenge the number or the
+                                            spice.
                                         </p>
                                         <p>
-                                            Wild Spice covers any spice but loses on
-                                            number challenges. Wild Number does the
-                                            opposite.
+                                            Wild Spice covers any spice but
+                                            loses on number challenges. Wild
+                                            Number does the opposite.
                                         </p>
                                     </div>
                                 </div>

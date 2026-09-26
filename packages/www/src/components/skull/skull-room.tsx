@@ -86,7 +86,8 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
     const [bidValue, setBidValue] = createSignal(1);
 
     const playerName = (playerId: string) =>
-        view()?.players.find((player) => player.id === playerId)?.name ?? "Unknown";
+        view()?.players.find((player) => player.id === playerId)?.name ??
+        "Unknown";
 
     const clampBid = (nextBid: number) => {
         const currentView = view();
@@ -153,16 +154,13 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
             }
 
             if (event.type === "skull:error") {
-                setErrorMessage(
-                    (event.data as { message: string }).message,
-                );
+                setErrorMessage((event.data as { message: string }).message);
                 setTimeout(() => setErrorMessage(null), 3200);
             }
         }),
     );
 
-    createEffect(() => {
-        const currentView = view();
+    createEffect(view, (currentView) => {
         if (!currentView) return;
         setBidValue((currentBid) =>
             Math.min(
@@ -173,11 +171,16 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
     });
 
     const me = createMemo(
-        () => view()?.players.find((player) => player.id === props.playerId) ?? null,
+        () =>
+            view()?.players.find((player) => player.id === props.playerId) ??
+            null,
     );
 
     return (
-        <div data-testid="skull-room" class="min-h-screen bg-[radial-gradient(circle_at_top,#f5dcb2,transparent_42%),linear-gradient(180deg,#2a120f_0%,#532720_20%,#a85b35_58%,#f0d6b3_100%)] text-[#2b170f] font-karla">
+        <div
+            data-testid="skull-room"
+            class="min-h-screen bg-[radial-gradient(circle_at_top,#f5dcb2,transparent_42%),linear-gradient(180deg,#2a120f_0%,#532720_20%,#a85b35_58%,#f0d6b3_100%)] text-[#2b170f] font-karla"
+        >
             <div class="border-b-2 border-[#442116] bg-[#f1dfbd]/90 backdrop-blur px-4 py-4">
                 <div class="mx-auto flex max-w-6xl items-center justify-between gap-4">
                     <div>
@@ -234,18 +237,31 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                         {(player, index) => (
                                             <PlayerPanel
                                                 player={player}
-                                                palette={PLAYER_PALETTES[index() % PLAYER_PALETTES.length]!}
-                                                isMe={player.id === currentView().myId}
+                                                palette={
+                                                    PLAYER_PALETTES[
+                                                        index() %
+                                                            PLAYER_PALETTES.length
+                                                    ]!
+                                                }
+                                                isMe={
+                                                    player.id ===
+                                                    currentView().myId
+                                                }
                                                 myMat={
-                                                    player.id === currentView().myId
+                                                    player.id ===
+                                                    currentView().myId
                                                         ? currentView().myMat
                                                         : []
                                                 }
-                                                canFlip={currentView().selectableFlipOwnerIds.includes(player.id)}
+                                                canFlip={currentView().selectableFlipOwnerIds.includes(
+                                                    player.id,
+                                                )}
                                                 onFlip={() =>
                                                     props.connection.send({
                                                         type: "skull:flip_disc",
-                                                        data: { ownerId: player.id },
+                                                        data: {
+                                                            ownerId: player.id,
+                                                        },
                                                     })
                                                 }
                                             />
@@ -267,12 +283,19 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                 {(disc) => (
                                                     <button
                                                         type="button"
-                                                        disabled={!currentView().canPlayDisc}
+                                                        disabled={
+                                                            !currentView()
+                                                                .canPlayDisc
+                                                        }
                                                         onClick={() =>
-                                                            props.connection.send({
-                                                                type: "skull:play_disc",
-                                                                data: { disc },
-                                                            })
+                                                            props.connection.send(
+                                                                {
+                                                                    type: "skull:play_disc",
+                                                                    data: {
+                                                                        disc,
+                                                                    },
+                                                                },
+                                                            )
                                                         }
                                                         class="group rounded-none disabled:cursor-default disabled:opacity-55"
                                                     >
@@ -281,9 +304,12 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                             palette={
                                                                 PLAYER_PALETTES[
                                                                     currentView().players.findIndex(
-                                                                        (player) =>
+                                                                        (
+                                                                            player,
+                                                                        ) =>
                                                                             player.id ===
-                                                                            currentView().myId,
+                                                                            currentView()
+                                                                                .myId,
                                                                     ) %
                                                                         PLAYER_PALETTES.length
                                                                 ]!
@@ -293,7 +319,12 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                     </button>
                                                 )}
                                             </For>
-                                            <Show when={currentView().myHand.length === 0}>
+                                            <Show
+                                                when={
+                                                    currentView().myHand
+                                                        .length === 0
+                                                }
+                                            >
                                                 <div class="border-2 border-dashed border-[#9c5838] px-4 py-5 font-bebas text-[.8rem] tracking-[.16em] text-[#9c5838]">
                                                     NO DISCS LEFT
                                                 </div>
@@ -303,8 +334,10 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                     <Switch>
                                         <Match
                                             when={
-                                                currentView().phase === "turn_prep" ||
-                                                currentView().phase === "building"
+                                                currentView().phase ===
+                                                    "turn_prep" ||
+                                                currentView().phase ===
+                                                    "building"
                                             }
                                         >
                                             <BuildControls
@@ -312,40 +345,57 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                 bidValue={bidValue()}
                                                 onDecrementBid={() =>
                                                     setBidValue((currentBid) =>
-                                                        clampBid(currentBid - 1),
+                                                        clampBid(
+                                                            currentBid - 1,
+                                                        ),
                                                     )
                                                 }
                                                 onIncrementBid={() =>
                                                     setBidValue((currentBid) =>
-                                                        clampBid(currentBid + 1),
+                                                        clampBid(
+                                                            currentBid + 1,
+                                                        ),
                                                     )
                                                 }
                                                 onStartChallenge={() =>
                                                     props.connection.send({
                                                         type: "skull:start_challenge",
-                                                        data: { bid: bidValue() },
+                                                        data: {
+                                                            bid: bidValue(),
+                                                        },
                                                     })
                                                 }
                                             />
                                         </Match>
-                                        <Match when={currentView().phase === "auction"}>
+                                        <Match
+                                            when={
+                                                currentView().phase ===
+                                                "auction"
+                                            }
+                                        >
                                             <AuctionControls
                                                 view={currentView()}
                                                 bidValue={bidValue()}
                                                 onDecrementBid={() =>
                                                     setBidValue((currentBid) =>
-                                                        clampBid(currentBid - 1),
+                                                        clampBid(
+                                                            currentBid - 1,
+                                                        ),
                                                     )
                                                 }
                                                 onIncrementBid={() =>
                                                     setBidValue((currentBid) =>
-                                                        clampBid(currentBid + 1),
+                                                        clampBid(
+                                                            currentBid + 1,
+                                                        ),
                                                     )
                                                 }
                                                 onRaise={() =>
                                                     props.connection.send({
                                                         type: "skull:raise_bid",
-                                                        data: { bid: bidValue() },
+                                                        data: {
+                                                            bid: bidValue(),
+                                                        },
                                                     })
                                                 }
                                                 onPass={() =>
@@ -356,10 +406,22 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                 }
                                             />
                                         </Match>
-                                        <Match when={currentView().phase === "attempt"}>
-                                            <AttemptControls view={currentView()} />
+                                        <Match
+                                            when={
+                                                currentView().phase ===
+                                                "attempt"
+                                            }
+                                        >
+                                            <AttemptControls
+                                                view={currentView()}
+                                            />
                                         </Match>
-                                        <Match when={currentView().phase === "penalty"}>
+                                        <Match
+                                            when={
+                                                currentView().phase ===
+                                                "penalty"
+                                            }
+                                        >
                                             <PenaltyControls
                                                 view={currentView()}
                                                 onDiscard={(discIndex) =>
@@ -370,25 +432,43 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                 }
                                             />
                                         </Match>
-                                        <Match when={currentView().phase === "next_starter"}>
+                                        <Match
+                                            when={
+                                                currentView().phase ===
+                                                "next_starter"
+                                            }
+                                        >
                                             <NextStarterControls
                                                 view={currentView()}
                                                 onChoose={(targetPlayerId) =>
                                                     props.connection.send({
                                                         type: "skull:choose_next_starter",
-                                                        data: { playerId: targetPlayerId },
+                                                        data: {
+                                                            playerId:
+                                                                targetPlayerId,
+                                                        },
                                                     })
                                                 }
                                             />
                                         </Match>
-                                        <Match when={currentView().phase === "game_over"}>
+                                        <Match
+                                            when={
+                                                currentView().phase ===
+                                                "game_over"
+                                            }
+                                        >
                                             <GameOverControls
                                                 winnerName={
                                                     currentView().winnerId
-                                                        ? playerName(currentView().winnerId!)
+                                                        ? playerName(
+                                                              currentView()
+                                                                  .winnerId!,
+                                                          )
                                                         : null
                                                 }
-                                                onReturnToLobby={props.onReturnToLobby}
+                                                onReturnToLobby={
+                                                    props.onReturnToLobby
+                                                }
                                             />
                                         </Match>
                                     </Switch>
@@ -407,7 +487,9 @@ export const SkullRoom: Component<SkullRoomProps> = (props) => {
                                                 </div>
                                             </div>
                                             <div class="font-bebas text-[.8rem] tracking-[.16em] text-[#6f4a38]">
-                                                WINS {player().successfulChallenges}/2
+                                                WINS{" "}
+                                                {player().successfulChallenges}
+                                                /2
                                             </div>
                                         </div>
                                     </div>
@@ -444,9 +526,13 @@ function StatusCard(props: {
     lastAction: string | null;
 }) {
     const currentPlayer = () =>
-        props.view.players.find((player) => player.id === props.view.currentPlayerId);
+        props.view.players.find(
+            (player) => player.id === props.view.currentPlayerId,
+        );
     const highestBidder = () =>
-        props.view.players.find((player) => player.id === props.view.highestBidderId);
+        props.view.players.find(
+            (player) => player.id === props.view.highestBidderId,
+        );
 
     return (
         <div class="border-2 border-[#442116] bg-[#f8ebd1] p-4 shadow-[5px_5px_0_#442116]">
@@ -464,7 +550,10 @@ function StatusCard(props: {
                     <span class="font-bebas tracking-[.12em] text-[#6f4a38]">
                         LAST
                     </span>{" "}
-                    <Show when={props.lastAction} fallback={<span class="text-[#b1846b]">—</span>}>
+                    <Show
+                        when={props.lastAction}
+                        fallback={<span class="text-[#b1846b]">—</span>}
+                    >
                         {(message) => <span>{message()}</span>}
                     </Show>
                 </div>
@@ -473,7 +562,8 @@ function StatusCard(props: {
                         <span class="font-bebas tracking-[.12em] text-[#6f4a38]">
                             BID
                         </span>{" "}
-                        {props.view.highestBid} by {highestBidder()?.name ?? "Unknown"}
+                        {props.view.highestBid} by{" "}
+                        {highestBidder()?.name ?? "Unknown"}
                     </div>
                 </Show>
                 <Show when={props.view.attempt}>
@@ -505,7 +595,8 @@ function BuildControls(props: {
                     PLAY TO YOUR MAT
                 </div>
                 <p class="mt-2 text-[.94rem] leading-relaxed text-[#6f4a38]">
-                    Your hand is shown above. Click a disc there to add it face-down to your own mat.
+                    Your hand is shown above. Click a disc there to add it
+                    face-down to your own mat.
                 </p>
                 <Show when={!props.view.canPlayDisc && props.view.isMyTurn}>
                     <div class="mt-3 font-bebas text-[.75rem] tracking-[.16em] text-[#6e241a]">
@@ -521,11 +612,15 @@ function BuildControls(props: {
                     Bid how many discs you can reveal without hitting a skull.
                 </p>
                 <div class="mt-4 flex items-center gap-3">
-                    <StepperButton onClick={props.onDecrementBid}>-</StepperButton>
+                    <StepperButton onClick={props.onDecrementBid}>
+                        -
+                    </StepperButton>
                     <div class="min-w-16 border-2 border-[#442116] bg-[#fff5db] px-4 py-2 text-center font-bebas text-[1.3rem] tracking-[.08em]">
                         {props.bidValue}
                     </div>
-                    <StepperButton onClick={props.onIncrementBid}>+</StepperButton>
+                    <StepperButton onClick={props.onIncrementBid}>
+                        +
+                    </StepperButton>
                 </div>
                 <div class="mt-2 font-bebas text-[.7rem] tracking-[.15em] text-[#7a450f]">
                     RANGE {props.view.minBid} TO {props.view.maxBid}
@@ -557,7 +652,8 @@ function AuctionControls(props: {
                 AUCTION
             </div>
             <p class="mt-2 text-[.94rem] leading-relaxed text-[#6f4a38]">
-                Increase the bid or pass. Once you pass, you are out for this round.
+                Increase the bid or pass. Once you pass, you are out for this
+                round.
             </p>
             <div class="mt-4 flex items-center gap-3">
                 <StepperButton onClick={props.onDecrementBid}>-</StepperButton>
@@ -593,7 +689,9 @@ function AuctionControls(props: {
 
 function AttemptControls(props: { view: SkullPlayerView }) {
     const challenger = () =>
-        props.view.players.find((player) => player.id === props.view.attempt?.challengerId);
+        props.view.players.find(
+            (player) => player.id === props.view.attempt?.challengerId,
+        );
 
     return (
         <div class="border-2 border-[#442116] bg-[#f8ebd1] p-4 shadow-[5px_5px_0_#442116]">
@@ -610,7 +708,8 @@ function AttemptControls(props: { view: SkullPlayerView }) {
                         </div>
                         <div class="mt-3 text-[.95rem] leading-relaxed text-[#6f4a38]">
                             {challenger()?.name ?? "Unknown"} has flipped{" "}
-                            {attempt().revealedCount} of {attempt().target} discs.
+                            {attempt().revealedCount} of {attempt().target}{" "}
+                            discs.
                         </div>
                         <Show
                             when={props.view.selectableFlipOwnerIds.length > 0}
@@ -638,9 +737,13 @@ function PenaltyControls(props: {
     onDiscard: (discIndex: number) => void;
 }) {
     const penalizedPlayer = () =>
-        props.view.players.find((player) => player.id === props.view.penaltyPlayerId);
+        props.view.players.find(
+            (player) => player.id === props.view.penaltyPlayerId,
+        );
     const chooserPlayer = () =>
-        props.view.players.find((player) => player.id === props.view.penaltyChooserId);
+        props.view.players.find(
+            (player) => player.id === props.view.penaltyChooserId,
+        );
     const chooserIsPenalized = () =>
         props.view.penaltyChooserId !== null &&
         props.view.penaltyChooserId === props.view.penaltyPlayerId;
@@ -667,7 +770,8 @@ function PenaltyControls(props: {
                         }
                         fallback={
                             <p class="mt-3 text-[.95rem] leading-relaxed text-[#6f4a38]">
-                                {penalizedPlayer()?.name ?? "A player"} is about to lose a disc.
+                                {penalizedPlayer()?.name ?? "A player"} is about
+                                to lose a disc.
                             </p>
                         }
                     >
@@ -679,15 +783,15 @@ function PenaltyControls(props: {
                                 }
                                 fallback={
                                     <>
-                                        {penalizedPlayer()?.name ?? "A player"} is
-                                        picking a face-down disc to lose.
+                                        {penalizedPlayer()?.name ?? "A player"}{" "}
+                                        is picking a face-down disc to lose.
                                     </>
                                 }
                             >
-                                {chooserPlayer()?.name ?? "A player"} is picking a
-                                face-down disc for{" "}
-                                {penalizedPlayer()?.name ?? "the challenger"} to lose
-                                (own skull).
+                                {chooserPlayer()?.name ?? "A player"} is picking
+                                a face-down disc for{" "}
+                                {penalizedPlayer()?.name ?? "the challenger"} to
+                                lose (own skull).
                             </Show>
                         </p>
                     </Show>
@@ -699,9 +803,10 @@ function PenaltyControls(props: {
                             when={chooserIsPenalized()}
                             fallback={
                                 <>
-                                    {penalizedPlayer()?.name ?? "The challenger"} hit
-                                    their own skull, so pick one of their shuffled
-                                    face-down discs to destroy.
+                                    {penalizedPlayer()?.name ??
+                                        "The challenger"}{" "}
+                                    hit their own skull, so pick one of their
+                                    shuffled face-down discs to destroy.
                                 </>
                             }
                         >
@@ -759,7 +864,8 @@ function NextStarterControls(props: {
                 when={props.view.canChooseNextStarter}
                 fallback={
                     <p class="mt-3 text-[.95rem] leading-relaxed text-[#6f4a38]">
-                        {chooser()?.name ?? "A player"} is choosing who opens the next round.
+                        {chooser()?.name ?? "A player"} is choosing who opens
+                        the next round.
                     </p>
                 }
             >
@@ -775,8 +881,9 @@ function NextStarterControls(props: {
                                     onClick={() => props.onChoose(playerId)}
                                     class="border-2 border-[#442116] bg-[#fff5db] px-4 py-3 text-left font-bebas text-[.95rem] tracking-[.14em] text-[#442116] shadow-[4px_4px_0_#442116] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_#442116]"
                                 >
-                                    {props.view.players.find((player) => player.id === playerId)
-                                        ?.name ?? "Unknown"}
+                                    {props.view.players.find(
+                                        (player) => player.id === playerId,
+                                    )?.name ?? "Unknown"}
                                 </button>
                             )}
                         </For>
@@ -797,7 +904,9 @@ function GameOverControls(props: {
                 GAME OVER
             </div>
             <p class="mt-3 text-[1rem] leading-relaxed text-[#6f4a38]">
-                {props.winnerName ? `${props.winnerName} wins the table.` : "The host ended the game."}
+                {props.winnerName
+                    ? `${props.winnerName} wins the table.`
+                    : "The host ended the game."}
             </p>
             <button
                 type="button"
@@ -812,7 +921,7 @@ function GameOverControls(props: {
 
 function PlayerPanel(props: {
     player: SkullPlayerView["players"][number];
-    palette: typeof PLAYER_PALETTES[number];
+    palette: (typeof PLAYER_PALETTES)[number];
     isMe: boolean;
     myMat: DiscType[];
     canFlip: boolean;
@@ -911,7 +1020,11 @@ function PlayerPanel(props: {
                     when={props.isMe}
                     fallback={
                         <div class="mt-2 flex items-center gap-2">
-                            <For each={Array.from({ length: props.player.faceDownCount })}>
+                            <For
+                                each={Array.from({
+                                    length: props.player.faceDownCount,
+                                })}
+                            >
                                 {(_, index) => (
                                     <SvgSkullDisc
                                         disc="hidden"
@@ -936,7 +1049,8 @@ function PlayerPanel(props: {
                             {(disc, index) => {
                                 const revealed =
                                     index() >=
-                                    props.myMat.length - props.player.revealedDiscs.length;
+                                    props.myMat.length -
+                                        props.player.revealedDiscs.length;
                                 return (
                                     <SvgSkullDisc
                                         disc={disc}

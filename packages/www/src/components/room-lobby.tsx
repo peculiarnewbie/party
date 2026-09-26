@@ -1,12 +1,11 @@
-import {
-    Show,
-    For,
-    createSignal,
-    createEffect,
-    onMount,
-} from "solid-js";
+import { Show, For, createSignal, createEffect, onSettled } from "solid-js";
 import type { Component } from "solid-js";
-import { GAME_RULES, getGameStartValidation, type GameType, type Player } from "~/game";
+import {
+    GAME_RULES,
+    getGameStartValidation,
+    type GameType,
+    type Player,
+} from "~/game";
 
 export const RoomLobby: Component<{
     roomId: string;
@@ -32,12 +31,12 @@ export const RoomLobby: Component<{
         (typeof GAME_RULES)[GameType],
     ][];
 
-    onMount(() => {
+    onSettled(() => {
         if (!props.isJoined) setIsEditing(true);
     });
 
-    createEffect(() => {
-        if (isEditing()) {
+    createEffect(isEditing, (editing) => {
+        if (editing) {
             inputRef?.focus();
         }
     });
@@ -202,7 +201,9 @@ export const RoomLobby: Component<{
                                         type="button"
                                         data-testid={`room-game-option-${gameType}`}
                                         disabled={!props.isHost}
-                                        onClick={() => props.onSelectGame(gameType)}
+                                        onClick={() =>
+                                            props.onSelectGame(gameType)
+                                        }
                                         class={`text-left border-2 px-4 py-4 transition-all duration-[120ms] ${
                                             isSelected()
                                                 ? "border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] shadow-[4px_4px_0_#1a1a1a]"
@@ -227,7 +228,8 @@ export const RoomLobby: Component<{
                         </For>
                     </div>
                     <div class="mt-3 font-bebas text-[.75rem] tracking-[.18em] text-[#9a9080]">
-                        SELECTED: {GAME_RULES[props.selectedGameType].label.toUpperCase()}
+                        SELECTED:{" "}
+                        {GAME_RULES[props.selectedGameType].label.toUpperCase()}
                     </div>
                 </div>
 
@@ -278,26 +280,49 @@ export const RoomLobby: Component<{
             {/* ── Right: navy slab ── */}
             <div
                 class="bg-[#1a3a6e] relative overflow-hidden max-sm:hidden"
-                style={{ "clip-path": "polygon(22% 0, 100% 0, 100% 100%, 0% 100%)" }}
+                style={{
+                    "clip-path": "polygon(22% 0, 100% 0, 100% 100%, 0% 100%)",
+                }}
             >
                 {/* Concentric rings */}
                 <div
                     class="absolute rounded-full border-2 border-white/[.07]"
-                    style={{ width: "320px", height: "320px", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }}
+                    style={{
+                        width: "320px",
+                        height: "320px",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%,-50%)",
+                    }}
                 />
                 <div
                     class="absolute rounded-full border-2 border-white/[.07]"
-                    style={{ width: "200px", height: "200px", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }}
+                    style={{
+                        width: "200px",
+                        height: "200px",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%,-50%)",
+                    }}
                 />
                 <div
                     class="absolute rounded-full border-2 border-white/[.07]"
-                    style={{ width: "80px", height: "80px", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }}
+                    style={{
+                        width: "80px",
+                        height: "80px",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%,-50%)",
+                    }}
                 />
 
                 {/* Room code invite */}
                 <div
                     class="absolute top-[13%] left-1/2 text-center"
-                    style={{ transform: "translateX(-50%)", animation: "bob1 4s ease-in-out infinite" }}
+                    style={{
+                        transform: "translateX(-50%)",
+                        animation: "bob1 4s ease-in-out infinite",
+                    }}
                 >
                     <div class="font-bebas text-[.6rem] tracking-[.25em] text-[#ddd5c4] opacity-45 mb-1">
                         SHARE THIS CODE
@@ -310,7 +335,10 @@ export const RoomLobby: Component<{
                 {/* Player count badge */}
                 <div
                     class="absolute top-[44%] left-1/2"
-                    style={{ transform: "translateX(-50%)", animation: "bob2 5.5s ease-in-out 1s infinite" }}
+                    style={{
+                        transform: "translateX(-50%)",
+                        animation: "bob2 5.5s ease-in-out 1s infinite",
+                    }}
                 >
                     <div class="bg-[#c0261a] px-5 py-2 font-bebas text-[1.6rem] tracking-[.06em] text-[#ddd5c4] shadow-[4px_4px_0_rgba(0,0,0,.35)] whitespace-nowrap">
                         {props.players.length}{" "}
@@ -322,28 +350,72 @@ export const RoomLobby: Component<{
 
                 {/* Token accents */}
                 <div
-                    style={{ position: "absolute", bottom: "20%", left: "22%", opacity: ".3", animation: "bob3 5s ease-in-out .5s infinite" }}
+                    style={{
+                        position: "absolute",
+                        bottom: "20%",
+                        left: "22%",
+                        opacity: ".3",
+                        animation: "bob3 5s ease-in-out .5s infinite",
+                    }}
                 >
                     <svg width="42" height="42" viewBox="0 0 36 36" fill="none">
                         <circle cx="18" cy="18" r="16" fill="#ddd5c4" />
-                        <circle cx="18" cy="18" r="11" fill="none" stroke="white" stroke-width="1.5" stroke-opacity=".3" />
-                        <circle cx="18" cy="18" r="4" fill="white" fill-opacity=".5" />
+                        <circle
+                            cx="18"
+                            cy="18"
+                            r="11"
+                            fill="none"
+                            stroke="white"
+                            stroke-width="1.5"
+                            stroke-opacity=".3"
+                        />
+                        <circle
+                            cx="18"
+                            cy="18"
+                            r="4"
+                            fill="white"
+                            fill-opacity=".5"
+                        />
                     </svg>
                 </div>
                 <div
-                    style={{ position: "absolute", top: "68%", right: "10%", opacity: ".22", animation: "bob1 6s ease-in-out 2s infinite" }}
+                    style={{
+                        position: "absolute",
+                        top: "68%",
+                        right: "10%",
+                        opacity: ".22",
+                        animation: "bob1 6s ease-in-out 2s infinite",
+                    }}
                 >
                     <svg width="26" height="26" viewBox="0 0 36 36" fill="none">
                         <circle cx="18" cy="18" r="16" fill="#c0261a" />
-                        <circle cx="18" cy="18" r="4" fill="white" fill-opacity=".5" />
+                        <circle
+                            cx="18"
+                            cy="18"
+                            r="4"
+                            fill="white"
+                            fill-opacity=".5"
+                        />
                     </svg>
                 </div>
                 <div
-                    style={{ position: "absolute", top: "28%", right: "14%", opacity: ".18", animation: "bob2 7s ease-in-out .8s infinite" }}
+                    style={{
+                        position: "absolute",
+                        top: "28%",
+                        right: "14%",
+                        opacity: ".18",
+                        animation: "bob2 7s ease-in-out .8s infinite",
+                    }}
                 >
                     <svg width="20" height="20" viewBox="0 0 36 36" fill="none">
                         <circle cx="18" cy="18" r="16" fill="#ddd5c4" />
-                        <circle cx="18" cy="18" r="4" fill="white" fill-opacity=".5" />
+                        <circle
+                            cx="18"
+                            cy="18"
+                            r="4"
+                            fill="white"
+                            fill-opacity=".5"
+                        />
                     </svg>
                 </div>
             </div>

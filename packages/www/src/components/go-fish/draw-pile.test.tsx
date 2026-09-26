@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { DrawPile } from "./draw-pile";
@@ -25,6 +26,7 @@ describe("DrawPile", () => {
             <DrawPile count={5} showDrawButton={true} onDraw={onDraw} />
         ));
         fireEvent.click(getByRole("button", { name: /go fish/i }));
+        flush();
         expect(onDraw).toHaveBeenCalledTimes(1);
     });
 

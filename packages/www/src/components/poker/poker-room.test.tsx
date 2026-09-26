@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { PokerRoom } from "./poker-room";
@@ -110,6 +111,7 @@ describe("PokerRoom", () => {
         const { getByRole, connection } = renderRoom({ view, playerId: "p1" });
 
         fireEvent.click(getByRole("button", { name: /fold/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -124,10 +126,13 @@ describe("PokerRoom", () => {
             handNumber: 1,
             street: "preflop",
         });
-        const { getByText, getByTestId, connection } = renderRoom({ view: initialView });
+        const { getByText, getByTestId, connection } = renderRoom({
+            view: initialView,
+        });
         expect(getByText("HAND 1")).toBeInTheDocument();
 
         connection.setView(makeView({ handNumber: 2, street: "turn" }));
+        flush();
 
         expect(getByText("HAND 2")).toBeInTheDocument();
         expect(getByTestId("poker-street").textContent).toBe("TURN");
@@ -145,6 +150,7 @@ describe("PokerRoom", () => {
             type: "poker:action_result",
             data: { error: "Invalid action: you must call first" },
         });
+        flush();
 
         expect(
             getByText(/Invalid action: you must call first/i),
@@ -153,12 +159,11 @@ describe("PokerRoom", () => {
 
     it("shows END GAME button for host only, and fires onEndGame when clicked", () => {
         const guest = renderRoom({ isHost: false });
-        expect(
-            guest.queryByRole("button", { name: /end game/i }),
-        ).toBeNull();
+        expect(guest.queryByRole("button", { name: /end game/i })).toBeNull();
 
         const host = renderRoom({ isHost: true });
         fireEvent.click(host.getByRole("button", { name: /end game/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -180,6 +185,7 @@ describe("PokerRoom", () => {
         expect(getByText("ALICE LEADS")).toBeInTheDocument();
 
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -197,7 +203,11 @@ describe("PokerRoom", () => {
     it("renders the event log with messages from game state", () => {
         const view = makeView({
             eventLog: [
-                makeEvent({ id: 1, type: "hand_started", message: "Hand 1 started" }),
+                makeEvent({
+                    id: 1,
+                    type: "hand_started",
+                    message: "Hand 1 started",
+                }),
                 makeEvent({
                     id: 2,
                     type: "blinds_posted",

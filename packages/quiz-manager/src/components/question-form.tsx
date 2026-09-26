@@ -1,22 +1,13 @@
 import { createSignal, For, Show } from "solid-js";
 
-interface OptionInput {
-    text: string;
-    isCorrect: boolean;
-}
+import { Schema } from "effect";
+import { MatchType, type QuestionInput } from "~/schemas";
 
-interface AcceptedAnswerInput {
-    pattern: string;
-    matchType: "exact" | "contains" | "any";
-    caseInsensitive: boolean;
-}
-
-export interface QuestionFormData {
-    type: "multiple_choice" | "fill_in" | "open" | "placeholder";
-    text: string;
-    options: OptionInput[];
-    acceptedAnswers: AcceptedAnswerInput[];
-}
+type OptionInput = NonNullable<QuestionInput["options"]>[number];
+type AcceptedAnswerInput = NonNullable<
+    QuestionInput["acceptedAnswers"]
+>[number];
+export type QuestionFormData = Required<QuestionInput>;
 
 interface Props {
     initial?: QuestionFormData;
@@ -38,7 +29,7 @@ export function QuestionForm(props: Props) {
         props.initial?.type ?? DEFAULT_FORM.type,
     );
     const [text, setText] = createSignal(props.initial?.text ?? "");
-    const [options, setOptions] = createSignal<OptionInput[]>(
+    const [options, setOptions] = createSignal<readonly OptionInput[]>(
         props.initial?.options.length
             ? props.initial.options
             : [
@@ -46,7 +37,7 @@ export function QuestionForm(props: Props) {
                   { text: "", isCorrect: false },
               ],
     );
-    const [answers, setAnswers] = createSignal<AcceptedAnswerInput[]>(
+    const [answers, setAnswers] = createSignal<readonly AcceptedAnswerInput[]>(
         props.initial?.acceptedAnswers.length
             ? props.initial.acceptedAnswers
             : [{ pattern: "", matchType: "exact", caseInsensitive: true }],
@@ -60,9 +51,15 @@ export function QuestionForm(props: Props) {
         setOptions((prev) => prev.filter((_, i) => i !== index));
     }
 
-    function updateOption(index: number, field: keyof OptionInput, value: any) {
+    function updateOption<K extends keyof OptionInput>(
+        index: number,
+        field: K,
+        value: OptionInput[K],
+    ) {
         setOptions((prev) =>
-            prev.map((opt, i) => (i === index ? { ...opt, [field]: value } : opt)),
+            prev.map((opt, i) =>
+                i === index ? { ...opt, [field]: value } : opt,
+            ),
         );
     }
 
@@ -77,10 +74,10 @@ export function QuestionForm(props: Props) {
         setAnswers((prev) => prev.filter((_, i) => i !== index));
     }
 
-    function updateAnswer(
+    function updateAnswer<K extends keyof AcceptedAnswerInput>(
         index: number,
-        field: keyof AcceptedAnswerInput,
-        value: any,
+        field: K,
+        value: AcceptedAnswerInput[K],
     ) {
         setAnswers((prev) =>
             prev.map((a, i) => (i === index ? { ...a, [field]: value } : a)),
@@ -100,7 +97,9 @@ export function QuestionForm(props: Props) {
                     : [],
             acceptedAnswers:
                 type() === "fill_in"
-                    ? answers().filter((a) => a.pattern.trim() || a.matchType === "any")
+                    ? answers().filter(
+                          (a) => a.pattern.trim() || a.matchType === "any",
+                      )
                     : [],
         });
     }
@@ -116,7 +115,10 @@ export function QuestionForm(props: Props) {
                     <For
                         each={
                             [
-                                { value: "multiple_choice", label: "Multiple Choice" },
+                                {
+                                    value: "multiple_choice",
+                                    label: "Multiple Choice",
+                                },
                                 { value: "fill_in", label: "Fill In" },
                                 { value: "open", label: "Open" },
                                 { value: "placeholder", label: "Placeholder" },
@@ -178,7 +180,11 @@ export function QuestionForm(props: Props) {
                                         type="checkbox"
                                         checked={opt.isCorrect}
                                         onChange={(e) =>
-                                            updateOption(i(), "isCorrect", e.currentTarget.checked)
+                                            updateOption(
+                                                i(),
+                                                "isCorrect",
+                                                e.currentTarget.checked,
+                                            )
                                         }
                                         class="w-4 h-4 accent-[#1a3a6e]"
                                     />
@@ -186,7 +192,11 @@ export function QuestionForm(props: Props) {
                                         type="text"
                                         value={opt.text}
                                         onInput={(e) =>
-                                            updateOption(i(), "text", e.currentTarget.value)
+                                            updateOption(
+                                                i(),
+                                                "text",
+                                                e.currentTarget.value,
+                                            )
                                         }
                                         placeholder={`Option ${i() + 1}`}
                                         class="flex-1 px-3 py-2 bg-white border-2 border-[#b8ae9e] font-karla text-sm text-[#1a1a1a] focus:border-[#1a3a6e] outline-none"
@@ -203,7 +213,9 @@ export function QuestionForm(props: Props) {
                             )}
                         </For>
                     </div>
-                    <p class="text-xs text-[#9a9080] mt-2">Check the box to mark correct answers</p>
+                    <p class="text-xs text-[#9a9080] mt-2">
+                        Check the box to mark correct answers
+                    </p>
                 </div>
             </Show>
 
@@ -232,7 +244,11 @@ export function QuestionForm(props: Props) {
                                                 type="text"
                                                 value={ans.pattern}
                                                 onInput={(e) =>
-                                                    updateAnswer(i(), "pattern", e.currentTarget.value)
+                                                    updateAnswer(
+                                                        i(),
+                                                        "pattern",
+                                                        e.currentTarget.value,
+                                                    )
                                                 }
                                                 placeholder="Answer pattern"
                                                 class="flex-1 px-3 py-2 bg-white border-2 border-[#b8ae9e] font-karla text-sm text-[#1a1a1a] focus:border-[#1a3a6e] outline-none"
@@ -244,13 +260,17 @@ export function QuestionForm(props: Props) {
                                                 updateAnswer(
                                                     i(),
                                                     "matchType",
-                                                    e.currentTarget.value as any,
+                                                    Schema.decodeUnknownSync(
+                                                        MatchType,
+                                                    )(e.currentTarget.value),
                                                 )
                                             }
                                             class="px-3 py-2 bg-white border-2 border-[#b8ae9e] font-karla text-sm text-[#1a1a1a] focus:border-[#1a3a6e] outline-none"
                                         >
                                             <option value="exact">Exact</option>
-                                            <option value="contains">Contains</option>
+                                            <option value="contains">
+                                                Contains
+                                            </option>
                                             <option value="any">Any</option>
                                         </select>
                                         <button

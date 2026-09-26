@@ -27,17 +27,21 @@ export function createGameConnectionFromTransport<
     transport: RoomTransport,
     options: CreateGameConnectionOptions<ViewSchema, ServerSchema, TStateType>,
 ): GameConnection<SchemaType<ViewSchema>, TOutgoing, TEvent> {
-    const [view, setView] = createSignal<SchemaType<ViewSchema> | null>(null);
-    const handlers = new Set<(event: TEvent) => void>();
-
-    const replayLatest = () => {
-        const cached = transport.latest(options.stateType) as
-            | { data?: SchemaType<ViewSchema> }
-            | null;
-        if (cached?.data !== undefined) {
-            setView(() => cached.data as SchemaType<ViewSchema>);
+    const [view, setView] = createSignal<SchemaType<ViewSchema> | null>(() => {
+        const cached = transport.latest(options.stateType);
+        if (
+            typeof cached !== "object" ||
+            cached === null ||
+            !("data" in cached)
+        )
+            return null;
+        try {
+            return decodeUnknownSync(options.playerViewSchema, cached.data);
+        } catch {
+            return null;
         }
-    };
+    });
+    const handlers = new Set<(event: TEvent) => void>();
 
     const handleMessage = (raw: Record<string, unknown>) => {
         if (typeof raw.type !== "string") return;
@@ -45,14 +49,18 @@ export function createGameConnectionFromTransport<
 
         let message: SchemaType<ServerSchema> & { type: string };
         try {
-            message = decodeUnknownSync(options.serverMessageSchema, raw) as SchemaType<ServerSchema> & { type: string };
+            message = decodeUnknownSync(
+                options.serverMessageSchema,
+                raw,
+            ) as SchemaType<ServerSchema> & { type: string };
         } catch {
             return;
         }
 
         if (message.type === options.stateType) {
-            const data = (message as unknown as { data: SchemaType<ViewSchema> })
-                .data;
+            const data = (
+                message as unknown as { data: SchemaType<ViewSchema> }
+            ).data;
             setView(() => data);
             return;
         }
@@ -62,7 +70,6 @@ export function createGameConnectionFromTransport<
         }
     };
 
-    replayLatest();
     const unsubscribe = transport.subscribe(handleMessage);
 
     return {

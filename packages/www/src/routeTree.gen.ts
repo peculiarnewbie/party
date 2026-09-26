@@ -10,21 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as RoomIndexRouteImport } from './routes/room/index'
 import { Route as DevIndexRouteImport } from './routes/dev/index'
-import { Route as DevAssetRouteImport } from './routes/dev/asset'
 import { Route as DevGameRouteImport } from './routes/dev/$game'
+import { Route as DevAssetRouteImport } from './routes/dev/asset'
+import { Route as RoomIndexRouteImport } from './routes/room/index'
 import { Route as RoomRoomIdIndexRouteImport } from './routes/room/$roomId/index'
-import { Route as ApiRoomRoomIdRouteImport } from './routes/api/room/$roomId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RoomIndexRoute = RoomIndexRouteImport.update({
-  id: '/room/',
-  path: '/room/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevIndexRoute = DevIndexRouteImport.update({
@@ -32,24 +26,24 @@ const DevIndexRoute = DevIndexRouteImport.update({
   path: '/dev/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DevAssetRoute = DevAssetRouteImport.update({
-  id: '/dev/asset',
-  path: '/dev/asset',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DevGameRoute = DevGameRouteImport.update({
   id: '/dev/$game',
   path: '/dev/$game',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevAssetRoute = DevAssetRouteImport.update({
+  id: '/dev/asset',
+  path: '/dev/asset',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomIndexRoute = RoomIndexRouteImport.update({
+  id: '/room/',
+  path: '/room/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RoomRoomIdIndexRoute = RoomRoomIdIndexRouteImport.update({
   id: '/room/$roomId/',
   path: '/room/$roomId/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiRoomRoomIdRoute = ApiRoomRoomIdRouteImport.update({
-  id: '/api/room/$roomId',
-  path: '/api/room/$roomId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -59,7 +53,6 @@ export interface FileRoutesByFullPath {
   '/dev/asset': typeof DevAssetRoute
   '/dev/': typeof DevIndexRoute
   '/room/': typeof RoomIndexRoute
-  '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/room/$roomId/': typeof RoomRoomIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -68,7 +61,6 @@ export interface FileRoutesByTo {
   '/dev/asset': typeof DevAssetRoute
   '/dev': typeof DevIndexRoute
   '/room': typeof RoomIndexRoute
-  '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/room/$roomId': typeof RoomRoomIdIndexRoute
 }
 export interface FileRoutesById {
@@ -78,28 +70,14 @@ export interface FileRoutesById {
   '/dev/asset': typeof DevAssetRoute
   '/dev/': typeof DevIndexRoute
   '/room/': typeof RoomIndexRoute
-  '/api/room/$roomId': typeof ApiRoomRoomIdRoute
   '/room/$roomId/': typeof RoomRoomIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/dev/$game'
-    | '/dev/asset'
-    | '/dev/'
-    | '/room/'
-    | '/api/room/$roomId'
-    | '/room/$roomId/'
+    '/' | '/dev/$game' | '/dev/asset' | '/dev/' | '/room/' | '/room/$roomId/'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/dev/$game'
-    | '/dev/asset'
-    | '/dev'
-    | '/room'
-    | '/api/room/$roomId'
-    | '/room/$roomId'
+  to: '/' | '/dev/$game' | '/dev/asset' | '/dev' | '/room' | '/room/$roomId'
   id:
     | '__root__'
     | '/'
@@ -107,7 +85,6 @@ export interface FileRouteTypes {
     | '/dev/asset'
     | '/dev/'
     | '/room/'
-    | '/api/room/$roomId'
     | '/room/$roomId/'
   fileRoutesById: FileRoutesById
 }
@@ -117,7 +94,6 @@ export interface RootRouteChildren {
   DevAssetRoute: typeof DevAssetRoute
   DevIndexRoute: typeof DevIndexRoute
   RoomIndexRoute: typeof RoomIndexRoute
-  ApiRoomRoomIdRoute: typeof ApiRoomRoomIdRoute
   RoomRoomIdIndexRoute: typeof RoomRoomIdIndexRoute
 }
 
@@ -130,25 +106,11 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/room/': {
-      id: '/room/'
-      path: '/room'
-      fullPath: '/room/'
-      preLoaderRoute: typeof RoomIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/dev/': {
       id: '/dev/'
       path: '/dev'
       fullPath: '/dev/'
       preLoaderRoute: typeof DevIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dev/asset': {
-      id: '/dev/asset'
-      path: '/dev/asset'
-      fullPath: '/dev/asset'
-      preLoaderRoute: typeof DevAssetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dev/$game': {
@@ -158,18 +120,25 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof DevGameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dev/asset': {
+      id: '/dev/asset'
+      path: '/dev/asset'
+      fullPath: '/dev/asset'
+      preLoaderRoute: typeof DevAssetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/room/': {
+      id: '/room/'
+      path: '/room'
+      fullPath: '/room/'
+      preLoaderRoute: typeof RoomIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/room/$roomId/': {
       id: '/room/$roomId/'
       path: '/room/$roomId'
       fullPath: '/room/$roomId/'
       preLoaderRoute: typeof RoomRoomIdIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/room/$roomId': {
-      id: '/api/room/$roomId'
-      path: '/api/room/$roomId'
-      fullPath: '/api/room/$roomId'
-      preLoaderRoute: typeof ApiRoomRoomIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -181,18 +150,8 @@ const rootRouteChildren: RootRouteChildren = {
   DevAssetRoute: DevAssetRoute,
   DevIndexRoute: DevIndexRoute,
   RoomIndexRoute: RoomIndexRoute,
-  ApiRoomRoomIdRoute: ApiRoomRoomIdRoute,
   RoomRoomIdIndexRoute: RoomRoomIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/solid-start'
-declare module '@tanstack/solid-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { ActionControls } from "./action-controls";
@@ -43,6 +44,7 @@ describe("ActionControls", () => {
         ));
 
         fireEvent.click(getByRole("button", { name: /fold/i }));
+        flush();
 
         expect(onAction).toHaveBeenCalledWith("fold");
     });
@@ -64,9 +66,12 @@ describe("ActionControls", () => {
             />
         ));
 
-        expect(getByTestId("poker-check-call-button")).toHaveTextContent("Check");
+        expect(getByTestId("poker-check-call-button")).toHaveTextContent(
+            "Check",
+        );
 
         fireEvent.click(getByTestId("poker-check-call-button"));
+        flush();
 
         expect(onAction).toHaveBeenCalledWith("check");
     });
@@ -88,9 +93,12 @@ describe("ActionControls", () => {
             />
         ));
 
-        expect(getByTestId("poker-check-call-button")).toHaveTextContent("Call 20");
+        expect(getByTestId("poker-check-call-button")).toHaveTextContent(
+            "Call 20",
+        );
 
         fireEvent.click(getByTestId("poker-check-call-button"));
+        flush();
 
         expect(onAction).toHaveBeenCalledWith("call");
     });
@@ -115,6 +123,7 @@ describe("ActionControls", () => {
         expect(getByTestId("poker-bet-raise-button")).toHaveTextContent("Bet");
 
         fireEvent.click(getByTestId("poker-bet-raise-button"));
+        flush();
 
         expect(onAction).toHaveBeenCalledWith("bet", 50);
     });
@@ -136,9 +145,12 @@ describe("ActionControls", () => {
             />
         ));
 
-        expect(getByTestId("poker-bet-raise-button")).toHaveTextContent("Raise");
+        expect(getByTestId("poker-bet-raise-button")).toHaveTextContent(
+            "Raise",
+        );
 
         fireEvent.click(getByTestId("poker-bet-raise-button"));
+        flush();
 
         expect(onAction).toHaveBeenCalledWith("raise", 80);
     });
@@ -181,7 +193,9 @@ describe("ActionControls", () => {
         ));
 
         fireEvent.click(getByTestId("poker-adjust-10"));
+        flush();
         fireEvent.click(getByTestId("poker-adjust--100"));
+        flush();
 
         expect(setAmount).toHaveBeenNthCalledWith(1, "60");
         expect(setAmount).toHaveBeenNthCalledWith(2, "0");
@@ -205,6 +219,7 @@ describe("ActionControls", () => {
         ));
 
         fireEvent.click(getByRole("button", { name: /all-in/i }));
+        flush();
 
         expect(onAction).toHaveBeenCalledWith("all_in");
     });

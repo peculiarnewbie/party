@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { BlackjackRoom } from "./blackjack-room";
@@ -22,11 +23,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -77,6 +74,7 @@ describe("BlackjackRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^deal$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -111,6 +109,7 @@ describe("BlackjackRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^hit$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -127,12 +126,16 @@ describe("BlackjackRoom", () => {
             canHit: true,
             canStand: true,
             needsBet: false,
-            dealer: makeDealer({ cards: [makeCard(5), "hidden"], upCardValue: 5 }),
+            dealer: makeDealer({
+                cards: [makeCard(5), "hidden"],
+                upCardValue: 5,
+            }),
             players: [makePlayerInfo({ id: "p1", hands: [makeHand()] })],
         });
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^stand$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -156,6 +159,7 @@ describe("BlackjackRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^yes$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -171,6 +175,7 @@ describe("BlackjackRoom", () => {
 
         const host = renderRoom({ isHost: true });
         fireEvent.click(host.getByRole("button", { name: /^end$/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -181,6 +186,7 @@ describe("BlackjackRoom", () => {
         expect(getByText(/ROUND 1/i)).toBeInTheDocument();
 
         connection.setView(makeView({ roundNumber: 7 }));
+        flush();
         expect(getByText(/ROUND 7/i)).toBeInTheDocument();
     });
 
@@ -205,9 +211,13 @@ describe("BlackjackRoom", () => {
                 },
             ],
         });
-        const { getByRole, onReturnToLobby } = renderRoom({ view, isHost: true });
+        const { getByRole, onReturnToLobby } = renderRoom({
+            view,
+            isHost: true,
+        });
 
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 });

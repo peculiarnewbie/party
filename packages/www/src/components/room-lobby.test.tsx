@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { RoomLobby } from "./room-lobby";
@@ -42,6 +43,7 @@ describe("RoomLobby", () => {
         const joinBtn = getByRole("button", { name: /join/i });
         expect(joinBtn).not.toBeDisabled();
         fireEvent.click(joinBtn);
+        flush();
         expect(onJoin).toHaveBeenCalledWith("Alice");
     });
 
@@ -59,10 +61,10 @@ describe("RoomLobby", () => {
             isHost: false,
             players: [{ id: pid("p1"), name: "Alice" }],
         });
-        const { getByRole, queryByRole } = render(() => <RoomLobby {...props} />);
-        expect(
-            getByRole("button", { name: /rename/i }),
-        ).toBeInTheDocument();
+        const { getByRole, queryByRole } = render(() => (
+            <RoomLobby {...props} />
+        ));
+        expect(getByRole("button", { name: /rename/i })).toBeInTheDocument();
         expect(queryByRole("button", { name: /start/i })).toBeNull();
     });
 
@@ -80,9 +82,7 @@ describe("RoomLobby", () => {
         });
         const { getByText, getByRole } = render(() => <RoomLobby {...props} />);
         expect(getByText(/YOU ARE HOST/i)).toBeInTheDocument();
-        expect(
-            getByRole("button", { name: /\+ start/i }),
-        ).toBeInTheDocument();
+        expect(getByRole("button", { name: /\+ start/i })).toBeInTheDocument();
     });
 
     it("disables Start button when there are not enough players", () => {
@@ -112,6 +112,7 @@ describe("RoomLobby", () => {
         });
         const { getByRole } = render(() => <RoomLobby {...props} />);
         fireEvent.click(getByRole("button", { name: /\+ start/i }));
+        flush();
         expect(onStart).toHaveBeenCalledTimes(1);
     });
 
@@ -130,6 +131,7 @@ describe("RoomLobby", () => {
         });
         const { getByRole } = render(() => <RoomLobby {...props} />);
         fireEvent.click(getByRole("button", { name: /texas hold'em/i }));
+        flush();
         expect(onSelectGame).toHaveBeenCalledWith("poker");
     });
 
@@ -146,8 +148,6 @@ describe("RoomLobby", () => {
         });
         const { getByRole, getByText } = render(() => <RoomLobby {...props} />);
         expect(getByText(/HOST DECIDES/i)).toBeInTheDocument();
-        expect(
-            getByRole("button", { name: /texas hold'em/i }),
-        ).toBeDisabled();
+        expect(getByRole("button", { name: /texas hold'em/i })).toBeDisabled();
     });
 });

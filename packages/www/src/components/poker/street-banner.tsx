@@ -3,7 +3,10 @@ import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { animate } from "animejs";
 import type { PokerStreet } from "~/game/poker/types";
 
-type BannerStreet = Exclude<PokerStreet, "preflop" | "hand_over" | "tournament_over">;
+type BannerStreet = Exclude<
+    PokerStreet,
+    "preflop" | "hand_over" | "tournament_over"
+>;
 
 const STREET_LABELS: Record<BannerStreet, string> = {
     flop: "FLOP",
@@ -22,54 +25,63 @@ const STREET_COLORS: Record<string, string> = {
 export const StreetBanner: Component<{
     street: PokerStreet;
 }> = (props) => {
-    const [visibleStreet, setVisibleStreet] = createSignal<BannerStreet | null>(null);
+    const [visibleStreet, setVisibleStreet] = createSignal<BannerStreet | null>(
+        null,
+    );
     const [isVisible, setIsVisible] = createSignal(false);
     let bannerRef: HTMLDivElement | undefined;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     let anim: ReturnType<typeof animate> | undefined;
     let hasMounted = false;
 
-    createEffect(() => {
-        const current = props.street;
-        if (!hasMounted) {
-            hasMounted = true;
-            return;
-        }
-        if (current === "flop" || current === "turn" || current === "river" || current === "showdown") {
-            // Dismiss any existing banner first
-            if (anim) anim.pause();
-            if (timeoutId) clearTimeout(timeoutId);
+    createEffect(
+        () => props.street,
+        (current) => {
+            if (!hasMounted) {
+                hasMounted = true;
+                return;
+            }
+            if (
+                current === "flop" ||
+                current === "turn" ||
+                current === "river" ||
+                current === "showdown"
+            ) {
+                // Dismiss any existing banner first
+                if (anim) anim.pause();
+                if (timeoutId) clearTimeout(timeoutId);
 
-            setVisibleStreet(current);
-            setIsVisible(true);
+                setVisibleStreet(current);
+                setIsVisible(true);
 
-            // Animate in
-            requestAnimationFrame(() => {
-                if (!bannerRef) return;
-                anim = animate(bannerRef, {
-                    opacity: { from: 0, to: 1 },
-                    scale: { from: 0.6, to: 1 },
-                    duration: 500,
-                    ease: "outElastic(1, .7)",
+                // Animate in
+                requestAnimationFrame(() => {
+                    if (!bannerRef) return;
+                    anim = animate(bannerRef, {
+                        opacity: { from: 0, to: 1 },
+                        scale: { from: 0.6, to: 1 },
+                        duration: 500,
+                        ease: "outElastic(1, .7)",
+                    });
                 });
-            });
 
-            // Auto-dismiss
-            timeoutId = setTimeout(() => {
-                if (!bannerRef) {
-                    setIsVisible(false);
-                    return;
-                }
-                anim = animate(bannerRef, {
-                    opacity: { from: 1, to: 0 },
-                    scale: { from: 1, to: 0.85 },
-                    duration: 350,
-                    ease: "inQuad",
-                    onComplete: () => setIsVisible(false),
-                });
-            }, 1800);
-        }
-    });
+                // Auto-dismiss
+                timeoutId = setTimeout(() => {
+                    if (!bannerRef) {
+                        setIsVisible(false);
+                        return;
+                    }
+                    anim = animate(bannerRef, {
+                        opacity: { from: 1, to: 0 },
+                        scale: { from: 1, to: 0.85 },
+                        duration: 350,
+                        ease: "inQuad",
+                        onComplete: () => setIsVisible(false),
+                    });
+                }, 1800);
+            }
+        },
+    );
 
     onCleanup(() => {
         if (timeoutId) clearTimeout(timeoutId);

@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { TurnActions } from "./turn-actions";
@@ -47,6 +48,7 @@ describe("TurnActions", () => {
             />
         ));
         fireEvent.click(getByRole("button", { name: /clear/i }));
+        flush();
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
 

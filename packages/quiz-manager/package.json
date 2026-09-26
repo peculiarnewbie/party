@@ -12,16 +12,17 @@
         "destroy": "alchemy destroy alchemy.run.ts --stage prod --profile party",
         "db:generate": "drizzle-kit generate",
         "seed:herd": "node --import tsx scripts/seed-herd.ts",
-        "test:unit": "vitest run"
+        "test:unit": "vitest run",
+        "test:worker": "vitest run --config vitest.worker.config.ts"
     },
     "dependencies": {
         "@party/effect-utils": "workspace:*",
-        "@tanstack/solid-router": "^1.141.8",
-        "@tanstack/solid-start": "^1.142.5",
+        "@tanstack/solid-router": "2.0.0-rc.8",
         "drizzle-orm": "^0.38.0",
         "effect": "4.0.0-beta.102",
         "nanoid": "^5.1.6",
-        "solid-js": "^1.9.10"
+        "solid-js": "2.0.0-rc.9",
+        "@solidjs/web": "2.0.0-rc.9"
     },
     "devDependencies": {
         "@cloudflare/workers-types": "5.20260809.1",
@@ -33,7 +34,9 @@
         "tsx": "^4.21.0",
         "typescript": "^5.7.2",
         "vite": "^8.0.7",
-        "vite-plugin-solid": "^2.11.10",
-        "vitest": "^4.1.4"
+        "vite-plugin-solid": "3.0.0-next.27",
+        "vitest": "^4.1.4",
+        "@tanstack/router-plugin": "1.168.40",
+        "@cloudflare/vitest-pool-workers": "^0.20.3"
     }
 }

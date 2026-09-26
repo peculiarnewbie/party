@@ -1,4 +1,4 @@
-import { onMount } from "solid-js";
+import { onSettled } from "solid-js";
 import { BlackjackRoom } from "~/components/blackjack/blackjack-room";
 import type { BlackjackPlayerView } from "~/game/blackjack/views";
 import type {
@@ -51,7 +51,7 @@ export function BlackjackFixtureHarness(props: BlackjackFixtureHarnessProps) {
 
     const isHost = fixture.hostPlayerId === props.playerId;
 
-    onMount(() => {
+    onSettled(() => {
         window.__BLACKJACK_FIXTURE__ = fixtureState;
     });
 

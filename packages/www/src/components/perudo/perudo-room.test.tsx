@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { PerudoRoom } from "./perudo-room";
@@ -21,11 +22,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -85,6 +82,7 @@ describe("PerudoRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^bid$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -104,6 +102,7 @@ describe("PerudoRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^challenge$/i }));
+        flush();
         expect(connection.sentMessages).toEqual([
             {
                 type: "perudo:challenge",
@@ -121,6 +120,7 @@ describe("PerudoRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /open bidding/i }));
+        flush();
         expect(connection.sentMessages).toEqual([
             {
                 type: "perudo:start_round",
@@ -135,6 +135,7 @@ describe("PerudoRoom", () => {
 
         const host = renderRoom({ isHost: true });
         fireEvent.click(host.getByRole("button", { name: /^end$/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -143,7 +144,12 @@ describe("PerudoRoom", () => {
             phase: "game_over",
             winners: ["p2"],
             players: [
-                makePlayerInfo({ id: "p1", name: "Alice", diceCount: 0, eliminated: true }),
+                makePlayerInfo({
+                    id: "p1",
+                    name: "Alice",
+                    diceCount: 0,
+                    eliminated: true,
+                }),
                 makePlayerInfo({ id: "p2", name: "Bob", diceCount: 3 }),
             ],
         });
@@ -155,6 +161,7 @@ describe("PerudoRoom", () => {
         expect(getByText("GAME OVER")).toBeInTheDocument();
         expect(getByText("WINNER")).toBeInTheDocument();
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -165,6 +172,7 @@ describe("PerudoRoom", () => {
         expect(getByText(/ROUND 1/i)).toBeInTheDocument();
 
         connection.setView(makeView({ roundNumber: 5 }));
+        flush();
         expect(getByText(/ROUND 5/i)).toBeInTheDocument();
     });
 

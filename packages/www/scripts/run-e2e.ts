@@ -30,7 +30,10 @@ const E2E_SUITES: Record<string, E2eSuite> = {
     rps: {
         description:
             "Real workerd room-sequence coverage for 8-player RPS tournament, disconnect, and reconnection",
-        workerFiles: ["src/worker/rps-room.test.ts"],
+        workerFiles: [
+            "src/worker/rps-room.test.ts",
+            "src/worker/rps-rpc-room.test.ts",
+        ],
         browserProjects: ["rps-seeded", "rps-live"],
     },
     quiz: {

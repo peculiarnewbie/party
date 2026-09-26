@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import {
     createMemo,
-    onMount,
+    onSettled,
     Switch,
     Match,
     Show,
@@ -128,7 +128,7 @@ function RouteComponent() {
     const params = Route.useParams();
     const roomId = () => normalizeRoomId(params().roomId);
 
-    onMount(() => {
+    onSettled(() => {
         if (roomId() !== params().roomId) {
             window.location.replace(`/room/${roomId()}`);
         }
@@ -136,7 +136,7 @@ function RouteComponent() {
 
     const pool = createRoomClientPool({ roomId: roomId() });
 
-    onMount(() => {
+    onSettled(() => {
         installPartyDevtoolsApi(pool);
     });
 

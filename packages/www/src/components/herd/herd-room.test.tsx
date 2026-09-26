@@ -1,11 +1,9 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { HerdRoom } from "./herd-room";
 import { createFakeGameConnection } from "~/test/fake-game-connection";
-import type {
-    HerdClientOutgoing,
-    HerdSideEvent,
-} from "~/game/herd/connection";
+import type { HerdClientOutgoing, HerdSideEvent } from "~/game/herd/connection";
 import {
     makeAnswerGroup,
     makePlayerInfo,
@@ -20,11 +18,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -76,6 +70,7 @@ describe("HerdRoom", () => {
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /start first question/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -98,7 +93,9 @@ describe("HerdRoom", () => {
             "input[type='text']",
         ) as HTMLInputElement;
         fireEvent.input(input, { target: { value: "dog" } });
+        flush();
         fireEvent.click(getByRole("button", { name: /^submit$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -119,6 +116,7 @@ describe("HerdRoom", () => {
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /close answers/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -146,6 +144,7 @@ describe("HerdRoom", () => {
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /confirm scoring/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -157,15 +156,14 @@ describe("HerdRoom", () => {
 
     it("shows END GAME button only for host", () => {
         const guest = renderRoom({ isHost: false });
-        expect(
-            guest.queryByRole("button", { name: /end game/i }),
-        ).toBeNull();
+        expect(guest.queryByRole("button", { name: /end game/i })).toBeNull();
 
         const host = renderRoom({
             view: makeView({ isHost: true }),
             isHost: true,
         });
         fireEvent.click(host.getByRole("button", { name: /end game/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -188,6 +186,7 @@ describe("HerdRoom", () => {
         expect(getByText("GAME OVER")).toBeInTheDocument();
         expect(getByText(/BOB WINS/i)).toBeInTheDocument();
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -198,6 +197,7 @@ describe("HerdRoom", () => {
         expect(queryByText(/ROUND 0/)).toBeNull();
 
         connection.setView(makeView({ phase: "waiting", roundNumber: 4 }));
+        flush();
 
         expect(getByText(/ROUND 4/)).toBeInTheDocument();
     });

@@ -20,10 +20,21 @@ export interface RpsClientFold {
 }
 
 export function createRpsFold(playerId: string): RpsClientFold {
-    const [state, setState] = createSignal<RpsState | null>(null);
+    const [state, setReactiveState] = createSignal<RpsState | null>(null);
     const [myChoice, setMyChoice] = createSignal<RpsChoice | null>(null);
-    const [lastSnapshotIndex, setLastSnapshotIndex] = createSignal(0);
-    const [lastEventIndex, setLastEventIndex] = createSignal(0);
+    let currentState: RpsState | null = null;
+    let snapshotIndex = 0;
+    let eventIndex = 0;
+    const setState = (next: RpsState | null) => {
+        currentState = next;
+        setReactiveState(next);
+    };
+    const setLastSnapshotIndex = (index: number) => {
+        snapshotIndex = index;
+    };
+    const setLastEventIndex = (index: number) => {
+        eventIndex = index;
+    };
     const hiddenByIndex = new Map<number, RpsHiddenData>();
 
     const view = () => {
@@ -39,13 +50,13 @@ export function createRpsFold(playerId: string): RpsClientFold {
     };
 
     function processEvent(index: number, event: RpsEvent) {
-        const current = state();
-        if (!current || index <= lastEventIndex()) return;
+        const current = currentState;
+        if (!current || index <= eventIndex) return;
 
         const hidden = hiddenByIndex.get(index);
         const next = reduce(current, event);
         setState(next);
-        setLastEventIndex(Math.max(lastEventIndex(), index));
+        setLastEventIndex(Math.max(eventIndex, index));
 
         if (
             event.type === "throw_registered" &&
@@ -66,7 +77,7 @@ export function createRpsFold(playerId: string): RpsClientFold {
     }
 
     function applySnapshot(index: number, snapshotState: RpsState) {
-        if (state() && index <= lastEventIndex()) return;
+        if (currentState && index <= eventIndex) return;
         setState(snapshotState);
         setMyChoice(null);
         setLastSnapshotIndex(index);
@@ -79,7 +90,7 @@ export function createRpsFold(playerId: string): RpsClientFold {
             (latest, entry) => Math.max(latest, entry.index),
             sync.snapshot.index,
         );
-        if (newestIncomingIndex < lastEventIndex()) return;
+        if (newestIncomingIndex < eventIndex) return;
 
         if (sync.snapshot.data) {
             setState(sync.snapshot.data as RpsState);
@@ -104,8 +115,8 @@ export function createRpsFold(playerId: string): RpsClientFold {
 
     function syncInfo() {
         return {
-            lastSnapshotIndex: lastSnapshotIndex(),
-            lastEventIndex: lastEventIndex(),
+            lastSnapshotIndex: snapshotIndex,
+            lastEventIndex: eventIndex,
         };
     }
 

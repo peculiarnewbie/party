@@ -1,4 +1,4 @@
-import { For, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { For, createSignal, onCleanup, onSettled, Show } from "solid-js";
 import { Link, useNavigate } from "@tanstack/solid-router";
 import type { GameFixtureModule, FixtureMeta } from "~/game/fixture-module";
 
@@ -30,7 +30,9 @@ export function FixtureIsland(props: FixtureIslandProps) {
     const cycleFixture = (direction: 1 | -1) => {
         const items = fixtures();
         if (items.length === 0) return;
-        const idx = items.findIndex((fixture) => fixture.id === props.fixtureId);
+        const idx = items.findIndex(
+            (fixture) => fixture.id === props.fixtureId,
+        );
         const base = idx === -1 ? 0 : idx;
         const nextIdx = (base + direction + items.length) % items.length;
         const next = items[nextIdx];
@@ -83,9 +85,9 @@ export function FixtureIsland(props: FixtureIslandProps) {
         }
     };
 
-    onMount(() => {
+    onSettled(() => {
         window.addEventListener("keydown", onKeyDown);
-        onCleanup(() => window.removeEventListener("keydown", onKeyDown));
+        return () => window.removeEventListener("keydown", onKeyDown);
     });
 
     return (
@@ -112,7 +114,9 @@ export function FixtureIsland(props: FixtureIslandProps) {
                             <span class="text-white/90">
                                 {currentFixture()?.id ?? props.fixtureId}
                             </span>
-                            <span class="text-white/30">as {props.playerId}</span>
+                            <span class="text-white/30">
+                                as {props.playerId}
+                            </span>
                             <span class="text-white/30">·</span>
                             <span class="text-white/50">?</span>
                         </button>
@@ -150,13 +154,17 @@ export function FixtureIsland(props: FixtureIslandProps) {
                                                     fixture.primaryPlayerId,
                                                 )
                                             }
-                                            class="px-2.5 py-1 rounded-full text-[11px] transition-colors border"
-                                            classList={{
-                                                "border-white/80 bg-white/90 text-black":
-                                                    fixture.id === props.fixtureId,
-                                                "border-white/15 bg-white/5 text-white/70 hover:bg-white/15 hover:text-white/95":
-                                                    fixture.id !== props.fixtureId,
-                                            }}
+                                            class={[
+                                                "px-2.5 py-1 rounded-full text-[11px] transition-colors border",
+                                                {
+                                                    "border-white/80 bg-white/90 text-black":
+                                                        fixture.id ===
+                                                        props.fixtureId,
+                                                    "border-white/15 bg-white/5 text-white/70 hover:bg-white/15 hover:text-white/95":
+                                                        fixture.id !==
+                                                        props.fixtureId,
+                                                },
+                                            ]}
                                             title={fixture.description}
                                         >
                                             {fixture.id}
@@ -179,13 +187,17 @@ export function FixtureIsland(props: FixtureIslandProps) {
                                             onClick={() =>
                                                 go(props.fixtureId, playerId)
                                             }
-                                            class="px-2.5 py-1 rounded-full text-[11px] transition-colors border"
-                                            classList={{
-                                                "border-white/80 bg-white/90 text-black":
-                                                    playerId === props.playerId,
-                                                "border-white/15 bg-white/5 text-white/70 hover:bg-white/15 hover:text-white/95":
-                                                    playerId !== props.playerId,
-                                            }}
+                                            class={[
+                                                "px-2.5 py-1 rounded-full text-[11px] transition-colors border",
+                                                {
+                                                    "border-white/80 bg-white/90 text-black":
+                                                        playerId ===
+                                                        props.playerId,
+                                                    "border-white/15 bg-white/5 text-white/70 hover:bg-white/15 hover:text-white/95":
+                                                        playerId !==
+                                                        props.playerId,
+                                                },
+                                            ]}
                                         >
                                             {playerId}
                                         </button>

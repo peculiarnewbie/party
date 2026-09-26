@@ -218,7 +218,7 @@ export function createWebSocketRoomTransport(
     };
 
     if (options.autoConnect !== false && typeof window !== "undefined") {
-        connect();
+        queueMicrotask(connect);
     }
 
     return {

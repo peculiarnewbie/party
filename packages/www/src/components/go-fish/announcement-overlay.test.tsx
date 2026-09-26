@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect } from "vitest";
 import { render } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
@@ -24,6 +25,7 @@ describe("AnnouncementOverlay", () => {
         expect(container.textContent).toBe("");
 
         setText("Nice catch!");
+        flush();
         expect(getByText("Nice catch!")).toBeInTheDocument();
     });
 });

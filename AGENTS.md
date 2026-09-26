@@ -4,7 +4,7 @@ This document provides guidelines for agentic coding agents operating in this re
 
 ## Project Overview
 
-This is a casual multiplayer party game app built with TanStack Solid Start and deployed on Cloudflare Workers.
+This is a casual multiplayer party game app built with Solid 2 and TanStack Router and deployed on Cloudflare Workers.
 
 ### App Goals
 
@@ -26,7 +26,7 @@ This is a casual multiplayer party game app built with TanStack Solid Start and 
 - Real-time state sync is handled via Cloudflare Durable Objects + WebSockets (see `src/worker/`)
 - Keep game logic pure and testable (separate from UI and transport)
 
-This is a TanStack Solid Start application with Cloudflare Workers deployment. It uses TypeScript, Tailwind CSS, and Vite.
+This is a client-rendered Solid 2 and TanStack Router application with direct Cloudflare Worker entrypoints. It uses TypeScript, Tailwind CSS, and Vite.
 
 ## Build Commands
 
@@ -106,7 +106,7 @@ pnpm test:all
 - **Path alias**: Use `~/*` to import from `./src/*` (e.g., `~/components/Button`)
 - **Target**: ES2022
 - **Module**: ESNext with Bundler resolution
-- **JSX**: preserve with solid-js import source
+- **JSX**: preserve with @solidjs/web import source
 
 ## Code Style Guidelines
 
@@ -118,14 +118,14 @@ import { createRouter } from "@tanstack/solid-router";
 
 // Path aliases (use ~/*)
 import { DefaultCatchBoundary } from "~/components/DefaultCatchBoundary";
-import appCss from "~/styles/app.css?url";
+import "~/styles/app.css";
 
 // Type imports
 import type { ErrorComponentProps } from "@tanstack/solid-router";
 ```
 
 - Use named imports from `@tanstack/solid-router` for routes, components, and utilities
-- Import CSS with `?url` suffix for Vite
+- Import global CSS from `src/client.tsx`
 - Place type imports after regular imports
 
 ### File Naming
@@ -165,12 +165,16 @@ function PostsIndexComponent() {
 | ------------------------- | ---------------------------------------------------- |
 | `condition ? <A/> : <B/>` | `<Show when={condition} fallback={<B/>}><A/></Show>` |
 | `{arr.map(x => <Item/>)}` | `<For each={arr}>{x => <Item/>}</For>`               |
-| `useEffect(() => {...})`  | `createEffect(() => {...})`                          |
+| `useEffect(() => {...})`  | `createEffect(compute, apply)`                          |
 | `useState(initial)`       | `createSignal(initial)`                              |
 | `useMemo(() => compute)`  | `createMemo(() => compute)`                          |
 
 - Signals are functions: `count()` not `count`
-- Effects run automatically when dependencies change
+- Effect dependencies belong in the compute callback; the apply callback performs side effects
+- Use `onSettled` for mounted DOM work and return its cleanup function
+- Async queries use promise-returning `createMemo` with `Loading` and `refresh`
+- Signal writes are batched; keep imperative protocol state synchronous and call `flush()` before assertions in UI tests
+- Import DOM rendering and JSX types from `@solidjs/web`
 - No dependency array needed in effects
 - Components render once; effects rerun on dependency changes
 
@@ -189,31 +193,13 @@ export function DefaultCatchBoundary({ error }: ErrorComponentProps) {
 - Log errors with `console.error` for debugging
 - Return `ErrorComponent` with the error prop
 
-### Middleware
+### RPC and server boundaries
 
-```tsx
-import { createMiddleware } from "@tanstack/solid-start";
-
-const preLogMiddleware = createMiddleware({ type: "function" })
-    .client(async (ctx) => {
-        return ctx.next({
-            context: {
-                /* data */
-            },
-        });
-    })
-    .server(async (ctx) => {
-        return ctx.next({
-            sendContext: {
-                /* data */
-            },
-        });
-    });
-```
-
-- Use `createMiddleware` from `@tanstack/solid-start`
-- Chain `.client()` and `.server()` for client/server-specific logic
-- Use `context` and `sendContext` to pass data between middleware stages
+- Quiz-manager browser operations use the shared Effect RPC contract in `packages/quiz-manager/src/rpc/contract.ts`
+- Effect owns RPC requests, typed errors, validation, cancellation,
+- Other games continue using their existing schema-validated WebSocket protocols
+- Keep Worker bindings and database services out of browser imports
+- Worker entrypoints route `/api/*` and serve the Vite SPA through `env.ASSETS`; no TanStack Start server functions or SSR
 
 ### Tailwind CSS
 
@@ -226,7 +212,7 @@ const preLogMiddleware = createMiddleware({ type: "function" })
 - Enable strict TypeScript checking
 - Use explicit types for props and function parameters
 - Import types with `import type` when possible
-- Use Zod for runtime validation (zod is installed)
+- Use Effect Schema for runtime validation and derive TypeScript types from schemas
 
 ### Naming Conventions
 
@@ -260,7 +246,7 @@ src/
 ### Cloudflare Workers
 
 - Access bindings via `import { env } from 'cloudflare:workers'` in server code
-- Server functions can use Cloudflare bindings directly
+- Worker handlers receive bindings through `env`; browser code calls shared RPC contracts
 - Declare infrastructure in `alchemy.run.ts` with Alchemy's Cloudflare resources
 - Keep project-specific binding declarations in `src/env.d.ts` synchronized with `alchemy.run.ts`
 

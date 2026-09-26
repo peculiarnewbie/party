@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { createSignal, Show } from "solid-js";
@@ -24,7 +25,9 @@ describe("component test harness", () => {
         expect(button).toHaveTextContent("clicks: 0");
 
         fireEvent.click(button);
+        flush();
         fireEvent.click(button);
+        flush();
 
         expect(button).toHaveTextContent("clicks: 2");
     });
@@ -43,6 +46,7 @@ describe("component test harness", () => {
         expect(getByText("anonymous")).toBeInTheDocument();
 
         setName("arif");
+        flush();
         expect(getByText("hi arif")).toBeInTheDocument();
     });
 });

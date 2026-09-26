@@ -1,4 +1,4 @@
-import { Show, createSignal, createEffect, onCleanup } from "solid-js";
+import { Show, createSignal, createEffect } from "solid-js";
 
 interface AnnouncementOverlayProps {
     text: string | null;
@@ -9,15 +9,17 @@ export function AnnouncementOverlay(props: AnnouncementOverlayProps) {
     const [visible, setVisible] = createSignal(false);
     const [displayText, setDisplayText] = createSignal("");
 
-    createEffect(() => {
-        const text = props.text;
-        if (text) {
-            setDisplayText(text);
-            setVisible(true);
-            const timer = setTimeout(() => setVisible(false), 2200);
-            onCleanup(() => clearTimeout(timer));
-        }
-    });
+    createEffect(
+        () => props.text,
+        (text) => {
+            if (text) {
+                setDisplayText(text);
+                setVisible(true);
+                const timer = setTimeout(() => setVisible(false), 2200);
+                return () => clearTimeout(timer);
+            }
+        },
+    );
 
     const variantClass = () => {
         switch (props.variant) {
@@ -38,8 +40,7 @@ export function AnnouncementOverlay(props: AnnouncementOverlayProps) {
                 <div
                     class={`font-bebas text-[clamp(1.8rem,4vw,3.5rem)] tracking-[.08em] text-center px-6 py-3 bg-[#ddd5c4]/95 border-2 border-[#1a1a1a] shadow-[5px_5px_0_#1a1a1a] ${variantClass()}`}
                     style={{
-                        animation:
-                            "announcement-pop 2.2s ease-out forwards",
+                        animation: "announcement-pop 2.2s ease-out forwards",
                     }}
                 >
                     {displayText()}

@@ -1,10 +1,7 @@
-import { onMount } from "solid-js";
+import { onSettled } from "solid-js";
 import { RpsRoom } from "~/components/rps/rps-room";
 import type { RpsPlayerView } from "~/game/rps/views";
-import type {
-    RpsClientOutgoing,
-    RpsSideEvent,
-} from "~/game/rps/connection";
+import type { RpsClientOutgoing, RpsSideEvent } from "~/game/rps/connection";
 import type { RpsFixtureId } from "~/game/rps/fixtures";
 import { getRpsFixture } from "~/game/rps/fixtures";
 import { createFakeGameConnection } from "~/test/fake-game-connection";
@@ -51,7 +48,7 @@ export function RpsFixtureHarness(props: RpsFixtureHarnessProps) {
 
     const isHost = fixture.hostPlayerId === props.playerId;
 
-    onMount(() => {
+    onSettled(() => {
         window.__RPS_FIXTURE__ = fixtureState;
     });
 

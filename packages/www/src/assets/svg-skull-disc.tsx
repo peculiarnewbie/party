@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 export interface SkullDiscPalette {
     base: string;
@@ -75,10 +75,7 @@ export function SvgSkullDisc(props: SvgSkullDiscProps) {
                     />
                     <circle cx="43" cy="48" r="4.2" fill={props.palette.line} />
                     <circle cx="57" cy="48" r="4.2" fill={props.palette.line} />
-                    <path
-                        d="M50 52l-4 7h8l-4-7Z"
-                        fill={props.palette.line}
-                    />
+                    <path d="M50 52l-4 7h8l-4-7Z" fill={props.palette.line} />
                     <path
                         d="M42 66h16"
                         stroke={props.palette.line}

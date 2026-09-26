@@ -210,6 +210,7 @@ describe("QuizWithQuestions", () => {
         id: "quiz-1",
         title: "Geography",
         description: null,
+        tags: [],
         questions: [
             {
                 id: "q-1",

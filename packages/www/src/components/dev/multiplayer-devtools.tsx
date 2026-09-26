@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createSignal, onCleanup, onSettled } from "solid-js";
 import type { Component } from "solid-js";
 import { GAME_RULES } from "~/game";
 import { fillGamePlayerCount } from "~/room/devtools-api";
@@ -47,9 +47,8 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
     const activeClient = () => props.pool.activeClient();
     const roomState = () => activeClient().roomState();
     const connectedCount = () =>
-        props.pool
-            .clients()
-            .filter((client) => client.status() === "connected").length;
+        props.pool.clients().filter((client) => client.status() === "connected")
+            .length;
     const totalCount = () => props.pool.clients().length;
     const activeGame = () =>
         roomState()?.activeGameType ?? roomState()?.selectedGameType ?? "—";
@@ -59,7 +58,9 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
         const list = props.pool.clients();
         if (list.length === 0) return;
         const activeId = activeClient().identity().id;
-        const idx = list.findIndex((client) => client.identity().id === activeId);
+        const idx = list.findIndex(
+            (client) => client.identity().id === activeId,
+        );
         const base = idx === -1 ? 0 : idx;
         const next = list[(base + direction + list.length) % list.length]!;
         props.pool.setActivePlayer(next.identity().id);
@@ -91,7 +92,11 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
             props.pool.setPanelOpen(false);
             return;
         }
-        if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "m") {
+        if (
+            (event.ctrlKey || event.metaKey) &&
+            event.shiftKey &&
+            event.key.toLowerCase() === "m"
+        ) {
             event.preventDefault();
             setExpanded((value) => {
                 const next = !value;
@@ -101,9 +106,9 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
         }
     };
 
-    onMount(() => {
+    onSettled(() => {
         window.addEventListener("keydown", onKeyDown);
-        onCleanup(() => window.removeEventListener("keydown", onKeyDown));
+        return () => window.removeEventListener("keydown", onKeyDown);
     });
 
     const toggleExpanded = () => {
@@ -154,7 +159,9 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
                                 </span>
                                 <span class="text-white/30 shrink-0">·</span>
                                 <span class="text-white/90 truncate">
-                                    {String(activeGame()).replace(/_/g, " ").toUpperCase()}
+                                    {String(activeGame())
+                                        .replace(/_/g, " ")
+                                        .toUpperCase()}
                                 </span>
                                 <span class="text-white/30 shrink-0">·</span>
                                 <span class="text-white/70 truncate">
@@ -171,14 +178,18 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
                     >
                         <div class="flex items-center justify-between px-4 py-2 border-b border-white/10 text-[11px] tracking-widest">
                             <div class="flex items-center gap-3 min-w-0">
-                                <span class="text-white/50">MULTIPLAYER DEVTOOLS</span>
+                                <span class="text-white/50">
+                                    MULTIPLAYER DEVTOOLS
+                                </span>
                                 <span class="text-white/30">·</span>
                                 <span class="text-white/70">
                                     ROOM {props.pool.roomId.toUpperCase()}
                                 </span>
                                 <span class="text-white/30">·</span>
                                 <span class="text-white/90">
-                                    {(roomState()?.phase ?? "lobby").toUpperCase()}
+                                    {(
+                                        roomState()?.phase ?? "lobby"
+                                    ).toUpperCase()}
                                 </span>
                             </div>
                             <div class="flex items-center gap-2">
@@ -206,7 +217,8 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
                                     const participant = () =>
                                         rs()?.gameParticipants.find(
                                             (entry) =>
-                                                entry.playerId === identity().id,
+                                                entry.playerId ===
+                                                identity().id,
                                         ) ?? null;
                                     return (
                                         <div
@@ -224,24 +236,41 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
                                                         {identity().name || "—"}
                                                     </span>
                                                     <span class="text-white/30 truncate">
-                                                        {identity().id.slice(0, 6)}
+                                                        {identity().id.slice(
+                                                            0,
+                                                            6,
+                                                        )}
                                                     </span>
-                                                    <Show when={identity().origin === "browser"}>
+                                                    <Show
+                                                        when={
+                                                            identity()
+                                                                .origin ===
+                                                            "browser"
+                                                        }
+                                                    >
                                                         <span class="text-white/40">
                                                             BROWSER
                                                         </span>
                                                     </Show>
-                                                    <Show when={rs()?.hostId === identity().id}>
+                                                    <Show
+                                                        when={
+                                                            rs()?.hostId ===
+                                                            identity().id
+                                                        }
+                                                    >
                                                         <span class="text-amber-400">
                                                             HOST
                                                         </span>
                                                     </Show>
                                                 </div>
                                                 <div class="text-white/40 tracking-wide">
-                                                    {statusLabel(client.status())}
+                                                    {statusLabel(
+                                                        client.status(),
+                                                    )}
                                                     <Show when={participant()}>
                                                         {" "}
-                                                        · {participant()!.status.toUpperCase()}
+                                                        ·{" "}
+                                                        {participant()!.status.toUpperCase()}
                                                     </Show>
                                                 </div>
                                             </div>
@@ -265,12 +294,17 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
                                                 </span>
                                             </Show>
                                             <Show
-                                                when={client.status() === "disconnected"}
+                                                when={
+                                                    client.status() ===
+                                                    "disconnected"
+                                                }
                                             >
                                                 <button
                                                     type="button"
                                                     data-testid={`devtools-reconnect-${identity().id}`}
-                                                    onClick={() => client.connect()}
+                                                    onClick={() =>
+                                                        client.connect()
+                                                    }
                                                     class="text-amber-400 px-2 py-1 border border-amber-400/30"
                                                 >
                                                     Reconnect
@@ -278,8 +312,10 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
                                             </Show>
                                             <Show
                                                 when={
-                                                    client.status() === "connected" &&
-                                                    identity().origin === "simulated"
+                                                    client.status() ===
+                                                        "connected" &&
+                                                    identity().origin ===
+                                                        "simulated"
                                                 }
                                             >
                                                 <button
@@ -314,7 +350,9 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
                                 type="button"
                                 data-testid="devtools-add-4"
                                 onClick={() => {
-                                    for (const client of props.pool.addPlayers(4)) {
+                                    for (const client of props.pool.addPlayers(
+                                        4,
+                                    )) {
                                         addAndJoin(client);
                                     }
                                 }}
@@ -328,9 +366,12 @@ export const MultiplayerDevtools: Component<MultiplayerDevtoolsProps> = (
                                     const gameType =
                                         roomState()?.selectedGameType ?? "quiz";
                                     const min = GAME_RULES[gameType].minPlayers;
-                                    const joined = roomState()?.players.length ?? 0;
+                                    const joined =
+                                        roomState()?.players.length ?? 0;
                                     const needed = Math.max(0, min - joined);
-                                    for (const client of props.pool.addPlayers(needed)) {
+                                    for (const client of props.pool.addPlayers(
+                                        needed,
+                                    )) {
                                         addAndJoin(client);
                                     }
                                 }}

@@ -7,8 +7,11 @@ export interface FakeGameConnectionOptions<TView, TOutgoing, TEvent> {
     afterSend?: Partial<Record<string, TEvent[]>>;
 }
 
-export interface FakeGameConnection<TView, TOutgoing, TEvent>
-    extends GameConnection<TView, TOutgoing, TEvent> {
+export interface FakeGameConnection<
+    TView,
+    TOutgoing,
+    TEvent,
+> extends GameConnection<TView, TOutgoing, TEvent> {
     emit(event: TEvent): void;
     setView(view: TView | null): void;
     readonly sentMessages: readonly TOutgoing[];
@@ -21,7 +24,9 @@ export function createFakeGameConnection<
 >(
     options: FakeGameConnectionOptions<TView, TOutgoing, TEvent> = {},
 ): FakeGameConnection<TView, TOutgoing, TEvent> {
-    const [view, setView] = createSignal<TView | null>(options.initialView ?? null);
+    const [view, setView] = createSignal<TView | null>(
+        () => options.initialView ?? null,
+    );
     const handlers = new Set<(event: TEvent) => void>();
     const sentMessages: TOutgoing[] = [];
     const afterSend = options.afterSend ?? {};

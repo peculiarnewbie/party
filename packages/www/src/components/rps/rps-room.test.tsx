@@ -1,11 +1,9 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { RpsRoom } from "./rps-room";
 import { createFakeGameConnection } from "~/test/fake-game-connection";
-import type {
-    RpsClientOutgoing,
-    RpsSideEvent,
-} from "~/game/rps/connection";
+import type { RpsClientOutgoing, RpsSideEvent } from "~/game/rps/connection";
 import {
     makeMatch,
     makePlayerInfo,
@@ -21,11 +19,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -86,6 +80,7 @@ describe("RpsRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^rock$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -122,6 +117,7 @@ describe("RpsRoom", () => {
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /next round/i }));
+        flush();
         expect(connection.sentMessages).toEqual([
             {
                 type: "rps:next_round",
@@ -136,6 +132,7 @@ describe("RpsRoom", () => {
 
         const host = renderRoom({ isHost: true });
         fireEvent.click(host.getByRole("button", { name: /^end$/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -156,6 +153,7 @@ describe("RpsRoom", () => {
         expect(getByText("TOURNAMENT CHAMPION")).toBeInTheDocument();
         expect(getByText("BOB")).toBeInTheDocument();
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -176,6 +174,7 @@ describe("RpsRoom", () => {
                 rounds: [makeRound({ label: "SEMIFINAL" })],
             }),
         );
+        flush();
         expect(getAllByText("SEMIFINAL").length).toBeGreaterThan(0);
     });
 

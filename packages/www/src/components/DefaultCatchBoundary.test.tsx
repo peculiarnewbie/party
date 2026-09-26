@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 
@@ -48,7 +49,11 @@ describe("DefaultCatchBoundary", () => {
     it("renders the error's message and a Try Again button", () => {
         const error = new Error("Boom");
         const { getByText, getByRole } = render(() => (
-            <DefaultCatchBoundary error={error} reset={() => {}} info={{ componentStack: "" }} />
+            <DefaultCatchBoundary
+                error={error}
+                reset={() => {}}
+                info={{ componentStack: "" }}
+            />
         ));
         expect(getByText("Boom")).toBeInTheDocument();
         expect(getByRole("button", { name: /try again/i })).toBeInTheDocument();
@@ -63,6 +68,7 @@ describe("DefaultCatchBoundary", () => {
             />
         ));
         fireEvent.click(getByRole("button", { name: /try again/i }));
+        flush();
         expect(mockInvalidate).toHaveBeenCalledTimes(1);
     });
 
@@ -78,6 +84,7 @@ describe("DefaultCatchBoundary", () => {
         expect(getByText(/go back/i)).toBeInTheDocument();
         expect(queryByText(/^home$/i)).toBeNull();
         fireEvent.click(getByText(/go back/i));
+        flush();
         expect(backSpy).toHaveBeenCalledTimes(1);
     });
 

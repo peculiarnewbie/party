@@ -11,26 +11,26 @@ export type QuestionType = typeof QuestionType.Type;
 export const MatchType = Schema.Literals(["exact", "contains", "any"]);
 export type MatchType = typeof MatchType.Type;
 
-export class AnswerOption extends Schema.Class<AnswerOption>("AnswerOption")({
+export const AnswerOption = Schema.Struct({
     id: Schema.String,
     questionId: Schema.String,
     text: Schema.String,
     isCorrect: Schema.Boolean,
     sortOrder: Schema.Number,
-}) {}
+});
+export type AnswerOption = typeof AnswerOption.Type;
 
-export class AcceptedAnswer extends Schema.Class<AcceptedAnswer>(
-    "AcceptedAnswer",
-)({
+export const AcceptedAnswer = Schema.Struct({
     id: Schema.String,
     questionId: Schema.String,
     pattern: Schema.String,
     matchType: MatchType,
     caseInsensitive: Schema.Boolean,
     sortOrder: Schema.Number,
-}) {}
+});
+export type AcceptedAnswer = typeof AcceptedAnswer.Type;
 
-export class Question extends Schema.Class<Question>("Question")({
+export const Question = Schema.Struct({
     id: Schema.String,
     quizId: Schema.String,
     type: QuestionType,
@@ -38,9 +38,10 @@ export class Question extends Schema.Class<Question>("Question")({
     sortOrder: Schema.Number,
     options: Schema.Array(AnswerOption),
     acceptedAnswers: Schema.Array(AcceptedAnswer),
-}) {}
+});
+export type Question = typeof Question.Type;
 
-export class QuizSummary extends Schema.Class<QuizSummary>("QuizSummary")({
+export const QuizSummary = Schema.Struct({
     id: Schema.String,
     title: Schema.String,
     description: Schema.NullOr(Schema.String),
@@ -57,23 +58,31 @@ export class QuizSummary extends Schema.Class<QuizSummary>("QuizSummary")({
         open: Schema.Number,
         placeholder: Schema.Number,
     }),
-}) {}
+});
+export type QuizSummary = typeof QuizSummary.Type;
 
-export class QuizWithQuestions extends Schema.Class<QuizWithQuestions>(
-    "QuizWithQuestions",
-)({
+export const QuizWithQuestions = Schema.Struct({
     id: Schema.String,
     title: Schema.String,
     description: Schema.NullOr(Schema.String),
     questions: Schema.Array(Question),
-}) {}
+    tags: Schema.Array(
+        Schema.Struct({
+            id: Schema.String,
+            name: Schema.String,
+            slug: Schema.String,
+        }),
+    ),
+});
+export type QuizWithQuestions = typeof QuizWithQuestions.Type;
 
-export class TagWithCount extends Schema.Class<TagWithCount>("TagWithCount")({
+export const TagWithCount = Schema.Struct({
     id: Schema.String,
     name: Schema.String,
     slug: Schema.String,
     quizCount: Schema.Number,
-}) {}
+});
+export type TagWithCount = typeof TagWithCount.Type;
 
 const EntityId = Schema.String.check(
     Schema.isLengthBetween(1, 64),

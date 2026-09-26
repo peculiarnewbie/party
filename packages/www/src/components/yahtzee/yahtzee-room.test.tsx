@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { YahtzeeRoom } from "./yahtzee-room";
@@ -6,10 +7,7 @@ import type {
     YahtzeeClientOutgoing,
     YahtzeeSideEvent,
 } from "~/game/yahtzee/connection";
-import {
-    makePlayerInfo,
-    makeView,
-} from "~/game/yahtzee/test-helpers";
+import { makePlayerInfo, makeView } from "~/game/yahtzee/test-helpers";
 import type { YahtzeePlayerView } from "~/game/yahtzee/views";
 
 function renderRoom(
@@ -74,6 +72,7 @@ describe("YahtzeeRoom", () => {
         const { getByTestId, connection } = renderRoom({ view });
 
         fireEvent.click(getByTestId("yahtzee-roll-button"));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -95,6 +94,7 @@ describe("YahtzeeRoom", () => {
         const { getByTestId, connection } = renderRoom({ view });
 
         fireEvent.click(getByTestId("yahtzee-die-0"));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -119,6 +119,7 @@ describe("YahtzeeRoom", () => {
         const { getByTestId, connection } = renderRoom({ view });
 
         fireEvent.click(getByTestId("scorecard-cell-p1-fives"));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -149,6 +150,7 @@ describe("YahtzeeRoom", () => {
 
         const host = renderRoom({ isHost: true });
         fireEvent.click(host.getByTestId("yahtzee-end-button"));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -171,6 +173,7 @@ describe("YahtzeeRoom", () => {
         expect(getByText("GAME OVER")).toBeInTheDocument();
         expect(getByText("WINNER")).toBeInTheDocument();
         fireEvent.click(getByTestId("yahtzee-return-button"));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -184,7 +187,8 @@ describe("YahtzeeRoom", () => {
         });
 
         expect(
-            container.querySelector("[data-testid='yahtzee-die-0']")
+            container
+                .querySelector("[data-testid='yahtzee-die-0']")
                 ?.getAttribute("data-has-value"),
         ).toBe("false");
 
@@ -196,9 +200,11 @@ describe("YahtzeeRoom", () => {
                 dice: [3, 3, 3, 3, 3],
             }),
         );
+        flush();
 
         expect(
-            container.querySelector("[data-testid='yahtzee-die-0']")
+            container
+                .querySelector("[data-testid='yahtzee-die-0']")
                 ?.getAttribute("data-has-value"),
         ).toBe("true");
     });
@@ -222,6 +228,7 @@ describe("YahtzeeRoom", () => {
         const { getByTestId, connection } = renderRoom({ view });
 
         fireEvent.click(getByTestId("yahtzee-liar-button"));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {

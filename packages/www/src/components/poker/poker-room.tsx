@@ -51,8 +51,7 @@ export const PokerRoom: Component<{
     const [amount, setAmount] = createSignal("20");
     const [actionError, setActionError] = createSignal<string | null>(null);
 
-    createEffect(() => {
-        const view = gameView();
+    createEffect(gameView, (view) => {
         if (!view) return;
         setActionError(null);
         if (view.minBetOrRaise !== null) {

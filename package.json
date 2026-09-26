@@ -19,9 +19,10 @@
         "test:soak": "pnpm --filter www test:soak",
         "test:infra": "pnpm --filter www test:infra",
         "test:e2e": "pnpm --filter www test:e2e",
-        "test:all": "pnpm test:unit && pnpm test:quiz-manager && pnpm test:worker && pnpm test:soak && pnpm test:e2e -- --browser all",
+        "test:all": "pnpm test:unit && pnpm test:quiz-manager && pnpm test:quiz-rpc && pnpm test:worker && pnpm test:soak && pnpm test:e2e -- --browser all",
         "trace": "pnpm --filter www trace",
-        "report": "pnpm --filter www report"
+        "report": "pnpm --filter www report",
+        "test:quiz-rpc": "pnpm --filter quiz-manager test:worker"
     },
     "devDependencies": {
         "@effect/language-service": "^0.87.2",

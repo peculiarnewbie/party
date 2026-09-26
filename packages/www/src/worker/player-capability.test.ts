@@ -43,7 +43,10 @@ describe("player reconnect capabilities", () => {
             false,
         );
         await expect(
-            verifyPlayerCapability(capability, `${digest.slice(0, -1)}A`),
+            verifyPlayerCapability(
+                capability,
+                `${digest.slice(0, -1)}${digest.endsWith("A") ? "B" : "A"}`,
+            ),
         ).resolves.toBe(false);
     });
 

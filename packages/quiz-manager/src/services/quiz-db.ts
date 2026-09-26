@@ -153,10 +153,24 @@ export class QuizDb extends Context.Service<QuizDb, QuizDbShape>()("QuizDb") {
                             (answer) => answer.questionId,
                         );
 
+                        const quizTags = await db
+                            .select({
+                                id: schema.tags.id,
+                                name: schema.tags.name,
+                                slug: schema.tags.slug,
+                            })
+                            .from(schema.tags)
+                            .innerJoin(
+                                schema.quizTags,
+                                eq(schema.tags.id, schema.quizTags.tagId),
+                            )
+                            .where(eq(schema.quizTags.quizId, id));
+
                         return {
                             id: quiz.id,
                             title: quiz.title,
                             description: quiz.description,
+                            tags: quizTags,
                             questions: questions.map((q) => ({
                                 id: q.id,
                                 quizId: q.quizId,

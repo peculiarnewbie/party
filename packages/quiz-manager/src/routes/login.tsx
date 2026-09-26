@@ -1,108 +1,45 @@
-// @ts-nocheck - Route types will be generated when dev server runs
-import { createFileRoute, redirect } from "@tanstack/solid-router";
-import { env } from "cloudflare:workers";
-import {
-    createSessionCookie,
-    buildSetCookieHeader,
-    parseCookies,
-    getSessionCookieName,
-    validateSession,
-    validatePassword,
-} from "~/worker/session";
+import { createFileRoute } from "@tanstack/solid-router";
+import { Show } from "solid-js";
 
 export const Route = createFileRoute("/login")({
-    server: {
-        handlers: {
-            GET: async ({ request }) => {
-                const cookieHeader = request.headers.get("Cookie") ?? "";
-                const cookies = parseCookies(cookieHeader);
-                const sessionCookie = cookies[getSessionCookieName()];
-
-                if (
-                    sessionCookie &&
-                    (await validateSession(env.SESSION_SECRET, sessionCookie))
-                ) {
-                    return redirect({ to: "/" });
-                }
-
-                return new Response(loginPage({ error: null }), {
-                    headers: {
-                        "Cache-Control": "no-store",
-                        "Content-Type": "text/html; charset=utf-8",
-                    },
-                });
-            },
-            POST: async ({ request }) => {
-                const formData = await request.formData();
-                const passwordValue = formData.get("password");
-                const password =
-                    typeof passwordValue === "string" ? passwordValue : "";
-
-                if (!(await validatePassword(password, env.ADMIN_PASSWORD))) {
-                    return new Response(
-                        loginPage({ error: "Invalid password" }),
-                        {
-                            status: 401,
-                            headers: {
-                                "Cache-Control": "no-store",
-                                "Content-Type": "text/html; charset=utf-8",
-                            },
-                        },
-                    );
-                }
-
-                const sessionValue = await createSessionCookie(
-                    env.SESSION_SECRET,
-                );
-                const setCookie = buildSetCookieHeader(sessionValue);
-
-                return new Response(null, {
-                    status: 302,
-                    headers: {
-                        Location: "/",
-                        "Set-Cookie": setCookie,
-                    },
-                });
-            },
-        },
-    },
+    validateSearch: (search: Record<string, unknown>) => ({
+        invalid: search.error === "invalid",
+    }),
+    component: Login,
 });
 
-function loginPage({ error }: { error: string | null }) {
-    return /*html*/ `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Manager — Login</title>
-    <link rel="stylesheet" href="/src/styles/app.css">
-    <style>
-        body { font-family: 'Karla', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    </style>
-</head>
-<body class="bg-gray-50 dark:bg-gray-950">
-    <div class="w-full max-w-sm p-6">
-        <h1 class="text-3xl font-bebas mb-6 text-center">Quiz Manager</h1>
-        <form method="POST" class="space-y-4">
-            <div>
-                <input
-                    type="password"
-                    name="password"
-                    placeholder="Password"
-                    required
-                    autofocus
-                    class="w-full px-3 py-2 border rounded bg-white dark:bg-gray-900 dark:border-gray-700"
-                />
-            </div>
-            ${error ? `<p class="text-red-500 text-sm">${error}</p>` : ""}
-            <button
-                type="submit"
-                class="w-full px-3 py-2 bg-emerald-600 text-white rounded uppercase font-bold text-sm hover:bg-emerald-700 transition-colors"
+function Login() {
+    const search = Route.useSearch();
+    return (
+        <main class="min-h-screen grid place-items-center bg-[#f5f0e8] font-karla">
+            <form
+                action="/login"
+                method="post"
+                class="w-full max-w-sm space-y-4 border-2 border-[#1a1a1a] bg-white p-8"
             >
-                Log In
-            </button>
-        </form>
-    </div>
-</body>
-</html>`;
+                <h1 class="font-bebas text-3xl">Quiz Manager</h1>
+                <label class="block">
+                    Admin password
+                    <input
+                        type="password"
+                        name="password"
+                        required
+                        autocomplete="current-password"
+                        class="mt-2 w-full border-2 p-3"
+                    />
+                </label>
+                <Show when={search().invalid}>
+                    <p role="alert" class="text-[#c0261a]">
+                        Invalid password
+                    </p>
+                </Show>
+                <button
+                    type="submit"
+                    class="w-full bg-[#1a3a6e] p-3 text-white"
+                >
+                    Sign in
+                </button>
+            </form>
+        </main>
+    );
 }

@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { FunFactsRoom } from "./fun-facts-room";
@@ -20,11 +21,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -74,9 +71,8 @@ describe("FunFactsRoom", () => {
         });
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
-        fireEvent.click(
-            getByRole("button", { name: /start first question/i }),
-        );
+        fireEvent.click(getByRole("button", { name: /start first question/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -98,7 +94,9 @@ describe("FunFactsRoom", () => {
             "input[type='number']",
         ) as HTMLInputElement;
         fireEvent.input(input, { target: { value: "8848" } });
+        flush();
         fireEvent.click(getByRole("button", { name: /^submit$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -118,9 +116,8 @@ describe("FunFactsRoom", () => {
         });
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
-        fireEvent.click(
-            getByRole("button", { name: /close answers/i }),
-        );
+        fireEvent.click(getByRole("button", { name: /close answers/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -149,6 +146,7 @@ describe("FunFactsRoom", () => {
 
         const slots = getAllByRole("button", { name: /place here/i });
         fireEvent.click(slots[1]!);
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -160,15 +158,14 @@ describe("FunFactsRoom", () => {
 
     it("shows END GAME button only for host", () => {
         const guest = renderRoom({ isHost: false });
-        expect(
-            guest.queryByRole("button", { name: /end game/i }),
-        ).toBeNull();
+        expect(guest.queryByRole("button", { name: /end game/i })).toBeNull();
 
         const host = renderRoom({
             view: makeView({ isHost: true }),
             isHost: true,
         });
         fireEvent.click(host.getByRole("button", { name: /end game/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -187,9 +184,8 @@ describe("FunFactsRoom", () => {
         });
 
         expect(getByText("GAME OVER")).toBeInTheDocument();
-        fireEvent.click(
-            getByRole("button", { name: /return to lobby/i }),
-        );
+        fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -200,6 +196,7 @@ describe("FunFactsRoom", () => {
         expect(getAllByText("0").length).toBeGreaterThan(0);
 
         connection.setView(makeView({ teamScore: 9 }));
+        flush();
         expect(getAllByText("9").length).toBeGreaterThan(0);
     });
 });

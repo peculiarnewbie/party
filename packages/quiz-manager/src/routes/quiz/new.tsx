@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { createFileRoute, useNavigate } from "@tanstack/solid-router";
 import { createSignal, Show } from "solid-js";
-import { createQuiz } from "~/server/quiz-fns";
+import { callQuiz, createQuizActions } from "~/rpc/client";
 
 export const Route = createFileRoute("/quiz/new")({
     component: CreateQuiz,
@@ -11,29 +10,21 @@ function CreateQuiz() {
     const navigate = useNavigate();
     const [title, setTitle] = createSignal("");
     const [description, setDescription] = createSignal("");
-    const [error, setError] = createSignal<string | null>(null);
-    const [saving, setSaving] = createSignal(false);
+    const { pending: saving, error, run } = createQuizActions();
 
-    async function handleSubmit(e: Event) {
+    function handleSubmit(e: Event) {
         e.preventDefault();
         if (!title().trim()) return;
-
-        setSaving(true);
-        setError(null);
-
-        try {
-            const id = await createQuiz({
-                data: {
-                    title: title().trim(),
-                    description: description().trim() || undefined,
-                },
-            });
-            navigate({ to: `/quiz/${id}` });
-        } catch (err: any) {
-            setError(err?.message ?? "Failed to create quiz");
-        } finally {
-            setSaving(false);
-        }
+        const input = {
+            title: title().trim(),
+            description: description().trim() || undefined,
+        };
+        run(
+            callQuiz((client) => client.createQuiz(input)),
+            (id) => {
+                void navigate({ to: "/quiz/$quizId", params: { quizId: id } });
+            },
+        );
     }
 
     return (
@@ -71,7 +62,9 @@ function CreateQuiz() {
                         </label>
                         <textarea
                             value={description()}
-                            onInput={(e) => setDescription(e.currentTarget.value)}
+                            onInput={(e) =>
+                                setDescription(e.currentTarget.value)
+                            }
                             placeholder="Optional description"
                             rows={3}
                             class="w-full px-4 py-3 bg-white border-2 border-[#b8ae9e] font-karla text-[#1a1a1a] focus:border-[#1a3a6e] outline-none transition-colors resize-y"
@@ -79,7 +72,9 @@ function CreateQuiz() {
                     </div>
 
                     <Show when={error()}>
-                        <p class="text-[#c0261a] text-sm font-karla">{error()}</p>
+                        <p class="text-[#c0261a] text-sm font-karla">
+                            {error()}
+                        </p>
                     </Show>
 
                     <button

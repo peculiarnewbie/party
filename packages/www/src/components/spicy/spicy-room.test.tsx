@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { SpicyRoom } from "./spicy-room";
@@ -21,11 +22,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -86,6 +83,7 @@ describe("SpicyRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /play face down/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -104,6 +102,7 @@ describe("SpicyRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /pass \+ draw/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -125,6 +124,7 @@ describe("SpicyRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /challenge number/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -140,6 +140,7 @@ describe("SpicyRoom", () => {
 
         const host = renderRoom({ isHost: true });
         fireEvent.click(host.getByRole("button", { name: /end game/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -161,6 +162,7 @@ describe("SpicyRoom", () => {
         expect(getByText("FINAL SCORES")).toBeInTheDocument();
         expect(getByText("BOB")).toBeInTheDocument();
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -178,6 +180,7 @@ describe("SpicyRoom", () => {
                 }),
             }),
         );
+        flush();
 
         expect(getByText(/5 Pepper/i)).toBeInTheDocument();
     });
@@ -189,6 +192,7 @@ describe("SpicyRoom", () => {
             type: "spicy:error",
             data: { message: "Invalid declaration" },
         });
+        flush();
 
         expect(getByText(/Invalid declaration/i)).toBeInTheDocument();
     });

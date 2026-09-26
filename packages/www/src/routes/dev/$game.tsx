@@ -1,6 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/solid-router";
 import { createMemo, Show } from "solid-js";
-import { Dynamic } from "solid-js/web";
+import { Dynamic } from "@solidjs/web";
 import { FixtureIsland } from "~/components/dev/fixture-island";
 import { getFixtureModule } from "./-fixtures";
 
@@ -12,10 +12,7 @@ type DevSearch = {
 };
 
 function parseDevSearch(search: Record<string, unknown>): DevSearch {
-    const step =
-        search.step === undefined
-            ? undefined
-            : Number(search.step);
+    const step = search.step === undefined ? undefined : Number(search.step);
 
     return {
         fixture:
@@ -113,8 +110,8 @@ function UnknownGame(props: { name: string }) {
                     No fixtures for "{props.name}"
                 </h1>
                 <p class="text-white/50 text-sm mb-6">
-                    Export a <code class="text-white/80">gameFixtureModule</code>{" "}
-                    from{" "}
+                    Export a{" "}
+                    <code class="text-white/80">gameFixtureModule</code> from{" "}
                     <code class="text-white/80">
                         src/game/{props.name}/fixtures.ts
                     </code>{" "}

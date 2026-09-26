@@ -1,0 +1,50 @@
+import { expect, test } from "@playwright/test";
+
+test("quiz administration validates login and round-trips edits through RPC", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("dialog", (dialog) => dialog.accept());
+    const title = `Browser quiz ${crypto.randomUUID()}`;
+    const tag = `Browser tag ${crypto.randomUUID()}`;
+
+    await page.goto("/");
+    await page.getByLabel("Admin password").fill("incorrect-password");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByRole("alert")).toHaveText("Invalid password");
+    await page.getByLabel("Admin password").fill(process.env.QUIZ_MANAGER_TEST_PASSWORD ?? "local-test-password");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("link", { name: "+ New Quiz" }).click();
+    await page.getByPlaceholder("e.g. Geography Trivia").fill(title);
+    await page.getByRole("button", { name: "Create Quiz" }).click();
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    const quizUrl = page.url();
+    await page.getByRole("link", { name: "+ Add Question" }).click();
+    await page.getByPlaceholder("Enter the question...").fill("Which planet?");
+    await page.getByRole("button", { name: "Add Question" }).click();
+    await expect(page.getByText("Which planet?", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "EDIT", exact: true }).click();
+    await page.reload();
+    await page.getByPlaceholder("Enter the question...").fill("Which moon?");
+    await page.getByRole("button", { name: "Save Changes" }).click();
+    await expect(page.getByText("Which moon?", { exact: true })).toBeVisible();
+
+    await page.goto("/tags");
+    await page.getByPlaceholder("New tag name").fill(tag);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText(tag, { exact: true })).toBeVisible();
+    await page.getByPlaceholder("New tag name").fill(tag);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByText("A tag with that name already exists.")).toBeVisible();
+    await page.goto(quizUrl);
+    await page.getByRole("button", { name: tag, exact: true }).click();
+    await expect(page.getByRole("button", { name: tag, exact: true })).toHaveClass(/bg-\[#1a3a6e\]/);
+    await page.reload();
+    await expect(page.getByRole("button", { name: tag, exact: true })).toHaveClass(/bg-\[#1a3a6e\]/);
+    await page.goto("/");
+    await page.getByRole("row").filter({ hasText: title }).getByRole("button", { name: "DELETE" }).click();
+    await expect(page.getByRole("row").filter({ hasText: title })).toHaveCount(0);
+    await page.goto("/tags");
+    await page.getByText(tag, { exact: true }).locator("../..").getByRole("button", { name: "DELETE" }).click();
+    await expect(page.getByText(tag, { exact: true })).toHaveCount(0);
+    expect(errors).toEqual([]);
+});

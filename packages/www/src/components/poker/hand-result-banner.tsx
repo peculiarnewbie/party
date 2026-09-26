@@ -10,7 +10,9 @@ interface HandResult {
     isUncontested: boolean;
 }
 
-function isPotAwarded(event: PokerEvent): event is PokerEvent & { type: "pot_awarded" } {
+function isPotAwarded(
+    event: PokerEvent,
+): event is PokerEvent & { type: "pot_awarded" } {
     return event.type === "pot_awarded";
 }
 
@@ -58,48 +60,57 @@ export const HandResultBanner: Component<{
     let anim: ReturnType<typeof animate> | undefined;
     let hasMounted = false;
 
-    createEffect(() => {
-        const street = props.street;
-
-        if (!hasMounted) {
-            hasMounted = true;
-            return;
-        }
-
-        if (street === "hand_over" || street === "showdown" || street === "tournament_over") {
-            const newResult = extractHandResult(props.events, props.players);
-            if (newResult) {
-                setResult(newResult);
-                setIsVisible(true);
-
-                requestAnimationFrame(() => {
-                    if (!bannerRef) return;
-                    anim = animate(bannerRef, {
-                        opacity: { from: 0, to: 1 },
-                        translateY: { from: 40, to: 0 },
-                        duration: 600,
-                        ease: "outExpo",
-                    });
-                });
+    createEffect(
+        () => ({
+            street: props.street,
+            events: props.events,
+            players: props.players,
+        }),
+        ({ street, events, players }) => {
+            if (!hasMounted) {
+                hasMounted = true;
+                return;
             }
-        } else {
-            // New hand started — dismiss banner
-            if (isVisible()) {
-                if (bannerRef) {
-                    anim = animate(bannerRef, {
-                        opacity: { from: 1, to: 0 },
-                        translateY: { from: 0, to: -30 },
-                        duration: 350,
-                        ease: "inQuad",
-                        onComplete: () => setIsVisible(false),
+
+            if (
+                street === "hand_over" ||
+                street === "showdown" ||
+                street === "tournament_over"
+            ) {
+                const newResult = extractHandResult(events, players);
+                if (newResult) {
+                    setResult(newResult);
+                    setIsVisible(true);
+
+                    requestAnimationFrame(() => {
+                        if (!bannerRef) return;
+                        anim = animate(bannerRef, {
+                            opacity: { from: 0, to: 1 },
+                            translateY: { from: 40, to: 0 },
+                            duration: 600,
+                            ease: "outExpo",
+                        });
                     });
-                } else {
-                    setIsVisible(false);
                 }
-                setResult(null);
+            } else {
+                // New hand started — dismiss banner
+                if (isVisible()) {
+                    if (bannerRef) {
+                        anim = animate(bannerRef, {
+                            opacity: { from: 1, to: 0 },
+                            translateY: { from: 0, to: -30 },
+                            duration: 350,
+                            ease: "inQuad",
+                            onComplete: () => setIsVisible(false),
+                        });
+                    } else {
+                        setIsVisible(false);
+                    }
+                    setResult(null);
+                }
             }
-        }
-    });
+        },
+    );
 
     onCleanup(() => {
         if (anim) anim.pause();
@@ -114,7 +125,9 @@ export const HandResultBanner: Component<{
                         class="border-[3px] border-[#1a1a1a] px-6 py-4 shadow-[5px_5px_0_#1a1a1a] bg-[#ddd5c4] max-w-md w-full text-center"
                     >
                         <div class="font-bebas text-[.65rem] tracking-[.22em] text-[#c0261a]">
-                            {res().isUncontested ? "POT AWARDED UNCONTESTED" : "HAND WINNER"}
+                            {res().isUncontested
+                                ? "POT AWARDED UNCONTESTED"
+                                : "HAND WINNER"}
                         </div>
                         <div class="font-bebas text-[clamp(1.4rem,5vw,2rem)] leading-[1] text-[#1a1a1a] tracking-[.04em] mt-1">
                             {res().winners.toUpperCase()}

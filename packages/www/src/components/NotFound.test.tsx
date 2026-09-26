@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import { NotFound } from "./NotFound";
@@ -41,6 +42,7 @@ describe("NotFound", () => {
     it("invokes window.history.back when Go Back is clicked", () => {
         const { getByRole } = render(() => <NotFound />);
         fireEvent.click(getByRole("button", { name: /go back/i }));
+        flush();
         expect(backSpy).toHaveBeenCalledTimes(1);
     });
 });

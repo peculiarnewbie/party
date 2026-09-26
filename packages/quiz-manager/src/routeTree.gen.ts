@@ -9,17 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TagsRouteImport } from './routes/tags'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as TagsRouteImport } from './routes/tags'
 import { Route as QuizNewRouteImport } from './routes/quiz/new'
-import { Route as QuizQuizIdRouteImport } from './routes/quiz/$quizId'
-import { Route as QuizQuizIdQuestionNewRouteImport } from './routes/quiz/$quizId/question/new'
+import { Route as QuizQuizIdIndexRouteImport } from './routes/quiz/$quizId/index'
 import { Route as QuizQuizIdQuestionQuestionIdRouteImport } from './routes/quiz/$quizId/question/$questionId'
+import { Route as QuizQuizIdQuestionNewRouteImport } from './routes/quiz/$quizId/question/new'
 
-const TagsRoute = TagsRouteImport.update({
-  id: '/tags',
-  path: '/tags',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -27,9 +27,9 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const TagsRoute = TagsRouteImport.update({
+  id: '/tags',
+  path: '/tags',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QuizNewRoute = QuizNewRouteImport.update({
@@ -37,29 +37,29 @@ const QuizNewRoute = QuizNewRouteImport.update({
   path: '/quiz/new',
   getParentRoute: () => rootRouteImport,
 } as any)
-const QuizQuizIdRoute = QuizQuizIdRouteImport.update({
-  id: '/quiz/$quizId',
-  path: '/quiz/$quizId',
+const QuizQuizIdIndexRoute = QuizQuizIdIndexRouteImport.update({
+  id: '/quiz/$quizId/',
+  path: '/quiz/$quizId/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const QuizQuizIdQuestionNewRoute = QuizQuizIdQuestionNewRouteImport.update({
-  id: '/question/new',
-  path: '/question/new',
-  getParentRoute: () => QuizQuizIdRoute,
 } as any)
 const QuizQuizIdQuestionQuestionIdRoute =
   QuizQuizIdQuestionQuestionIdRouteImport.update({
-    id: '/question/$questionId',
-    path: '/question/$questionId',
-    getParentRoute: () => QuizQuizIdRoute,
+    id: '/quiz/$quizId/question/$questionId',
+    path: '/quiz/$quizId/question/$questionId',
+    getParentRoute: () => rootRouteImport,
   } as any)
+const QuizQuizIdQuestionNewRoute = QuizQuizIdQuestionNewRouteImport.update({
+  id: '/quiz/$quizId/question/new',
+  path: '/quiz/$quizId/question/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/tags': typeof TagsRoute
-  '/quiz/$quizId': typeof QuizQuizIdRouteWithChildren
   '/quiz/new': typeof QuizNewRoute
+  '/quiz/$quizId/': typeof QuizQuizIdIndexRoute
   '/quiz/$quizId/question/$questionId': typeof QuizQuizIdQuestionQuestionIdRoute
   '/quiz/$quizId/question/new': typeof QuizQuizIdQuestionNewRoute
 }
@@ -67,8 +67,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/tags': typeof TagsRoute
-  '/quiz/$quizId': typeof QuizQuizIdRouteWithChildren
   '/quiz/new': typeof QuizNewRoute
+  '/quiz/$quizId': typeof QuizQuizIdIndexRoute
   '/quiz/$quizId/question/$questionId': typeof QuizQuizIdQuestionQuestionIdRoute
   '/quiz/$quizId/question/new': typeof QuizQuizIdQuestionNewRoute
 }
@@ -77,8 +77,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/tags': typeof TagsRoute
-  '/quiz/$quizId': typeof QuizQuizIdRouteWithChildren
   '/quiz/new': typeof QuizNewRoute
+  '/quiz/$quizId/': typeof QuizQuizIdIndexRoute
   '/quiz/$quizId/question/$questionId': typeof QuizQuizIdQuestionQuestionIdRoute
   '/quiz/$quizId/question/new': typeof QuizQuizIdQuestionNewRoute
 }
@@ -88,8 +88,8 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/tags'
-    | '/quiz/$quizId'
     | '/quiz/new'
+    | '/quiz/$quizId/'
     | '/quiz/$quizId/question/$questionId'
     | '/quiz/$quizId/question/new'
   fileRoutesByTo: FileRoutesByTo
@@ -97,8 +97,8 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/tags'
-    | '/quiz/$quizId'
     | '/quiz/new'
+    | '/quiz/$quizId'
     | '/quiz/$quizId/question/$questionId'
     | '/quiz/$quizId/question/new'
   id:
@@ -106,8 +106,8 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/tags'
-    | '/quiz/$quizId'
     | '/quiz/new'
+    | '/quiz/$quizId/'
     | '/quiz/$quizId/question/$questionId'
     | '/quiz/$quizId/question/new'
   fileRoutesById: FileRoutesById
@@ -116,17 +116,19 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   TagsRoute: typeof TagsRoute
-  QuizQuizIdRoute: typeof QuizQuizIdRouteWithChildren
   QuizNewRoute: typeof QuizNewRoute
+  QuizQuizIdIndexRoute: typeof QuizQuizIdIndexRoute
+  QuizQuizIdQuestionQuestionIdRoute: typeof QuizQuizIdQuestionQuestionIdRoute
+  QuizQuizIdQuestionNewRoute: typeof QuizQuizIdQuestionNewRoute
 }
 
 declare module '@tanstack/solid-router' {
   interface FileRoutesByPath {
-    '/tags': {
-      id: '/tags'
-      path: '/tags'
-      fullPath: '/tags'
-      preLoaderRoute: typeof TagsRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -136,11 +138,11 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/tags': {
+      id: '/tags'
+      path: '/tags'
+      fullPath: '/tags'
+      preLoaderRoute: typeof TagsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quiz/new': {
@@ -150,60 +152,39 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof QuizNewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/quiz/$quizId': {
-      id: '/quiz/$quizId'
+    '/quiz/$quizId/': {
+      id: '/quiz/$quizId/'
       path: '/quiz/$quizId'
-      fullPath: '/quiz/$quizId'
-      preLoaderRoute: typeof QuizQuizIdRouteImport
+      fullPath: '/quiz/$quizId/'
+      preLoaderRoute: typeof QuizQuizIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quiz/$quizId/question/$questionId': {
+      id: '/quiz/$quizId/question/$questionId'
+      path: '/quiz/$quizId/question/$questionId'
+      fullPath: '/quiz/$quizId/question/$questionId'
+      preLoaderRoute: typeof QuizQuizIdQuestionQuestionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quiz/$quizId/question/new': {
       id: '/quiz/$quizId/question/new'
-      path: '/question/new'
+      path: '/quiz/$quizId/question/new'
       fullPath: '/quiz/$quizId/question/new'
       preLoaderRoute: typeof QuizQuizIdQuestionNewRouteImport
-      parentRoute: typeof QuizQuizIdRoute
-    }
-    '/quiz/$quizId/question/$questionId': {
-      id: '/quiz/$quizId/question/$questionId'
-      path: '/question/$questionId'
-      fullPath: '/quiz/$quizId/question/$questionId'
-      preLoaderRoute: typeof QuizQuizIdQuestionQuestionIdRouteImport
-      parentRoute: typeof QuizQuizIdRoute
+      parentRoute: typeof rootRouteImport
     }
   }
 }
-
-interface QuizQuizIdRouteChildren {
-  QuizQuizIdQuestionQuestionIdRoute: typeof QuizQuizIdQuestionQuestionIdRoute
-  QuizQuizIdQuestionNewRoute: typeof QuizQuizIdQuestionNewRoute
-}
-
-const QuizQuizIdRouteChildren: QuizQuizIdRouteChildren = {
-  QuizQuizIdQuestionQuestionIdRoute: QuizQuizIdQuestionQuestionIdRoute,
-  QuizQuizIdQuestionNewRoute: QuizQuizIdQuestionNewRoute,
-}
-
-const QuizQuizIdRouteWithChildren = QuizQuizIdRoute._addFileChildren(
-  QuizQuizIdRouteChildren,
-)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   TagsRoute: TagsRoute,
-  QuizQuizIdRoute: QuizQuizIdRouteWithChildren,
   QuizNewRoute: QuizNewRoute,
+  QuizQuizIdIndexRoute: QuizQuizIdIndexRoute,
+  QuizQuizIdQuestionQuestionIdRoute: QuizQuizIdQuestionQuestionIdRoute,
+  QuizQuizIdQuestionNewRoute: QuizQuizIdQuestionNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/solid-start'
-declare module '@tanstack/solid-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

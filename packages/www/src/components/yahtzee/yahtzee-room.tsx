@@ -1,6 +1,7 @@
 import {
     createSignal,
     createEffect,
+    untrack,
     createMemo,
     For,
     Show,
@@ -121,53 +122,56 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
         }),
     );
 
-    createEffect(() => {
-        const view = gameView();
-        if (
-            !view ||
-            view.mode !== "lying" ||
-            !view.isMyTurn ||
-            view.phase !== "mid_turn"
-        ) {
-            if (selectedClaimCategory() !== null) {
-                setSelectedClaimCategory(null);
-            }
-            if (claimSeedKey()) {
-                setClaimSeedKey("");
-            }
-            return;
-        }
-
-        const nextKey = [
-            view.currentPlayerId,
-            view.round,
-            view.phase,
-            view.dice.join(","),
-        ].join(":");
-
-        if (claimSeedKey() !== nextKey) {
-            setClaimSeedKey(nextKey);
-            setClaimedDice(
-                view.dice.some((die) => die > 0)
-                    ? ([...view.dice] as Dice)
-                    : [1, 1, 1, 1, 1],
-            );
-
-            const currentCategory = selectedClaimCategory();
-            const me = view.players.find((player) => player.id === view.myId);
+    createEffect(gameView, (view) =>
+        untrack(() => {
             if (
-                currentCategory &&
-                me?.scorecard[currentCategory] === undefined
+                !view ||
+                view.mode !== "lying" ||
+                !view.isMyTurn ||
+                view.phase !== "mid_turn"
             ) {
+                if (selectedClaimCategory() !== null) {
+                    setSelectedClaimCategory(null);
+                }
+                if (claimSeedKey()) {
+                    setClaimSeedKey("");
+                }
                 return;
             }
 
-            const firstOpenCategory = SCORING_CATEGORIES.find(
-                (category) => me?.scorecard[category] === undefined,
-            );
-            setSelectedClaimCategory(firstOpenCategory ?? null);
-        }
-    });
+            const nextKey = [
+                view.currentPlayerId,
+                view.round,
+                view.phase,
+                view.dice.join(","),
+            ].join(":");
+
+            if (claimSeedKey() !== nextKey) {
+                setClaimSeedKey(nextKey);
+                setClaimedDice(
+                    view.dice.some((die) => die > 0)
+                        ? ([...view.dice] as Dice)
+                        : [1, 1, 1, 1, 1],
+                );
+
+                const currentCategory = selectedClaimCategory();
+                const me = view.players.find(
+                    (player) => player.id === view.myId,
+                );
+                if (
+                    currentCategory &&
+                    me?.scorecard[currentCategory] === undefined
+                ) {
+                    return;
+                }
+
+                const firstOpenCategory = SCORING_CATEGORIES.find(
+                    (category) => me?.scorecard[category] === undefined,
+                );
+                setSelectedClaimCategory(firstOpenCategory ?? null);
+            }
+        }),
+    );
 
     const me = createMemo(() => {
         const view = gameView();
@@ -319,9 +323,12 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                                     }}
                                     disabled={!canToggle()}
                                     data-testid={`yahtzee-die-${i}`}
-                                    data-held={gameView()?.held[i] ? "true" : "false"}
+                                    data-held={
+                                        gameView()?.held[i] ? "true" : "false"
+                                    }
                                     data-has-value={
-                                        gameView()?.dice[i] && gameView()!.dice[i] > 0
+                                        gameView()?.dice[i] &&
+                                        gameView()!.dice[i] > 0
                                             ? "true"
                                             : "false"
                                     }
@@ -421,7 +428,10 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                     >
                         <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
                             <span class="font-bebas text-[.85rem] tracking-[.16em] text-[#ddd5c4]">
-                                CLAIMING {CATEGORY_LABELS[selectedClaimCategory()!].toUpperCase()}
+                                CLAIMING{" "}
+                                {CATEGORY_LABELS[
+                                    selectedClaimCategory()!
+                                ].toUpperCase()}
                             </span>
                             <span class="font-bebas text-[.8rem] tracking-[.14em] text-[#e8a87c]">
                                 {claimPoints()} PTS
@@ -453,20 +463,20 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                             </For>
                         </div>
                         <div class="flex gap-2 flex-wrap">
-                                <button
-                                    class="font-bebas text-[.72rem] tracking-[.16em] text-[#ddd5c4] border border-[#e8a87c]/30 px-3 py-1 hover:bg-[#e8a87c]/10 transition-colors"
-                                    onClick={useRealRollForClaim}
-                                    data-testid="yahtzee-use-real-roll-button"
-                                >
-                                    USE REAL ROLL
-                                </button>
-                                <button
-                                    class="font-bebas text-[.82rem] tracking-[.16em] bg-[#ddd5c4] text-[#1a1a1a] border border-[#1a1a1a] px-4 py-1 hover:bg-white transition-colors"
-                                    onClick={submitClaim}
-                                    data-testid="yahtzee-send-claim-button"
-                                >
-                                    SEND CLAIM
-                                </button>
+                            <button
+                                class="font-bebas text-[.72rem] tracking-[.16em] text-[#ddd5c4] border border-[#e8a87c]/30 px-3 py-1 hover:bg-[#e8a87c]/10 transition-colors"
+                                onClick={useRealRollForClaim}
+                                data-testid="yahtzee-use-real-roll-button"
+                            >
+                                USE REAL ROLL
+                            </button>
+                            <button
+                                class="font-bebas text-[.82rem] tracking-[.16em] bg-[#ddd5c4] text-[#1a1a1a] border border-[#1a1a1a] px-4 py-1 hover:bg-white transition-colors"
+                                onClick={submitClaim}
+                                data-testid="yahtzee-send-claim-button"
+                            >
+                                SEND CLAIM
+                            </button>
                         </div>
                     </Show>
                 </div>
@@ -479,8 +489,11 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                 >
                     <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
                         <span class="font-bebas text-[.9rem] tracking-[.16em] text-[#ddd5c4]">
-                            {playerName(gameView()!.pendingClaim!.playerId)} CLAIMS{" "}
-                            {CATEGORY_LABELS[gameView()!.pendingClaim!.category].toUpperCase()}
+                            {playerName(gameView()!.pendingClaim!.playerId)}{" "}
+                            CLAIMS{" "}
+                            {CATEGORY_LABELS[
+                                gameView()!.pendingClaim!.category
+                            ].toUpperCase()}
                         </span>
                         <span class="font-bebas text-[.82rem] tracking-[.16em] text-[#e8a87c]">
                             {gameView()!.pendingClaim!.claimedPoints} PTS
@@ -545,20 +558,31 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                 >
                     <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
                         <span class="font-bebas text-[.82rem] tracking-[.16em] text-[#ddd5c4]">
-                            LAST TURN: {playerName(gameView()!.lastTurnReveal!.playerId)} ON{" "}
-                            {CATEGORY_LABELS[gameView()!.lastTurnReveal!.category].toUpperCase()}
+                            LAST TURN:{" "}
+                            {playerName(gameView()!.lastTurnReveal!.playerId)}{" "}
+                            ON{" "}
+                            {CATEGORY_LABELS[
+                                gameView()!.lastTurnReveal!.category
+                            ].toUpperCase()}
                         </span>
                         <span class="font-bebas text-[.72rem] tracking-[.16em] text-[#e8a87c]">
-                            {revealOutcomeLabel(gameView()!.lastTurnReveal!.outcome)}
+                            {revealOutcomeLabel(
+                                gameView()!.lastTurnReveal!.outcome,
+                            )}
                         </span>
                     </div>
                     <div class="flex gap-6 flex-wrap">
                         <div>
                             <div class="font-bebas text-[.62rem] tracking-[.18em] text-[#e8a87c] mb-1">
-                                CLAIMED ({gameView()!.lastTurnReveal!.claimedPoints} PTS)
+                                CLAIMED (
+                                {gameView()!.lastTurnReveal!.claimedPoints} PTS)
                             </div>
                             <div class="flex gap-2">
-                                <For each={gameView()!.lastTurnReveal!.claimedDice}>
+                                <For
+                                    each={
+                                        gameView()!.lastTurnReveal!.claimedDice
+                                    }
+                                >
                                     {(die) => (
                                         <SvgDice
                                             side={die as 1 | 2 | 3 | 4 | 5 | 6}
@@ -575,7 +599,11 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                                 ACTUAL
                             </div>
                             <div class="flex gap-2">
-                                <For each={gameView()!.lastTurnReveal!.actualDice}>
+                                <For
+                                    each={
+                                        gameView()!.lastTurnReveal!.actualDice
+                                    }
+                                >
                                     {(die) => (
                                         <SvgDice
                                             side={die as 1 | 2 | 3 | 4 | 5 | 6}
@@ -616,7 +644,11 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
                             GAME OVER
                         </span>
                         <div class="flex flex-col gap-1 items-center">
-                            <For each={[...gameView()!.players].sort((a, b) => b.totalScore - a.totalScore)}>
+                            <For
+                                each={[...gameView()!.players].sort(
+                                    (a, b) => b.totalScore - a.totalScore,
+                                )}
+                            >
                                 {(player) => (
                                     <div class="flex items-center gap-2">
                                         <span
@@ -662,9 +694,7 @@ export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
     );
 };
 
-function revealOutcomeLabel(
-    outcome: LyingTurnReveal["outcome"],
-) {
+function revealOutcomeLabel(outcome: LyingTurnReveal["outcome"]) {
     if (outcome === "caught_lying") return "CAUGHT LYING";
     if (outcome === "truthful_challenge") return "CHALLENGE FAILED";
     return "UNCONTESTED";
@@ -686,10 +716,7 @@ function Scorecard(props: {
         props.canScore &&
         props.view.suggestedCategories.includes(category);
 
-    const cellClass = (
-        playerId: string,
-        category: ScoringCategory,
-    ): string => {
+    const cellClass = (playerId: string, category: ScoringCategory): string => {
         const base = "font-karla text-[.75rem] text-center px-2 py-1 ";
         const player = allPlayers().find((p) => p.id === playerId);
         if (!player) return base + "text-[#ddd5c4]/30";
@@ -745,10 +772,7 @@ function Scorecard(props: {
         return base + "text-[#ddd5c4]/10";
     };
 
-    const cellValue = (
-        playerId: string,
-        category: ScoringCategory,
-    ): string => {
+    const cellValue = (playerId: string, category: ScoringCategory): string => {
         const player = allPlayers().find((p) => p.id === playerId);
         if (!player) return "";
 
@@ -774,10 +798,7 @@ function Scorecard(props: {
         return "";
     };
 
-    const handleCellClick = (
-        playerId: string,
-        category: ScoringCategory,
-    ) => {
+    const handleCellClick = (playerId: string, category: ScoringCategory) => {
         if (playerId !== props.myId) return;
         const player = allPlayers().find((p) => p.id === playerId);
         if (!player) return;
@@ -842,7 +863,8 @@ function Scorecard(props: {
                                             }
                                             data-selected-claim={
                                                 player.id === props.myId &&
-                                                props.selectedClaimCategory === cat
+                                                props.selectedClaimCategory ===
+                                                    cat
                                                     ? "true"
                                                     : "false"
                                             }
@@ -903,7 +925,8 @@ function Scorecard(props: {
                                             }
                                             data-selected-claim={
                                                 player.id === props.myId &&
-                                                props.selectedClaimCategory === cat
+                                                props.selectedClaimCategory ===
+                                                    cat
                                                     ? "true"
                                                     : "false"
                                             }

@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { CheeseThiefRoom } from "./cheese-thief-room";
@@ -20,11 +21,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -70,6 +67,7 @@ describe("CheeseThiefRoom", () => {
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /begin discussion/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -84,6 +82,7 @@ describe("CheeseThiefRoom", () => {
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /start voting/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -102,7 +101,9 @@ describe("CheeseThiefRoom", () => {
         const { getByRole, connection } = renderRoom({ view, isHost: false });
 
         fireEvent.click(getByRole("button", { name: /^bob$/i }));
+        flush();
         fireEvent.click(getByRole("button", { name: /^cast vote$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -122,6 +123,7 @@ describe("CheeseThiefRoom", () => {
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
         fireEvent.click(getByRole("button", { name: /reveal votes/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -140,6 +142,7 @@ describe("CheeseThiefRoom", () => {
             isHost: true,
         });
         fireEvent.click(host.getByRole("button", { name: /^end$/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -162,6 +165,7 @@ describe("CheeseThiefRoom", () => {
         });
 
         fireEvent.click(getByRole("button", { name: /^lobby$/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -172,6 +176,7 @@ describe("CheeseThiefRoom", () => {
         expect(getAllByText(/ROUND 1/i).length).toBeGreaterThan(0);
 
         connection.setView(makeView({ phase: "night", round: 7 }));
+        flush();
         expect(getAllByText(/ROUND 7/i).length).toBeGreaterThan(0);
     });
 });

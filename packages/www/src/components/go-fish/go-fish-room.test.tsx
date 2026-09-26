@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { GoFishRoom } from "./go-fish-room";
@@ -16,11 +17,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const connection = createFakeGameConnection<
         GoFishPlayerView,
@@ -87,11 +84,13 @@ describe("GoFishRoom", () => {
         });
 
         fireEvent.click(getByRole("button", { name: /bob/i }));
+        flush();
 
         const handButtons = container.querySelectorAll(
             ".border-t-\\[3px\\] button",
         );
         fireEvent.click(handButtons[0]!);
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -113,6 +112,7 @@ describe("GoFishRoom", () => {
         const { getByRole, connection } = renderRoom({ view, playerId: "p1" });
 
         fireEvent.click(getByRole("button", { name: /go fish!/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -130,7 +130,10 @@ describe("GoFishRoom", () => {
         const { getByText, connection } = renderRoom({ view: initialView });
         expect(getByText(/40 LEFT/i)).toBeInTheDocument();
 
-        connection.setView(makeView({ drawPileCount: 12, myHand: SAMPLE_HAND }));
+        connection.setView(
+            makeView({ drawPileCount: 12, myHand: SAMPLE_HAND }),
+        );
+        flush();
 
         expect(getByText(/12 LEFT/i)).toBeInTheDocument();
     });

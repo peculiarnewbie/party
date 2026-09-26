@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { SkullRoom } from "./skull-room";
@@ -20,11 +21,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -79,6 +76,7 @@ describe("SkullRoom", () => {
             "div.border-2.border-\\[\\#442116\\].bg-\\[\\#f5e3be\\] button",
         );
         fireEvent.click(discButtons[0]!);
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -101,6 +99,7 @@ describe("SkullRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /start challenge/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -126,6 +125,7 @@ describe("SkullRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^pass$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -161,6 +161,7 @@ describe("SkullRoom", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /flip top disc/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -176,6 +177,7 @@ describe("SkullRoom", () => {
 
         const host = renderRoom({ isHost: true });
         fireEvent.click(host.getByRole("button", { name: /^end$/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -199,6 +201,7 @@ describe("SkullRoom", () => {
 
         expect(getAllByText("GAME OVER").length).toBeGreaterThan(0);
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -209,6 +212,7 @@ describe("SkullRoom", () => {
         expect(getByText("TURN PREP")).toBeInTheDocument();
 
         connection.setView(makeView({ phase: "auction", highestBid: 2 }));
+        flush();
 
         expect(getAllByText("AUCTION").length).toBeGreaterThan(0);
     });

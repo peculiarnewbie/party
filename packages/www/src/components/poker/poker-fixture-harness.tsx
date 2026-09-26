@@ -1,4 +1,4 @@
-import { onMount } from "solid-js";
+import { onSettled } from "solid-js";
 import { PokerRoom } from "~/components/poker/poker-room";
 import type { PokerPlayerView } from "~/game/poker";
 import type {
@@ -51,7 +51,7 @@ export function PokerFixtureHarness(props: PokerFixtureHarnessProps) {
 
     const isHost = fixture.hostPlayerId === props.playerId;
 
-    onMount(() => {
+    onSettled(() => {
         window.__POKER_FIXTURE__ = fixtureState;
     });
 

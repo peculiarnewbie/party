@@ -18,7 +18,12 @@ export function createRpsGameConnection(
     const fold = createRpsFold(playerId());
     const [snapshotView, setSnapshotView] = createSignal<
         import("./schemas").RpsPlayerView | null
-    >(null);
+    >(() => {
+        const cached = transport.latest("rps:state") as {
+            data?: import("./schemas").RpsPlayerView;
+        } | null;
+        return cached?.data ?? null;
+    });
     const handlers = new Set<(event: RpsSideEvent) => void>();
     let syncPending = false;
 
@@ -86,13 +91,6 @@ export function createRpsGameConnection(
             handler(message as unknown as RpsSideEvent);
         }
     };
-
-    const cached = transport.latest("rps:state") as {
-        data?: import("./schemas").RpsPlayerView;
-    } | null;
-    if (cached?.data) {
-        setSnapshotView(() => cached.data as import("./schemas").RpsPlayerView);
-    }
 
     const unsubscribe = transport.subscribe(handleMessage);
 

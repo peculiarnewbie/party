@@ -42,6 +42,7 @@ export const makeQuizManagerStack = (
                 },
                 assets: {
                     runWorkerFirst: true,
+                    notFoundHandling: "single-page-application",
                 },
                 env: {
                     DB: db,

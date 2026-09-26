@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { CockroachPokerRoom } from "./cockroach-poker-room";
@@ -6,10 +7,7 @@ import type {
     CockroachPokerClientOutgoing,
     CockroachPokerSideEvent,
 } from "~/game/cockroach-poker/connection";
-import {
-    makeOfferChain,
-    makeView,
-} from "~/game/cockroach-poker/test-helpers";
+import { makeOfferChain, makeView } from "~/game/cockroach-poker/test-helpers";
 import type { CockroachPokerPlayerView } from "~/game/cockroach-poker/views";
 
 function renderRoom(
@@ -19,11 +17,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -79,10 +73,14 @@ describe("CockroachPokerRoom", () => {
 
         // "Bat" appears in both hand and claim row; hand card is first.
         fireEvent.click(getAllByRole("button", { name: /^bat$/i })[0]!);
+        flush();
         fireEvent.click(getByRole("button", { name: /^bob$/i }));
+        flush();
         // "Rat" is only in the claim row (not in myHand).
         fireEvent.click(getByRole("button", { name: /^rat$/i }));
+        flush();
         fireEvent.click(getByRole("button", { name: /offer card/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -110,6 +108,7 @@ describe("CockroachPokerRoom", () => {
         });
 
         fireEvent.click(getByRole("button", { name: /^true$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -136,6 +135,7 @@ describe("CockroachPokerRoom", () => {
         });
 
         fireEvent.click(getByRole("button", { name: /^false$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -164,8 +164,11 @@ describe("CockroachPokerRoom", () => {
         });
 
         fireEvent.click(getByRole("button", { name: /^carol$/i }));
+        flush();
         fireEvent.click(getByRole("button", { name: /^spider$/i }));
+        flush();
         fireEvent.click(getByRole("button", { name: /peek & pass/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -184,6 +187,7 @@ describe("CockroachPokerRoom", () => {
             isHost: true,
         });
         fireEvent.click(host.getByRole("button", { name: /^end$/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -201,6 +205,7 @@ describe("CockroachPokerRoom", () => {
         expect(getByText("GAME OVER")).toBeInTheDocument();
         expect(getByText("YOU WIN")).toBeInTheDocument();
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -218,6 +223,7 @@ describe("CockroachPokerRoom", () => {
                 offerChain: makeOfferChain(),
             }),
         );
+        flush();
 
         expect(getByText("RESPONDING")).toBeInTheDocument();
     });

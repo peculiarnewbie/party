@@ -1,11 +1,4 @@
-import {
-    createSignal,
-    For,
-    Show,
-    Switch,
-    Match,
-    onCleanup,
-} from "solid-js";
+import { createSignal, For, Show, Switch, Match, onCleanup } from "solid-js";
 import type { Component } from "solid-js";
 import type { HerdPlayerView, AnswerGroupView } from "~/game/herd/views";
 import type { HerdConnection } from "~/game/herd/connection";
@@ -119,7 +112,10 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
     };
 
     return (
-        <div data-testid="herd-room" class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla">
+        <div
+            data-testid="herd-room"
+            class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla"
+        >
             <Show when={view()} keyed>
                 {(v) => (
                     <div class="max-w-3xl mx-auto px-4 py-6">
@@ -131,7 +127,8 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                 <div class="font-bebas text-[.75rem] tracking-[.2em] text-[#9a9080]">
                                     ROOM {props.roomId.toUpperCase()}
                                     <Show when={v.roundNumber > 0}>
-                                        {" "}&middot; ROUND {v.roundNumber}
+                                        {" "}
+                                        &middot; ROUND {v.roundNumber}
                                     </Show>
                                 </div>
                             </div>
@@ -153,10 +150,16 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                         <WaitingPhase
                                             view={v}
                                             customQuestion={customQuestionInput()}
-                                            setCustomQuestion={setCustomQuestionInput}
+                                            setCustomQuestion={
+                                                setCustomQuestionInput
+                                            }
                                             onNextQuestion={handleNextQuestion}
-                                            onTogglePinkCow={handleTogglePinkCow}
-                                            onReturnToLobby={props.onReturnToLobby}
+                                            onTogglePinkCow={
+                                                handleTogglePinkCow
+                                            }
+                                            onReturnToLobby={
+                                                props.onReturnToLobby
+                                            }
                                         />
                                     </Match>
                                     <Match when={v.phase === "answering"}>
@@ -167,7 +170,9 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                             editingAnswer={editingAnswer()}
                                             onSubmit={handleSubmitAnswer}
                                             onChangeAnswer={() => {
-                                                setAnswerInput(v.myAnswer ?? "");
+                                                setAnswerInput(
+                                                    v.myAnswer ?? "",
+                                                );
                                                 setEditingAnswer(true);
                                             }}
                                             onCloseAnswers={handleCloseAnswers}
@@ -179,7 +184,9 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                             selectedGroups={selectedGroups()}
                                             onToggleGroup={toggleGroupSelection}
                                             onMerge={handleMerge}
-                                            onConfirmScoring={handleConfirmScoring}
+                                            onConfirmScoring={
+                                                handleConfirmScoring
+                                            }
                                         />
                                     </Match>
                                     <Match when={v.phase === "scored"}>
@@ -192,7 +199,9 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                         <GameOverPhase
                                             view={v}
                                             playerName={playerName}
-                                            onReturnToLobby={props.onReturnToLobby}
+                                            onReturnToLobby={
+                                                props.onReturnToLobby
+                                            }
                                         />
                                     </Match>
                                 </Switch>
@@ -244,7 +253,9 @@ const WaitingPhase: Component<{
                     <input
                         type="text"
                         value={props.customQuestion}
-                        onInput={(e) => props.setCustomQuestion(e.currentTarget.value)}
+                        onInput={(e) =>
+                            props.setCustomQuestion(e.currentTarget.value)
+                        }
                         placeholder="Leave blank to use question bank..."
                         class="w-full border-2 border-[#1a1a1a] bg-[#ddd5c4] px-3 py-2 text-[.9rem] font-karla focus:outline-none focus:ring-2 focus:ring-[#1a3a6e]"
                     />
@@ -255,7 +266,9 @@ const WaitingPhase: Component<{
                     onClick={props.onNextQuestion}
                     class="w-full font-bebas text-[1.1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a] mb-4"
                 >
-                    {props.view.roundNumber === 0 ? "START FIRST QUESTION" : "NEXT QUESTION"}
+                    {props.view.roundNumber === 0
+                        ? "START FIRST QUESTION"
+                        : "NEXT QUESTION"}
                 </button>
 
                 <div class="flex items-center justify-between border-t border-[#9a9080] pt-4">
@@ -266,7 +279,9 @@ const WaitingPhase: Component<{
                         <button
                             type="button"
                             onClick={() =>
-                                props.onTogglePinkCow(!props.view.pinkCowEnabled)
+                                props.onTogglePinkCow(
+                                    !props.view.pinkCowEnabled,
+                                )
                             }
                             class={`relative w-10 h-5 border-2 border-[#1a1a1a] transition-colors duration-200 ${
                                 props.view.pinkCowEnabled
@@ -306,8 +321,7 @@ const AnsweringPhase: Component<{
     onChangeAnswer: () => void;
     onCloseAnswers: () => void;
 }> = (props) => {
-    const showForm = () =>
-        !props.view.hasAnswered || props.editingAnswer;
+    const showForm = () => !props.view.hasAnswered || props.editingAnswer;
     return (
         <div>
             <div class="border-2 border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] p-6 shadow-[4px_4px_0_#1a1a1a] mb-4">
@@ -351,19 +365,23 @@ const AnsweringPhase: Component<{
                                     type="text"
                                     value={props.answerInput}
                                     onInput={(e) =>
-                                        props.setAnswerInput(e.currentTarget.value)
+                                        props.setAnswerInput(
+                                            e.currentTarget.value,
+                                        )
                                     }
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter") props.onSubmit();
                                     }}
                                     placeholder="Type your answer..."
-                                    maxLength={200}
+                                    maxlength={200}
                                     class="flex-1 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-3 py-2 text-[.95rem] font-karla focus:outline-none focus:ring-2 focus:ring-[#1a3a6e]"
                                 />
                                 <button
                                     type="button"
                                     onClick={props.onSubmit}
-                                    disabled={props.answerInput.trim().length === 0}
+                                    disabled={
+                                        props.answerInput.trim().length === 0
+                                    }
                                     class="font-bebas text-[.95rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-4 py-2 shadow-[2px_2px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1a1a1a] disabled:opacity-40 disabled:pointer-events-none"
                                 >
                                     SUBMIT
@@ -427,7 +445,8 @@ const RevealPhase: Component<{
             <Show when={props.view.isHost}>
                 <div class="border-2 border-[#1a1a1a] bg-[#c0261a] text-[#ddd5c4] px-4 py-3 shadow-[3px_3px_0_#1a1a1a] mb-4">
                     <div class="font-bebas text-[.8rem] tracking-[.16em]">
-                        SELECT TWO GROUPS TO MERGE SYNONYMS / TYPOS, THEN CONFIRM SCORING
+                        SELECT TWO GROUPS TO MERGE SYNONYMS / TYPOS, THEN
+                        CONFIRM SCORING
                     </div>
                 </div>
             </Show>
@@ -494,8 +513,7 @@ const AnswerGroupCard: Component<{
 }> = (props) => {
     const borderColor = () =>
         props.isSelected ? "border-[#c0261a]" : "border-[#1a1a1a]";
-    const bgColor = () =>
-        props.isSelected ? "bg-[#e8d8c8]" : "bg-[#c9c0b0]";
+    const bgColor = () => (props.isSelected ? "bg-[#e8d8c8]" : "bg-[#c9c0b0]");
 
     return (
         <div
@@ -519,7 +537,9 @@ const AnswerGroupCard: Component<{
                     {(name, i) => (
                         <span>
                             {name}
-                            <Show when={i() < props.group.playerNames.length - 1}>
+                            <Show
+                                when={i() < props.group.playerNames.length - 1}
+                            >
                                 ,{" "}
                             </Show>
                         </span>
@@ -580,18 +600,15 @@ const ScoredPhase: Component<{
                             "{mg().canonicalAnswer}"
                         </div>
                         <div class="text-[.85rem] text-[#5a5040]">
-                            {result()!.scoringPlayerIds.length} player{result()!.scoringPlayerIds.length !== 1 ? "s" : ""} scored!
+                            {result()!.scoringPlayerIds.length} player
+                            {result()!.scoringPlayerIds.length !== 1 ? "s" : ""}{" "}
+                            scored!
                         </div>
                     </div>
                 )}
             </Show>
 
-            <Show
-                when={
-                    props.view.pinkCowEnabled &&
-                    result()?.pinkCowPlayerId
-                }
-            >
+            <Show when={props.view.pinkCowEnabled && result()?.pinkCowPlayerId}>
                 <div class="border-2 border-[#1a1a1a] bg-[#c0261a] text-[#ddd5c4] p-4 shadow-[3px_3px_0_#1a1a1a] mb-4 text-center">
                     <div class="font-bebas text-[1rem] tracking-[.12em]">
                         PINK COW GOES TO{" "}
@@ -643,7 +660,9 @@ const ScoredPhase: Component<{
                                                 <Show
                                                     when={
                                                         i() <
-                                                        group.playerNames.length - 1
+                                                        group.playerNames
+                                                            .length -
+                                                            1
                                                     }
                                                 >
                                                     ,{" "}
@@ -690,7 +709,8 @@ const GameOverPhase: Component<{
                 {winnerName()} WINS!
             </h2>
             <p class="text-[.9rem] text-[#5a5040] mb-6">
-                After {props.view.roundNumber} round{props.view.roundNumber !== 1 ? "s" : ""}
+                After {props.view.roundNumber} round
+                {props.view.roundNumber !== 1 ? "s" : ""}
             </p>
             <Show when={props.view.isHost}>
                 <button
@@ -731,7 +751,9 @@ const Leaderboard: Component<{
                                 <div class="flex items-center gap-2 min-w-0">
                                     <span
                                         class={`font-bebas text-[.75rem] tracking-[.1em] w-5 shrink-0 ${
-                                            isMe() ? "text-[#b8ae9e]" : "text-[#9a9080]"
+                                            isMe()
+                                                ? "text-[#b8ae9e]"
+                                                : "text-[#9a9080]"
                                         }`}
                                     >
                                         {i() + 1}.

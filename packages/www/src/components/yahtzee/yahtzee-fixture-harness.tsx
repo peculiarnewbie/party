@@ -1,4 +1,4 @@
-import { onMount } from "solid-js";
+import { onSettled } from "solid-js";
 import { YahtzeeRoom } from "~/components/yahtzee/yahtzee-room";
 import { buildFixtureTranscript } from "~/game/yahtzee/fixture-transcripts";
 import type { YahtzeeFixtureEnvelope } from "~/game/yahtzee/fixture-transcripts";
@@ -69,7 +69,7 @@ export function YahtzeeFixtureHarness(props: YahtzeeFixtureHarnessProps) {
 
     const isHost = transcript.hostPlayerId === props.playerId;
 
-    onMount(() => {
+    onSettled(() => {
         window.__YAHTZEE_FIXTURE__ = fixtureState;
         queueMicrotask(() => {
             for (const envelope of initialMessages) {

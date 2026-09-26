@@ -1,3 +1,4 @@
+import { flush } from "solid-js";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { Flip7Room } from "./flip-7-room";
@@ -20,11 +21,7 @@ function renderRoom(
         isHost?: boolean;
     } = {},
 ) {
-    const {
-        view = makeView(),
-        playerId = "p1",
-        isHost = false,
-    } = options;
+    const { view = makeView(), playerId = "p1", isHost = false } = options;
 
     const onEndGame = vi.fn();
     const onReturnToLobby = vi.fn();
@@ -89,6 +86,7 @@ describe("Flip7Room", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^hit$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -108,6 +106,7 @@ describe("Flip7Room", () => {
         const { getByRole, connection } = renderRoom({ view });
 
         fireEvent.click(getByRole("button", { name: /^stay$/i }));
+        flush();
 
         expect(connection.sentMessages).toEqual([
             {
@@ -119,12 +118,11 @@ describe("Flip7Room", () => {
 
     it("shows END GAME button only for host (not during game_over)", () => {
         const guest = renderRoom({ isHost: false });
-        expect(
-            guest.queryByRole("button", { name: /end game/i }),
-        ).toBeNull();
+        expect(guest.queryByRole("button", { name: /end game/i })).toBeNull();
 
         const host = renderRoom({ isHost: true });
         fireEvent.click(host.getByRole("button", { name: /end game/i }));
+        flush();
         expect(host.onEndGame).toHaveBeenCalledTimes(1);
     });
 
@@ -145,6 +143,7 @@ describe("Flip7Room", () => {
 
         expect(getAllByText(/GAME OVER/i).length).toBeGreaterThan(0);
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
+        flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
@@ -154,6 +153,7 @@ describe("Flip7Room", () => {
             type: "flip_7:error",
             data: { message: "You can't hit right now" },
         });
+        flush();
         expect(getByText(/can't hit right now/i)).toBeInTheDocument();
     });
 
@@ -164,6 +164,7 @@ describe("Flip7Room", () => {
         expect(getByText(/ROUND 1/i)).toBeInTheDocument();
 
         connection.setView(makeView({ roundNumber: 2 }));
+        flush();
         expect(getByText(/ROUND 2/i)).toBeInTheDocument();
     });
 
