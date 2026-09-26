@@ -1,22 +1,12 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import {
-    createMemo,
-    onSettled,
-    Switch,
-    Match,
-    Show,
-    lazy,
-} from "solid-js";
+import { createMemo, onSettled, Switch, Match, Show, lazy } from "solid-js";
 import { RoomLobby } from "~/components/room-lobby";
 import { SampleQuizRoom } from "~/components/sample-quiz-room";
 import { GoFishRoom } from "~/components/go-fish/go-fish-room";
 import { PokerRoom } from "~/components/poker/poker-room";
 import { createGameConnectionFromTransport } from "~/game/connection-from-transport";
 import type { PokerConnection } from "~/game/poker/connection";
-import {
-    pokerPlayerViewSchema,
-    pokerServerMessageSchema,
-} from "~/game/poker";
+import { pokerPlayerViewSchema, pokerServerMessageSchema } from "~/game/poker";
 import {
     goFishPlayerViewSchema,
     goFishServerMessageSchema,
@@ -33,10 +23,7 @@ import {
     perudoPlayerViewSchema,
     perudoServerMessageSchema,
 } from "~/game/perudo";
-import {
-    herdPlayerViewSchema,
-    herdServerMessageSchema,
-} from "~/game/herd";
+import { herdPlayerViewSchema, herdServerMessageSchema } from "~/game/herd";
 import {
     funFactsPlayerViewSchema,
     funFactsServerMessageSchema,
@@ -49,18 +36,9 @@ import {
     cockroachPokerPlayerViewSchema,
     cockroachPokerServerMessageSchema,
 } from "~/game/cockroach-poker";
-import {
-    flip7PlayerViewSchema,
-    flip7ServerMessageSchema,
-} from "~/game/flip-7";
-import {
-    skullPlayerViewSchema,
-    skullServerMessageSchema,
-} from "~/game/skull";
-import {
-    spicyPlayerViewSchema,
-    spicyServerMessageSchema,
-} from "~/game/spicy";
+import { flip7PlayerViewSchema, flip7ServerMessageSchema } from "~/game/flip-7";
+import { skullPlayerViewSchema, skullServerMessageSchema } from "~/game/skull";
+import { spicyPlayerViewSchema, spicyServerMessageSchema } from "~/game/spicy";
 import type { YahtzeeConnection } from "~/game/yahtzee/connection";
 import type { GoFishConnection } from "~/game/go-fish/connection";
 import type { BlackjackConnection } from "~/game/blackjack/connection";
@@ -99,10 +77,9 @@ import {
 import { setCookie } from "~/utils/cookies";
 import { normalizeRoomId } from "~/utils/room-id";
 import { createRpsGameConnection } from "~/game/rps/create-game-connection";
-import {
-    createRoomClientPool,
-} from "~/room/room-client-pool";
+import { createRoomClientPool } from "~/room/room-client-pool";
 import { installPartyDevtoolsApi } from "~/room/devtools-api";
+import { PartyDisplay } from "~/components/party-display";
 
 const MultiplayerDevtools = lazy(() =>
     import("~/components/dev/multiplayer-devtools").then((module) => ({
@@ -122,15 +99,36 @@ const defaultRoomState = (): RoomStatePayload => ({
 
 export const Route = createFileRoute("/room/$roomId/")({
     component: RouteComponent,
+    validateSearch: (
+        search: Record<string, unknown>,
+    ): { view?: "display" | "controller" } => ({
+        view:
+            search.view === "display" || search.view === "controller"
+                ? search.view
+                : undefined,
+    }),
 });
 
 function RouteComponent() {
     const params = Route.useParams();
+    const search = Route.useSearch();
+    return (
+        <Show when={search().view === "display"} fallback={<PlayerRoom />}>
+            <PartyDisplay roomId={normalizeRoomId(params().roomId)} />
+        </Show>
+    );
+}
+
+function PlayerRoom() {
+    const params = Route.useParams();
+    const search = Route.useSearch();
     const roomId = () => normalizeRoomId(params().roomId);
 
     onSettled(() => {
         if (roomId() !== params().roomId) {
-            window.location.replace(`/room/${roomId()}`);
+            window.location.replace(
+                `/room/${roomId()}${window.location.search}`,
+            );
         }
     });
 
@@ -210,7 +208,9 @@ function RouteComponent() {
         () =>
             roomPhase() !== "playing" ||
             (myGameParticipant() !== null && myGameStatus() !== "left_game") ||
-            (isActivePokerGame() && isJoined() && myGameStatus() !== "left_game"),
+            (isActivePokerGame() &&
+                isJoined() &&
+                myGameStatus() !== "left_game"),
     );
 
     return (
@@ -290,7 +290,8 @@ function RouteComponent() {
                                     prefix: "go_fish:",
                                     envelope,
                                     playerViewSchema: goFishPlayerViewSchema,
-                                    serverMessageSchema: goFishServerMessageSchema,
+                                    serverMessageSchema:
+                                        goFishServerMessageSchema,
                                 },
                             );
                             return (
@@ -322,7 +323,8 @@ function RouteComponent() {
                                     prefix: "poker:",
                                     envelope,
                                     playerViewSchema: pokerPlayerViewSchema,
-                                    serverMessageSchema: pokerServerMessageSchema,
+                                    serverMessageSchema:
+                                        pokerServerMessageSchema,
                                 },
                             );
                             return (
@@ -331,6 +333,16 @@ function RouteComponent() {
                                     playerId={playerId()}
                                     isHost={isHost()}
                                     connection={connection}
+                                    initialLayout={
+                                        search().view === "controller"
+                                            ? "controller"
+                                            : "table"
+                                    }
+                                    visibilityMode={
+                                        activeGameType() === "backwards_poker"
+                                            ? "backwards"
+                                            : "standard"
+                                    }
                                     title={
                                         activeGameType() === "backwards_poker"
                                             ? "Backwards Poker"
@@ -359,16 +371,15 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: BlackjackConnection = gameConnection(
-                                "blackjack",
-                                {
+                            const connection: BlackjackConnection =
+                                gameConnection("blackjack", {
                                     stateType: "blackjack:state",
                                     prefix: "blackjack:",
                                     envelope,
                                     playerViewSchema: blackjackPlayerViewSchema,
-                                    serverMessageSchema: blackjackServerMessageSchema,
-                                },
-                            );
+                                    serverMessageSchema:
+                                        blackjackServerMessageSchema,
+                                });
                             return (
                                 <BlackjackRoom
                                     roomId={roomId()}
@@ -398,16 +409,15 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: YahtzeeConnection = gameConnection(
-                                "yahtzee",
-                                {
+                            const connection: YahtzeeConnection =
+                                gameConnection("yahtzee", {
                                     stateType: "yahtzee:state",
                                     prefix: "yahtzee:",
                                     envelope,
                                     playerViewSchema: yahtzeePlayerViewSchema,
-                                    serverMessageSchema: yahtzeeServerMessageSchema,
-                                },
-                            );
+                                    serverMessageSchema:
+                                        yahtzeeServerMessageSchema,
+                                });
                             return (
                                 <YahtzeeRoom
                                     roomId={roomId()}
@@ -438,16 +448,15 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: YahtzeeConnection = gameConnection(
-                                "yahtzee",
-                                {
+                            const connection: YahtzeeConnection =
+                                gameConnection("yahtzee", {
                                     stateType: "yahtzee:state",
                                     prefix: "yahtzee:",
                                     envelope,
                                     playerViewSchema: yahtzeePlayerViewSchema,
-                                    serverMessageSchema: yahtzeeServerMessageSchema,
-                                },
-                            );
+                                    serverMessageSchema:
+                                        yahtzeeServerMessageSchema,
+                                });
                             return (
                                 <YahtzeeRoom
                                     roomId={roomId()}
@@ -485,7 +494,8 @@ function RouteComponent() {
                                     prefix: "perudo:",
                                     envelope,
                                     playerViewSchema: perudoPlayerViewSchema,
-                                    serverMessageSchema: perudoServerMessageSchema,
+                                    serverMessageSchema:
+                                        perudoServerMessageSchema,
                                 },
                             );
                             return (
@@ -516,10 +526,13 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: RpsConnection = client().getGameConnection(
-                                "rps",
-                                () => createRpsGameConnection(client().transport, envelope),
-                            );
+                            const connection: RpsConnection =
+                                client().getGameConnection("rps", () =>
+                                    createRpsGameConnection(
+                                        client().transport,
+                                        envelope,
+                                    ),
+                                );
                             return (
                                 <RpsRoom
                                     roomId={roomId()}
@@ -555,7 +568,8 @@ function RouteComponent() {
                                     prefix: "herd:",
                                     envelope,
                                     playerViewSchema: herdPlayerViewSchema,
-                                    serverMessageSchema: herdServerMessageSchema,
+                                    serverMessageSchema:
+                                        herdServerMessageSchema,
                                 },
                             );
                             return (
@@ -587,16 +601,15 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: FunFactsConnection = gameConnection(
-                                "fun_facts",
-                                {
+                            const connection: FunFactsConnection =
+                                gameConnection("fun_facts", {
                                     stateType: "fun_facts:state",
                                     prefix: "fun_facts:",
                                     envelope,
                                     playerViewSchema: funFactsPlayerViewSchema,
-                                    serverMessageSchema: funFactsServerMessageSchema,
-                                },
-                            );
+                                    serverMessageSchema:
+                                        funFactsServerMessageSchema,
+                                });
                             return (
                                 <FunFactsRoom
                                     roomId={roomId()}
@@ -626,16 +639,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: CheeseThiefConnection = gameConnection(
-                                "cheese_thief",
-                                {
+                            const connection: CheeseThiefConnection =
+                                gameConnection("cheese_thief", {
                                     stateType: "cheese_thief:state",
                                     prefix: "cheese_thief:",
                                     envelope,
-                                    playerViewSchema: cheeseThiefPlayerViewSchema,
-                                    serverMessageSchema: cheeseThiefServerMessageSchema,
-                                },
-                            );
+                                    playerViewSchema:
+                                        cheeseThiefPlayerViewSchema,
+                                    serverMessageSchema:
+                                        cheeseThiefServerMessageSchema,
+                                });
                             return (
                                 <CheeseThiefRoom
                                     roomId={roomId()}
@@ -665,16 +678,16 @@ function RouteComponent() {
                         }
                     >
                         {(() => {
-                            const connection: CockroachPokerConnection = gameConnection(
-                                "cockroach_poker",
-                                {
+                            const connection: CockroachPokerConnection =
+                                gameConnection("cockroach_poker", {
                                     stateType: "cockroach_poker:state",
                                     prefix: "cockroach_poker:",
                                     envelope,
-                                    playerViewSchema: cockroachPokerPlayerViewSchema,
-                                    serverMessageSchema: cockroachPokerServerMessageSchema,
-                                },
-                            );
+                                    playerViewSchema:
+                                        cockroachPokerPlayerViewSchema,
+                                    serverMessageSchema:
+                                        cockroachPokerServerMessageSchema,
+                                });
                             return (
                                 <CockroachPokerRoom
                                     roomId={roomId()}
@@ -711,7 +724,8 @@ function RouteComponent() {
                                     prefix: "flip_7:",
                                     envelope,
                                     playerViewSchema: flip7PlayerViewSchema,
-                                    serverMessageSchema: flip7ServerMessageSchema,
+                                    serverMessageSchema:
+                                        flip7ServerMessageSchema,
                                 },
                             );
                             return (
@@ -750,7 +764,8 @@ function RouteComponent() {
                                     prefix: "skull:",
                                     envelope,
                                     playerViewSchema: skullPlayerViewSchema,
-                                    serverMessageSchema: skullServerMessageSchema,
+                                    serverMessageSchema:
+                                        skullServerMessageSchema,
                                 },
                             );
                             return (
@@ -789,7 +804,8 @@ function RouteComponent() {
                                     prefix: "spicy:",
                                     envelope,
                                     playerViewSchema: spicyPlayerViewSchema,
-                                    serverMessageSchema: spicyServerMessageSchema,
+                                    serverMessageSchema:
+                                        spicyServerMessageSchema,
                                 },
                             );
                             return (
@@ -827,7 +843,8 @@ function RouteComponent() {
                                     prefix: "player_answered",
                                     envelope,
                                     playerViewSchema: quizPlayerViewSchema,
-                                    serverMessageSchema: quizServerMessageSchema,
+                                    serverMessageSchema:
+                                        quizServerMessageSchema,
                                 },
                             );
                             return (

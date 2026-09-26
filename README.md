@@ -2,6 +2,8 @@
 
 Casual multiplayer party game app built with Solid 2, TanStack Router, and Effect, deployed on Cloudflare Workers.
 
+**Party mode** puts the public table on a shared screen while everyone plays from their own phone. Texas Hold’em and Backwards Poker support private phone controls; open **Party mode → Open Party screen** from a room lobby and scan the QR code. [Party mode details](packages/www/README.md).
+
 This is a pnpm workspace. The party app lives in `packages/www`; the quiz administration app lives in `packages/quiz-manager`.
 
 Both apps use Vite client rendering and direct Worker entrypoints. Quiz administration uses Effect RPC for every browser data operation. RPS pilots Effect RPC commands and resynchronization with an Effect Stream consuming hibernatable WebSocket updates. Other games retain their existing WebSocket protocols. Pure game logic remains independent of UI and transport.

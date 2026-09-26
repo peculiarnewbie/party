@@ -62,6 +62,11 @@ export function PokerFixtureHarness(props: PokerFixtureHarnessProps) {
             isHost={isHost}
             connection={connection}
             title={fixture.title}
+            visibilityMode={
+                props.fixtureId === "backwards-visible-opponents"
+                    ? "backwards"
+                    : "standard"
+            }
             onEndGame={() => {
                 fixtureState.hostActions.push("end_game");
                 window.__POKER_FIXTURE__ = fixtureState;

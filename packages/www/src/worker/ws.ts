@@ -45,6 +45,8 @@ import {
     type RpsServerMessage,
 } from "~/game/rps/schemas";
 import type { RpsClientMessage } from "~/game/rps/messages";
+import { getPokerTableView } from "~/game/poker/table-view";
+import { displayMessageSchema, type DisplayState } from "~/room/display-protocol";
 
 const HIBERNATION_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 const MAX_WEBSOCKET_MESSAGE_BYTES = 64 * 1024;
@@ -71,6 +73,7 @@ function isRoomSession(value: unknown): value is RoomSession {
 
 export class GameRoom extends DurableObject {
     sessions: Map<WebSocket, RoomSession>;
+    displaySockets: Set<WebSocket>;
     playerSockets: Map<string, Set<WebSocket>>;
     state: GameState;
     gameStateHolder: { current: unknown };
@@ -83,6 +86,7 @@ export class GameRoom extends DurableObject {
     constructor(ctx: DurableObjectState, env: Env) {
         super(ctx, env);
         this.sessions = new Map();
+        this.displaySockets = new Set();
         this.playerSockets = new Map();
         this.state = createDefaultState();
         this.gameStateHolder = { current: null };
@@ -92,6 +96,10 @@ export class GameRoom extends DurableObject {
         this.messageQueue = Promise.resolve();
         for (const ws of this.ctx.getWebSockets()) {
             const attachment = ws.deserializeAttachment();
+            if (attachment?.role === "display") {
+                this.displaySockets.add(ws);
+                continue;
+            }
             if (!isRoomSession(attachment)) {
                 ws.close(1011, "Invalid room session");
                 continue;
@@ -219,6 +227,7 @@ export class GameRoom extends DurableObject {
                 result: "room_state",
             }),
         );
+        this.broadcastDisplayState();
     }
 
     getCurrentGameSnapshot(): PersistedGameSnapshot | null {
@@ -244,6 +253,37 @@ export class GameRoom extends DurableObject {
                 result: snapshot ? "snapshot" : "snapshot_cleared",
             }),
         );
+        this.broadcastDisplayState();
+    }
+
+    displayStateMessage() {
+        const snapshot = this.getCurrentGameSnapshot();
+        const data: DisplayState = {
+            phase: this.state.phase,
+            selectedGameType: this.state.selectedGameType,
+            activeGameType: this.state.activeGameType,
+            players: this.state.players.map(({ id, name }) => ({ id, name })),
+            poker:
+                this.state.phase === "playing" &&
+                (snapshot?.gameType === "poker" || snapshot?.gameType === "backwards_poker")
+                    ? getPokerTableView(snapshot.state)
+                    : null,
+        };
+        return JSON.stringify(
+            Schema.encodeSync(displayMessageSchema)({ type: "display:state", data }),
+        );
+    }
+
+    broadcastDisplayState() {
+        if (this.displaySockets.size === 0) return;
+        const message = this.displayStateMessage();
+        for (const socket of this.displaySockets) {
+            try {
+                socket.send(message);
+            } catch {
+                this.displaySockets.delete(socket);
+            }
+        }
     }
 
     persistAllState() {
@@ -468,6 +508,7 @@ export class GameRoom extends DurableObject {
                 result: "alarm-reset",
             }),
         );
+        this.broadcastDisplayState();
     }
 
     roomStateMessage() {
@@ -671,6 +712,13 @@ export class GameRoom extends DurableObject {
 
         this.ctx.acceptWebSocket(serverWs);
 
+        if (new URL(request.url).searchParams.get("view") === "display") {
+            serverWs.serializeAttachment({ role: "display" });
+            this.displaySockets.add(serverWs);
+            serverWs.send(this.displayStateMessage());
+            return new Response(null, { status: 101, webSocket: client });
+        }
+
         const session: RoomSession = {
             id: crypto.randomUUID(),
             playerId: null,
@@ -700,6 +748,10 @@ export class GameRoom extends DurableObject {
         message: string | ArrayBuffer,
     ) {
         await this.ready;
+        if (this.displaySockets.has(serverWs)) {
+            serverWs.close(1008, "Party displays are read-only");
+            return;
+        }
         if (typeof message !== "string") {
             return;
         }
@@ -1309,6 +1361,7 @@ export class GameRoom extends DurableObject {
     }
 
     async handleSocketDisconnect(serverWs: WebSocket) {
+        if (this.displaySockets.delete(serverWs)) return;
         const { broadcast, broadcastRoomState, getAdapter, sendTo } =
             this.createSocketOperations();
         const session = this.removeSession(serverWs);

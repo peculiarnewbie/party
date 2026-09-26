@@ -81,6 +81,18 @@ export const pokerEventSchema = Schema.Union([
         type: Schema.mutableKey(Schema.Literal("showdown")),
         message: Schema.mutableKey(Schema.String),
         street: Schema.mutableKey(pokerStreetSchema),
+        revealedHands: Schema.optionalKey(
+            Schema.mutableKey(
+                Schema.mutable(
+                    Schema.Array(
+                        Schema.Struct({
+                            playerId: Schema.String,
+                            cards: Schema.mutable(Schema.Array(cardSchema)),
+                        }),
+                    ),
+                ),
+            ),
+        ),
     }),
     Schema.Struct({
         id: Schema.mutableKey(Schema.Number),
@@ -125,7 +137,9 @@ export const pokerPlayerPublicViewSchema = Schema.Struct({
     committedThisStreet: Schema.mutableKey(Schema.Number),
     committedThisHand: Schema.mutableKey(Schema.Number),
     holeCardCount: Schema.mutableKey(Schema.Number),
-    visibleHoleCards: Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+    visibleHoleCards: Schema.mutableKey(
+        Schema.mutable(Schema.Array(cardSchema)),
+    ),
     isDealer: Schema.mutableKey(Schema.Boolean),
     isSmallBlind: Schema.mutableKey(Schema.Boolean),
     isBigBlind: Schema.mutableKey(Schema.Boolean),
@@ -250,7 +264,9 @@ export type PokerAction = SchemaType<typeof pokerActionSchema>;
 export type PokerPot = SchemaType<typeof pokerPotSchema>;
 export type PokerSpectator = SchemaType<typeof pokerSpectatorSchema>;
 export type PokerEvent = SchemaType<typeof pokerEventSchema>;
-type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
+type DistributiveOmit<T, K extends keyof T> = T extends unknown
+    ? Omit<T, K>
+    : never;
 export type PokerEventInput = DistributiveOmit<PokerEvent, "id">;
 export type PokerPlayerPublicView = SchemaType<
     typeof pokerPlayerPublicViewSchema
@@ -261,7 +277,9 @@ export type PokerState = SchemaType<typeof pokerStateSchema>;
 export type PokerActionResultPayload = SchemaType<
     typeof pokerActionResultPayloadSchema
 >;
-export type PokerGameOverPayload = SchemaType<typeof pokerGameOverPayloadSchema>;
+export type PokerGameOverPayload = SchemaType<
+    typeof pokerGameOverPayloadSchema
+>;
 
 export function decodePokerPlayerView(raw: unknown): PokerPlayerView | null {
     try {

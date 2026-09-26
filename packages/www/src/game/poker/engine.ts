@@ -46,7 +46,7 @@ function pushEvent(state: PokerState, event: PokerEventInput) {
             id: state.eventSeq,
         } as PokerEvent,
         ...state.eventLog,
-    ].slice(-MAX_LOG_LENGTH);
+    ].slice(0, MAX_LOG_LENGTH);
 }
 
 function seatHasChips(player: PokerPlayer): boolean {
@@ -560,6 +560,10 @@ function resolveShowdown(state: PokerState) {
         type: "showdown",
         street: state.street,
         message: revealed || "Showdown",
+        revealedHands: contenders.map(({ player }) => ({
+            playerId: player.id,
+            cards: [...player.holeCards],
+        })),
     });
 
     for (const pot of state.pots) {

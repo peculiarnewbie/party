@@ -28,7 +28,7 @@ function getMyVisibleHoleCards(
 }
 
 function getSeatVisibleHoleCards(
-    viewerId: string,
+    viewerId: string | null,
     targetPlayerId: string,
     viewerIsSeated: boolean,
     holeCards: PokerPlayerView["myHoleCards"],
@@ -47,7 +47,7 @@ function getSeatVisibleHoleCards(
 
 export function getPlayerView(
     state: PokerState,
-    viewerId: string,
+    viewerId: string | null,
     visibilityMode: PokerVisibilityMode = "standard",
 ): PokerPlayerView {
     const viewerIsSeated = state.players.some(

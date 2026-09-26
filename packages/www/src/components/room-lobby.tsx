@@ -74,6 +74,26 @@ export const RoomLobby: Component<{
 
                 <div class="h-[3px] bg-[#1a1a1a] mb-6" />
 
+                <div class="mb-6 border-2 border-[#b8ae9e] p-4">
+                    <h2 class="font-bebas text-2xl tracking-wider">
+                        Party mode
+                    </h2>
+                    <a
+                        href={`/room/${encodeURIComponent(props.roomId)}?view=display`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="font-bebas text-xl tracking-wider underline"
+                    >
+                        Open Party screen
+                    </a>
+                    <p class="mt-1 text-sm">
+                        Playing in the same room? Put the table on a TV or
+                        laptop, then scan the QR code for private cards and
+                        controls on your phones. Available for Texas Hold’em and
+                        Backwards Poker.
+                    </p>
+                </div>
+
                 {/* Name input */}
                 <div class="flex gap-2 mb-6">
                     <input

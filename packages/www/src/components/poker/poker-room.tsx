@@ -11,12 +11,19 @@ import { PotDisplay } from "./pot-display";
 import { ResultsOverlay } from "./results-overlay";
 import { StreetBanner } from "./street-banner";
 import { TableSeat } from "./table-seat";
+import { PlayingCard } from "~/assets/card-deck";
+import { OpponentHands } from "./opponent-hands";
+import type { PokerVisibilityMode } from "~/game/poker/views";
 
-function isPlayerAction(event: PokerEvent): event is PokerEvent & { type: "player_action" } {
+function isPlayerAction(
+    event: PokerEvent,
+): event is PokerEvent & { type: "player_action" } {
     return event.type === "player_action";
 }
 
-function getLastActionText(event: PokerEvent & { type: "player_action" }): string {
+function getLastActionText(
+    event: PokerEvent & { type: "player_action" },
+): string {
     const msg = event.message;
     if (msg.includes("folded")) return "Folded";
     if (msg.includes("checked")) return "Checked";
@@ -44,12 +51,18 @@ export const PokerRoom: Component<{
     isHost: boolean;
     connection: PokerConnection;
     title: string;
+    initialLayout?: "table" | "controller";
+    visibilityMode?: PokerVisibilityMode;
     onEndGame: () => void;
     onReturnToLobby: () => void;
 }> = (props) => {
     const gameView = () => props.connection.view();
     const [amount, setAmount] = createSignal("20");
     const [actionError, setActionError] = createSignal<string | null>(null);
+    const [layout, setLayout] = createSignal(
+        () => props.initialLayout ?? "table",
+    );
+    const isController = () => layout() === "controller";
 
     createEffect(gameView, (view) => {
         if (!view) return;
@@ -77,7 +90,9 @@ export const PokerRoom: Component<{
     };
 
     const otherSeats = () =>
-        (gameView()?.players ?? []).filter((player) => player.id !== props.playerId);
+        (gameView()?.players ?? []).filter(
+            (player) => player.id !== props.playerId,
+        );
 
     const lastActions = () => computeLastActions(gameView()?.eventLog ?? []);
 
@@ -100,6 +115,7 @@ export const PokerRoom: Component<{
     return (
         <div
             data-testid="poker-room"
+            data-layout={layout()}
             class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla flex flex-col"
         >
             <div class="flex items-center justify-between px-3 py-1.5 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a] flex-wrap gap-2">
@@ -140,9 +156,16 @@ export const PokerRoom: Component<{
                         data-testid="poker-street"
                         class="font-bebas text-[.65rem] tracking-[.18em] text-[#5a5040] px-2 py-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
                     >
-                        {gameView()?.street?.replaceAll("_", " ").toUpperCase() ?? "LOADING"}
+                        {gameView()
+                            ?.street?.replaceAll("_", " ")
+                            .toUpperCase() ?? "LOADING"}
                     </span>
-                    <Show when={props.isHost && gameView()?.street !== "tournament_over"}>
+                    <Show
+                        when={
+                            props.isHost &&
+                            gameView()?.street !== "tournament_over"
+                        }
+                    >
                         <button
                             type="button"
                             data-testid="poker-end-button"
@@ -158,68 +181,173 @@ export const PokerRoom: Component<{
                 </div>
             </div>
 
-            <div class="flex-1 px-3 py-4 max-w-6xl mx-auto w-full">
-                <div class="grid grid-cols-[1.5fr_.95fr] gap-4 max-lg:grid-cols-1">
-                    <div class="space-y-4 max-lg:contents">
-                        <div class="flex flex-wrap justify-center gap-2 max-lg:order-2">
-                            <For each={otherSeats()}>
-                                {(player) => (
-                                    <TableSeat
-                                        player={player}
-                                        isMe={false}
-                                        lastAction={lastActions()[player.id]}
-                                    />
+            <div class="flex items-center justify-between gap-3 px-3 py-2 border-b border-[#b8ae9e]">
+                <button
+                    type="button"
+                    data-testid="poker-layout-toggle"
+                    onClick={() =>
+                        setLayout(isController() ? "table" : "controller")
+                    }
+                    class="min-h-11 border-2 border-[#1a1a1a] px-4 py-2 font-bebas tracking-wider"
+                >
+                    {isController() ? "View table" : "Party mode"}
+                </button>
+                <a
+                    href={`/room/${encodeURIComponent(props.roomId)}?view=display`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="font-bebas tracking-wider underline"
+                >
+                    Open Party screen
+                </a>
+            </div>
+
+            <div
+                class={`flex-1 px-3 py-4 mx-auto w-full ${isController() ? "max-w-md" : "max-w-6xl"}`}
+            >
+                <Show when={isController()}>
+                    <div
+                        data-testid="poker-controller-context"
+                        class="border-2 border-[#b8ae9e] p-3 mb-4 text-center"
+                    >
+                        <div class="flex items-center justify-center gap-2">
+                            <For each={[0, 1, 2, 3, 4]}>
+                                {(index) => (
+                                    <Show
+                                        when={gameView()?.board[index]}
+                                        fallback={
+                                            <div class="w-8 h-11 border border-dashed border-[#9a9080] rounded-sm" />
+                                        }
+                                    >
+                                        {(card) => (
+                                            <div class="w-8 shrink-0">
+                                                <PlayingCard
+                                                    suit={card().suit}
+                                                    rank={card().rank}
+                                                    class="w-full"
+                                                />
+                                            </div>
+                                        )}
+                                    </Show>
                                 )}
                             </For>
                         </div>
-
-                        <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] px-3 py-4 shadow-[3px_3px_0_#1a1a1a] max-lg:order-1">
-                            <CommunityBoard board={gameView()?.board ?? []} />
-                            <div class="mt-4">
-                                <PotDisplay pots={gameView()?.pots ?? []} />
-                            </div>
-                            <Show when={(gameView()?.spectators.length ?? 0) > 0}>
-                                <div class="mt-4 text-center">
-                                    <div class="font-bebas text-[.6rem] tracking-[.22em] text-[#7a7060]">
-                                        SPECTATORS
-                                    </div>
-                                    <div
-                                        data-testid="poker-spectator-list"
-                                        class="font-bebas text-[.85rem] tracking-[.08em] text-[#1a1a1a] mt-1"
-                                    >
-                                        {gameView()
-                                            ?.spectators.map((spectator) => spectator.name)
-                                            .join(" · ")}
-                                    </div>
-                                </div>
-                            </Show>
-                        </div>
-
-                        <div class="max-lg:order-5">
-                            <EventLog events={gameView()?.eventLog ?? []} />
-                        </div>
+                        <p class="mt-2 font-bebas text-lg tracking-wider">
+                            Pot{" "}
+                            {(gameView()?.pots ?? []).reduce(
+                                (total, pot) => total + pot.amount,
+                                0,
+                            )}{" "}
+                            · To call {gameView()?.callAmount ?? 0}
+                        </p>
                     </div>
+                </Show>
+                <div
+                    class={
+                        isController()
+                            ? "space-y-4"
+                            : "grid grid-cols-[1.5fr_.95fr] gap-4 max-lg:grid-cols-1"
+                    }
+                >
+                    <Show when={!isController()}>
+                        <div class="space-y-4 max-lg:contents">
+                            <div class="flex flex-wrap justify-center gap-2 max-lg:order-2">
+                                <For each={otherSeats()}>
+                                    {(player) => (
+                                        <TableSeat
+                                            player={player}
+                                            isMe={false}
+                                            lastAction={
+                                                lastActions()[player.id]
+                                            }
+                                        />
+                                    )}
+                                </For>
+                            </div>
 
-                    <div class="space-y-3 max-lg:contents">
+                            <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] px-3 py-4 shadow-[3px_3px_0_#1a1a1a] max-lg:order-1">
+                                <CommunityBoard
+                                    board={gameView()?.board ?? []}
+                                />
+                                <div class="mt-4">
+                                    <PotDisplay pots={gameView()?.pots ?? []} />
+                                </div>
+                                <Show
+                                    when={
+                                        (gameView()?.spectators.length ?? 0) > 0
+                                    }
+                                >
+                                    <div class="mt-4 text-center">
+                                        <div class="font-bebas text-[.6rem] tracking-[.22em] text-[#7a7060]">
+                                            SPECTATORS
+                                        </div>
+                                        <div
+                                            data-testid="poker-spectator-list"
+                                            class="font-bebas text-[.85rem] tracking-[.08em] text-[#1a1a1a] mt-1"
+                                        >
+                                            {gameView()
+                                                ?.spectators.map(
+                                                    (spectator) =>
+                                                        spectator.name,
+                                                )
+                                                .join(" · ")}
+                                        </div>
+                                    </div>
+                                </Show>
+                            </div>
+
+                            <div class="max-lg:order-5">
+                                <EventLog events={gameView()?.eventLog ?? []} />
+                            </div>
+                        </div>
+                    </Show>
+
+                    <div
+                        class={
+                            isController()
+                                ? "space-y-4 [&_button]:min-h-11 [&_input]:min-h-11"
+                                : "space-y-3 max-lg:contents"
+                        }
+                    >
                         <div class="max-lg:order-3">
-                            <HeroHand
-                                cards={gameView()?.myHoleCards ?? []}
-                                cardCount={gameView()?.myHoleCardCount ?? 0}
-                                isSpectator={gameView()?.isSpectator ?? false}
-                            />
+                            <Show
+                                when={
+                                    isController() &&
+                                    props.visibilityMode === "backwards" &&
+                                    !gameView()?.isSpectator
+                                }
+                                fallback={
+                                    <HeroHand
+                                        cards={gameView()?.myHoleCards ?? []}
+                                        cardCount={
+                                            gameView()?.myHoleCardCount ?? 0
+                                        }
+                                        isSpectator={
+                                            gameView()?.isSpectator ?? false
+                                        }
+                                    />
+                                }
+                            >
+                                <OpponentHands players={otherSeats()} />
+                            </Show>
                         </div>
 
                         <div class="max-lg:order-4">
                             <ActionControls
                                 legalActions={gameView()?.legalActions ?? []}
                                 callAmount={gameView()?.callAmount ?? 0}
-                                minBetOrRaise={gameView()?.minBetOrRaise ?? null}
+                                minBetOrRaise={
+                                    gameView()?.minBetOrRaise ?? null
+                                }
                                 maxBet={gameView()?.maxBet ?? 0}
                                 stack={gameView()?.myStack ?? 0}
                                 amount={amount()}
                                 setAmount={setAmount}
                                 isSpectator={gameView()?.isSpectator ?? true}
-                                isMyTurn={gameView()?.actingPlayerId === props.playerId}
+                                isMyTurn={
+                                    gameView()?.actingPlayerId ===
+                                    props.playerId
+                                }
                                 onAction={sendAction}
                             />
                         </div>

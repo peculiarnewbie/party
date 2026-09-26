@@ -16,6 +16,8 @@ import {
     SAMPLE_CARDS,
 } from "~/game/poker/test-helpers";
 import type { PokerPlayerView } from "~/game/poker";
+import { getPokerFixture } from "~/game/poker/fixtures";
+import type { PokerVisibilityMode } from "~/game/poker/views";
 
 function renderRoom(
     options: {
@@ -23,6 +25,8 @@ function renderRoom(
         isHost?: boolean;
         playerId?: string | null;
         title?: string;
+        initialLayout?: "table" | "controller";
+        visibilityMode?: PokerVisibilityMode;
     } = {},
 ) {
     const {
@@ -48,6 +52,8 @@ function renderRoom(
             isHost={isHost}
             connection={connection}
             title={title}
+            initialLayout={options.initialLayout}
+            visibilityMode={options.visibilityMode}
             onEndGame={onEndGame}
             onReturnToLobby={onReturnToLobby}
         />
@@ -57,6 +63,84 @@ function renderRoom(
 }
 
 describe("PokerRoom", () => {
+    it("shows opponents' hands in backwards phone mode and preserves the split when toggling layouts", () => {
+        const view = getPokerFixture("backwards-visible-opponents").view;
+        const { getByTestId, queryByTestId } = renderRoom({
+            view,
+            visibilityMode: "backwards",
+            initialLayout: "controller",
+        });
+        expect(queryByTestId("poker-hero-hand")).toBeNull();
+        expect(queryByTestId("poker-opponent-hand-p1")).toBeNull();
+        for (const player of view.players.filter(
+            (player) => player.id !== "p1",
+        )) {
+            expect(
+                getByTestId(`poker-opponent-hand-${player.id}`),
+            ).toHaveAttribute("data-visible-card-count", "2");
+        }
+        expect(getByTestId("poker-action-controls")).toBeInTheDocument();
+        fireEvent.click(getByTestId("poker-layout-toggle"));
+        flush();
+        expect(queryByTestId("poker-opponent-hands")).toBeNull();
+        expect(getByTestId("poker-seat-p2")).toHaveAttribute(
+            "data-visible-card-count",
+            "2",
+        );
+        fireEvent.click(getByTestId("poker-layout-toggle"));
+        flush();
+        expect(getByTestId("poker-opponent-hands")).toHaveTextContent(
+            "Your cards are hidden",
+        );
+    });
+
+    it("keeps backwards spectators in a public view without the opponents' hand grid", () => {
+        const { getByTestId, queryByTestId } = renderRoom({
+            view: makeView({ isSpectator: true, myStatus: "spectator" }),
+            visibilityMode: "backwards",
+            initialLayout: "controller",
+        });
+        expect(queryByTestId("poker-opponent-hands")).toBeNull();
+        expect(getByTestId("poker-hero-hand")).toHaveTextContent("Spectating");
+        expect(queryByTestId("poker-fold-button")).toBeNull();
+    });
+
+    it("keeps cards and actions in phone mode and can show the full table", () => {
+        const { getByTestId, queryByTestId, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                players: [
+                    makeSeat({ id: "p1" }),
+                    makeSeat({ id: "p2", name: "Bob" }),
+                ],
+                myHoleCards: SAMPLE_CARDS,
+                myHoleCardCount: 2,
+                actingPlayerId: "p1",
+                legalActions: ["fold", "call"],
+                callAmount: 20,
+            }),
+        });
+        expect(getByTestId("poker-room")).toHaveAttribute(
+            "data-layout",
+            "controller",
+        );
+        expect(getByTestId("poker-hero-hand")).toBeInTheDocument();
+        expect(getByTestId("poker-controller-context")).toHaveTextContent(
+            "To call 20",
+        );
+        expect(queryByTestId("poker-seat-p2")).toBeNull();
+        fireEvent.click(getByTestId("poker-check-call-button"));
+        flush();
+        expect(connection.sentMessages).toContainEqual({
+            type: "poker:act",
+            data: { type: "call" },
+        });
+        fireEvent.click(getByTestId("poker-layout-toggle"));
+        flush();
+        expect(getByTestId("poker-seat-p2")).toBeInTheDocument();
+        expect(queryByTestId("poker-controller-context")).toBeNull();
+    });
+
     it("renders the initial poker state from the connection view", () => {
         const view = makeView({
             handNumber: 3,

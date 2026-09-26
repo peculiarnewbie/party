@@ -13,6 +13,16 @@ This is a casual multiplayer party game app built with Solid 2 and TanStack Rout
 - Frictionless onboarding: players join anonymously by default — no account required, just pick a display name when invited
 - Sharing and inviting should be as simple as sending a link
 
+### Party mode
+
+- **Party mode** is the shared-room experience: one public display on a TV or laptop, with each player using private controls on their phone
+- The display is read-only, takes no player seat, and receives only public state; the host manages the game from their phone
+- `/room/<code>?view=display` opens the Party display; its QR code uses `?view=controller` for phone controls
+- Texas Hold’em phones show the player’s own cards; Backwards Poker phones show opponents’ cards while hiding the player’s own cards
+- Both poker variants keep unrevealed hole cards off the public display; only public showdown cards may appear there
+- Players can switch between Party mode controls and the full table layout without changing the room or game rules
+- Other games currently show room information on the display; add game-specific public views and phone controls when extending Party mode
+
 ### Player Model
 
 - **Host**: creates a room, selects the game, controls game flow
