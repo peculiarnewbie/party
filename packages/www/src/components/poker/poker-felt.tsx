@@ -239,6 +239,10 @@ export function PokerFelt(props: {
                 {(player, index) => {
                     const point = () => seatPoint(index);
                     const bet = () => betPoint(index);
+                    const winSpot = () => ({
+                        x: point().x + (point().x <= 50 ? 11 : -11),
+                        y: point().y,
+                    });
                     const won = () => winnings()[player().id] ?? 0;
                     const action = () => actions()[player().id];
                     const out = () =>
@@ -282,10 +286,10 @@ export function PokerFelt(props: {
                                     <div
                                         class="absolute z-30 -translate-x-1/2 -translate-y-1/2 animate-chip-toss [animation-duration:900ms]"
                                         style={{
-                                            left: `${bet().x}%`,
-                                            top: `${bet().y}%`,
-                                            "--toss-x": `${50 - bet().x}cqw`,
-                                            "--toss-y": `${55 - bet().y}cqh`,
+                                            left: `${winSpot().x}%`,
+                                            top: `${winSpot().y}%`,
+                                            "--toss-x": `${50 - winSpot().x}cqw`,
+                                            "--toss-y": `${55 - winSpot().y}cqh`,
                                         }}
                                     >
                                         <ChipStack
@@ -311,7 +315,7 @@ export function PokerFelt(props: {
                                 <Show when={String(props.handNumber)} keyed>
                                     {(_hand) => (
                                         <div
-                                            class={`flex justify-center ${player().id === props.heroId ? "h-[calc(var(--u)*8.5)]" : "h-[calc(var(--u)*6.5)]"} ${cardsBelow() ? "-mt-[calc(var(--u)*1.2)] items-start" : "-mb-[calc(var(--u)*1.8)]"} transition-all duration-500 ${out() ? "opacity-0 translate-y-[calc(var(--u)*2)] scale-75" : ""}`}
+                                            class={`flex justify-center ${player().id === props.heroId ? "h-[calc(var(--u)*8.5)]" : "h-[calc(var(--u)*6.5)]"} ${cardsBelow() ? "mt-[calc(var(--u)*0.6)] items-start" : "-mb-[calc(var(--u)*1.8)]"} transition-all duration-500 ${out() ? "opacity-0 translate-y-[calc(var(--u)*2)] scale-75" : ""}`}
                                             style={{
                                                 "--deal-from-x": `${50 - point().x}cqw`,
                                                 "--deal-from-y": `${50 - point().y}cqh`,
