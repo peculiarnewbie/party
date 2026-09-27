@@ -1,4 +1,11 @@
-import { createEffect, createMemo, createSignal, onCleanup, Show, For } from "solid-js";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    onCleanup,
+    Show,
+    For,
+} from "solid-js";
 import type { Component } from "solid-js";
 import type { PokerActionType } from "~/game/poker";
 import { evaluateBestHand } from "~/game/poker/engine";
@@ -11,6 +18,7 @@ import {
     playSfx,
     SoundToggle,
     TableCard,
+    TableLayout,
 } from "~/components/casino";
 import { ActionControls } from "./action-controls";
 import { EventLog } from "./event-log";
@@ -45,9 +53,7 @@ export const PokerRoom: Component<{
     const gameView = () => props.connection.view();
     const [amount, setAmount] = createSignal("20");
     const [actionError, setActionError] = createSignal<string | null>(null);
-    const [layout, setLayout] = createSignal(
-        () => props.initialLayout ?? "table",
-    );
+    const layout = () => props.initialLayout ?? "table";
     const isController = () => layout() === "controller";
     const isMyTurn = () =>
         !!props.playerId && gameView()?.actingPlayerId === props.playerId;
@@ -65,7 +71,6 @@ export const PokerRoom: Component<{
         playSfx("turn");
         buzz([60, 40, 60]);
     });
-
 
     onCleanup(
         props.connection.subscribe((event) => {
@@ -104,7 +109,8 @@ export const PokerRoom: Component<{
     createEffect(
         () => ({ won: myWinnings(), controller: isController() }),
         (next, previous) => {
-            if (next.controller && next.won > 0 && !previous?.won) playSfx("win");
+            if (next.controller && next.won > 0 && !previous?.won)
+                playSfx("win");
         },
     );
     const handLabel = () =>
@@ -160,19 +166,19 @@ export const PokerRoom: Component<{
         <div
             data-testid="poker-room"
             data-layout={layout()}
-            class="relative min-h-screen paper text-[#1a1a1a] font-karla flex flex-col overflow-x-hidden"
+            class="relative h-dvh min-h-0 paper text-[#1a1a1a] font-karla flex flex-col overflow-x-hidden"
         >
             <Show when={isMyTurn()}>
                 <div class="pointer-events-none fixed inset-0 z-30 border-[6px] border-[#c0261a] animate-pulse-fast" />
             </Show>
 
-            <header class="flex items-center justify-between gap-2 px-3 py-2 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a] flex-wrap">
+            <header class="flex items-center justify-between gap-2 px-3 py-2 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a] shrink-0">
                 <Show
                     when={isMyTurn()}
                     fallback={
                         <span
                             data-testid="poker-turn-banner"
-                            class="font-bebas text-sm tracking-[.12em] text-[#1a1a1a] px-2.5 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
+                            class="min-w-0 truncate font-bebas text-sm tracking-[.12em] text-[#1a1a1a] px-2.5 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
                         >
                             {gameView()?.actingPlayerId
                                 ? `${actingPlayerName().toUpperCase()}'S TURN`
@@ -189,17 +195,17 @@ export const PokerRoom: Component<{
                         YOUR TURN
                     </span>
                 </Show>
-                <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                <div class="flex items-center gap-1.5 justify-end shrink-0">
                     <SoundToggle compact class="!px-1.5 !py-0.5" />
                     <span
                         data-testid="poker-title"
-                        class="font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
+                        class="hidden sm:inline font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
                     >
                         {props.title.toUpperCase()}
                     </span>
                     <span
                         data-testid="poker-hand-number"
-                        class="font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
+                        class="hidden sm:inline font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
                     >
                         HAND {gameView()?.handNumber ?? 0}
                     </span>
@@ -229,72 +235,63 @@ export const PokerRoom: Component<{
                 </div>
             </header>
 
-            <div class="flex items-center justify-between gap-3 px-3 py-2 border-b border-[#b8ae9e] text-sm">
-                <button
-                    type="button"
-                    data-testid="poker-layout-toggle"
-                    onClick={() =>
-                        setLayout(isController() ? "table" : "controller")
-                    }
-                    class="min-h-10 border-2 border-[#1a1a1a] bg-[#f7f2de] px-4 pt-1 font-bebas tracking-wider shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                >
-                    {isController() ? "View table" : "Party mode"}
-                </button>
-                <span class="hidden sm:inline font-bebas tracking-[.25em] text-[#9a9080] text-xs">
-                    ROOM {props.roomId.toUpperCase()}
-                </span>
-                <a
-                    href={`/room/${encodeURIComponent(props.roomId)}?view=display`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="font-bebas tracking-wider text-[#1a3a6e] underline underline-offset-4 decoration-2"
-                >
-                    Open Party screen
-                </a>
-            </div>
-
             <Show
                 when={isController()}
                 fallback={
-                    <div class="flex-1 w-full max-w-[1500px] mx-auto px-3 pt-4 pb-16 grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] items-start">
-                        <div class="w-full pt-[3%]">
-                            <PokerFelt
-                                players={gameView()?.players ?? []}
-                                board={gameView()?.board ?? []}
-                                pots={gameView()?.pots ?? []}
-                                street={gameView()?.street ?? "preflop"}
-                                handNumber={gameView()?.handNumber ?? 0}
-                                eventLog={gameView()?.eventLog ?? []}
-                                title={props.title}
-                                heroId={props.playerId}
-                                heroCards={gameView()?.myHoleCards ?? []}
-                                center={
-                                    <Show when={results().length > 0}>
-                                        <div class="rounded-[calc(var(--u)*0.6)] border-[length:calc(var(--u)*0.3)] border-[#1a1a1a] bg-[#f5c542] px-[calc(var(--u)*2)] pt-[calc(var(--u)*0.8)] pb-[calc(var(--u)*0.4)] text-center font-bebas tracking-wider text-[#1a1a1a] text-[calc(var(--u)*2.2)] whitespace-nowrap shadow-[calc(var(--u)*0.5)_calc(var(--u)*0.5)_0_#1a1a1a] animate-stamp-in [--stamp-rot:-2deg]">
-                                            <For each={results()}>
-                                                {(result) => <div>{result.message}</div>}
-                                            </For>
-                                        </div>
-                                    </Show>
-                                }
-                            />
-                            <Show when={(gameView()?.spectators.length ?? 0) > 0}>
-                                <div class="mt-4 text-center">
-                                    <span class="font-bebas text-xs tracking-[.22em] text-[#9a9080]">
-                                        SPECTATORS{" "}
-                                    </span>
-                                    <span
-                                        data-testid="poker-spectator-list"
-                                        class="font-bebas tracking-[.08em] text-[#1a1a1a]"
-                                    >
-                                        {gameView()
-                                            ?.spectators.map((spectator) => spectator.name)
-                                            .join(" · ")}
-                                    </span>
-                                </div>
-                            </Show>
-                        </div>
-                        <div class="space-y-3 lg:sticky lg:top-4">
+                    <TableLayout
+                        table={
+                            <div class="w-full h-full min-h-0 relative">
+                                <PokerFelt
+                                    fit
+                                    players={gameView()?.players ?? []}
+                                    board={gameView()?.board ?? []}
+                                    pots={gameView()?.pots ?? []}
+                                    street={gameView()?.street ?? "preflop"}
+                                    handNumber={gameView()?.handNumber ?? 0}
+                                    eventLog={gameView()?.eventLog ?? []}
+                                    title={props.title}
+                                    heroId={props.playerId}
+                                    heroCards={gameView()?.myHoleCards ?? []}
+                                    center={
+                                        <Show when={results().length > 0}>
+                                            <div class="rounded-[calc(var(--u)*0.6)] border-[length:calc(var(--u)*0.3)] border-[#1a1a1a] bg-[#f5c542] px-[calc(var(--u)*2)] pt-[calc(var(--u)*0.8)] pb-[calc(var(--u)*0.4)] text-center font-bebas tracking-wider text-[#1a1a1a] text-[calc(var(--u)*2.2)] whitespace-nowrap shadow-[calc(var(--u)*0.5)_calc(var(--u)*0.5)_0_#1a1a1a] animate-stamp-in [--stamp-rot:-2deg]">
+                                                <For each={results()}>
+                                                    {(result) => (
+                                                        <div>
+                                                            {result.message}
+                                                        </div>
+                                                    )}
+                                                </For>
+                                            </div>
+                                        </Show>
+                                    }
+                                />
+                                <Show
+                                    when={
+                                        (gameView()?.spectators.length ?? 0) > 0
+                                    }
+                                >
+                                    <div class="absolute bottom-0 inset-x-0 text-center">
+                                        <span class="font-bebas text-xs tracking-[.22em] text-[#9a9080]">
+                                            SPECTATORS{" "}
+                                        </span>
+                                        <span
+                                            data-testid="poker-spectator-list"
+                                            class="font-bebas tracking-[.08em] text-[#1a1a1a]"
+                                        >
+                                            {gameView()
+                                                ?.spectators.map(
+                                                    (spectator) =>
+                                                        spectator.name,
+                                                )
+                                                .join(" · ")}
+                                        </span>
+                                    </div>
+                                </Show>
+                            </div>
+                        }
+                    >
+                        <div class="w-full max-w-3xl mx-auto space-y-2">
                             <Show when={gameView()?.isSpectator}>
                                 <HeroHand
                                     cards={[]}
@@ -304,9 +301,18 @@ export const PokerRoom: Component<{
                             </Show>
                             {controls()}
                             {errorBanner()}
-                            <EventLog events={gameView()?.eventLog ?? []} />
+                            <details class="relative text-right">
+                                <summary class="cursor-pointer font-bebas text-sm tracking-wider">
+                                    Table log
+                                </summary>
+                                <div class="fixed right-3 bottom-14 z-40 w-[min(360px,calc(100vw-24px))] text-left">
+                                    <EventLog
+                                        events={gameView()?.eventLog ?? []}
+                                    />
+                                </div>
+                            </details>
                         </div>
-                    </div>
+                    </TableLayout>
                 }
             >
                 <div class="flex-1 w-full max-w-md mx-auto px-3 pt-3 pb-16 space-y-3">
@@ -358,7 +364,9 @@ export const PokerRoom: Component<{
                     >
                         <OpponentHands
                             players={otherSeats()}
-                            seatOrder={(gameView()?.players ?? []).map((player) => player.id)}
+                            seatOrder={(gameView()?.players ?? []).map(
+                                (player) => player.id,
+                            )}
                         />
                     </Show>
 
@@ -367,7 +375,13 @@ export const PokerRoom: Component<{
                 </div>
             </Show>
 
-            <Show when={isController() && results().length > 0 && gameView()?.street === "hand_over"}>
+            <Show
+                when={
+                    isController() &&
+                    results().length > 0 &&
+                    gameView()?.street === "hand_over"
+                }
+            >
                 <div class="fixed inset-x-0 bottom-14 z-40 flex justify-center px-4 pointer-events-none">
                     <div
                         data-testid="poker-phone-result"
@@ -399,7 +413,10 @@ export const PokerRoom: Component<{
                         </Show>
                     </div>
                 </div>
-                <Show when={myWinnings() > 0 ? gameView()?.handNumber : null} keyed>
+                <Show
+                    when={myWinnings() > 0 ? gameView()?.handNumber : null}
+                    keyed
+                >
                     {(_hand) => <Confetti count={50} />}
                 </Show>
             </Show>

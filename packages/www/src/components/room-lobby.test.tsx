@@ -25,6 +25,31 @@ function makeProps(overrides: Partial<Parameters<typeof RoomLobby>[0]> = {}) {
 }
 
 describe("RoomLobby", () => {
+    it("sets the device layout and disconnect grace in the lobby", () => {
+        const onLayoutChange = vi.fn();
+        const onGraceChange = vi.fn();
+        const { getByLabelText } = render(() => (
+            <RoomLobby
+                {...makeProps({
+                    isHost: true,
+                    selectedGameType: "poker",
+                    layout: "table",
+                    onLayoutChange,
+                    onGraceChange,
+                })}
+            />
+        ));
+        fireEvent.change(getByLabelText("Play on this device"), {
+            target: { value: "controller" },
+        });
+        fireEvent.change(getByLabelText("Reconnect grace period"), {
+            target: { value: "120" },
+        });
+        flush();
+        expect(onLayoutChange).toHaveBeenCalledWith("controller");
+        expect(onGraceChange).toHaveBeenCalledWith(120);
+    });
+
     it("renders the uppercased room code prominently", () => {
         const { getAllByText } = render(() => (
             <RoomLobby {...makeProps({ roomId: "abc123" })} />

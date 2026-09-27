@@ -1,9 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
-@theme {
+@theme static {
   --font-bebas: 'Bebas Neue', sans-serif;
   --font-karla: Karla, sans-serif;
+  --color-card: #fffdf6;
+  --background-image-table: radial-gradient(rgba(247, 242, 222, 0.08) 1.2px, transparent 1.6px);
   --color-paper: #ddd5c4;
   --color-kraft: #c9c0b0;
   --color-line: #b8ae9e;
@@ -97,7 +99,7 @@
 
 .table-mat {
   background-color: var(--mat, #1a3a6e);
-  background-image: radial-gradient(rgba(247, 242, 222, 0.08) 1.2px, transparent 1.6px);
+  background-image: var(--background-image-table);
   background-size: 14px 14px;
 }
 

@@ -69,12 +69,9 @@ export function definePartyModeTest(
             await expect(
                 display.getByTestId(`display-seat-${bobId}`),
             ).toBeVisible();
-            await page.getByTestId("party-layout-toggle").click();
-            await expect(page.getByTestId(`${gameId}-room`)).toHaveAttribute(
-                "data-layout",
-                "table",
+            await expect(page.getByTestId("party-layout-toggle")).toHaveCount(
+                0,
             );
-            await page.getByTestId("party-layout-toggle").click();
             await display.reload();
             await expect(table).toBeVisible();
             if (gameType === "perudo") {

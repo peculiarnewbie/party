@@ -51,7 +51,7 @@ function renderRoom(
 }
 
 describe("BlackjackRoom", () => {
-    it("keeps my hands and betting controls on the phone and can restore the table", () => {
+    it("keeps my hands and betting controls on the phone without in-game layout switches", () => {
         const { getByTestId, queryByTestId, getByRole, connection } =
             renderRoom({ initialLayout: "controller" });
         expect(getByTestId("blackjack-player-p1")).toBeInTheDocument();
@@ -63,14 +63,8 @@ describe("BlackjackRoom", () => {
             type: "blackjack:bet",
             data: { amount: 50 },
         });
-        fireEvent.click(getByTestId("party-layout-toggle"));
-        flush();
-        expect(getByTestId("blackjack-player-p2")).toBeInTheDocument();
-        expect(getByTestId("blackjack-player-dealer")).toBeInTheDocument();
-        expect(getByTestId("blackjack-room")).toHaveAttribute(
-            "data-layout",
-            "table",
-        );
+        expect(queryByTestId("party-layout-toggle")).toBeNull();
+
     });
 
     it("renders round number, chips, and DEALER area", () => {

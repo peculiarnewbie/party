@@ -63,7 +63,7 @@ function renderRoom(
 }
 
 describe("PokerRoom", () => {
-    it("shows opponents' hands in backwards phone mode and preserves the split when toggling layouts", () => {
+    it("shows opponents' hands in backwards phone mode using the lobby-selected layout", () => {
         const view = getPokerFixture("backwards-visible-opponents").view;
         const { getByTestId, queryByTestId } = renderRoom({
             view,
@@ -80,18 +80,7 @@ describe("PokerRoom", () => {
             ).toHaveAttribute("data-visible-card-count", "2");
         }
         expect(getByTestId("poker-action-controls")).toBeInTheDocument();
-        fireEvent.click(getByTestId("poker-layout-toggle"));
-        flush();
-        expect(queryByTestId("poker-opponent-hands")).toBeNull();
-        expect(getByTestId("poker-seat-p2")).toHaveAttribute(
-            "data-visible-card-count",
-            "2",
-        );
-        fireEvent.click(getByTestId("poker-layout-toggle"));
-        flush();
-        expect(getByTestId("poker-opponent-hands")).toHaveTextContent(
-            "Your cards are hidden",
-        );
+        expect(queryByTestId("poker-layout-toggle")).toBeNull();
     });
 
     it("keeps backwards spectators in a public view without the opponents' hand grid", () => {
@@ -135,10 +124,7 @@ describe("PokerRoom", () => {
             type: "poker:act",
             data: { type: "call" },
         });
-        fireEvent.click(getByTestId("poker-layout-toggle"));
-        flush();
-        expect(getByTestId("poker-seat-p2")).toBeInTheDocument();
-        expect(queryByTestId("poker-controller-context")).toBeNull();
+        expect(queryByTestId("poker-layout-toggle")).toBeNull();
     });
 
     it("renders the initial poker state from the connection view", () => {

@@ -1,7 +1,4 @@
-import {
-    PartyLayoutControls,
-    type PartyLayout,
-} from "~/components/party-layout-controls";
+import { type PartyLayout } from "~/components/party-layout-controls";
 import { PlayerBoard } from "./player-board";
 import { createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
 import type { Component } from "solid-js";
@@ -28,9 +25,7 @@ const TARGET_LABELS = {
 } as const;
 
 export const Flip7Room: Component<Flip7RoomProps> = (props) => {
-    const [layout, setLayout] = createSignal(
-        () => props.initialLayout ?? "table",
-    );
+    const layout = () => props.initialLayout ?? "table";
     const isController = () => layout() === "controller";
     const view = () => props.connection.view();
     const [error, setError] = createSignal<string | null>(null);
@@ -63,11 +58,6 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
             data-layout={layout()}
             class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla"
         >
-            <PartyLayoutControls
-                roomId={props.roomId}
-                layout={layout()}
-                onChange={setLayout}
-            />
             <Show when={view()} keyed>
                 {(state) => (
                     <div

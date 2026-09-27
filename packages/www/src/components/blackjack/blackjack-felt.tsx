@@ -1,4 +1,12 @@
-import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
+import { TableSurface, TableNameplate } from "~/components/casino";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    For,
+    onSettled,
+    Show,
+} from "solid-js";
 import {
     AnimatedNumber,
     ChipStack,
@@ -91,6 +99,7 @@ function spotPoint(index: number, count: number, portrait: boolean) {
 }
 
 export function BlackjackFelt(props: {
+    fit?: boolean;
     view: BlackjackFeltView;
     heroId?: string | null;
     seatTestIdPrefix?: string;
@@ -127,7 +136,10 @@ export function BlackjackFelt(props: {
             props.view.players.reduce(
                 (sum, player) =>
                     sum +
-                    player.hands.reduce((count, hand) => count + hand.cards.length, 0),
+                    player.hands.reduce(
+                        (count, hand) => count + hand.cards.length,
+                        0,
+                    ),
                 0,
             ),
         (count, previous) => {
@@ -154,11 +166,18 @@ export function BlackjackFelt(props: {
     createEffect(
         () => ({
             phase: props.view.phase,
-            anyWin: (props.view.results ?? []).some((result) => result.netChips > 0),
+            anyWin: (props.view.results ?? []).some(
+                (result) => result.netChips > 0,
+            ),
             delay: dealerRevealDelay(),
         }),
         (next, previous) => {
-            if (!previous || next.phase !== "settled" || previous.phase === "settled") return;
+            if (
+                !previous ||
+                next.phase !== "settled" ||
+                previous.phase === "settled"
+            )
+                return;
             playSfx(next.anyWin ? "win" : "lose", next.delay + 200);
         },
     );
@@ -174,16 +193,22 @@ export function BlackjackFelt(props: {
             data-testid="blackjack-felt"
             class="relative w-full mx-auto [container-type:size] select-none"
             style={{
-                "aspect-ratio": portrait() ? "3 / 4.2" : "2.1 / 1",
-                "--u": portrait() ? "2.3cqw" : "1cqw",
+                height: props.fit ? "100%" : undefined,
+                "aspect-ratio": props.fit
+                    ? "auto"
+                    : portrait()
+                      ? "3 / 4.2"
+                      : "2.1 / 1",
+                "--u": props.fit
+                    ? portrait()
+                        ? "min(2.3cqw, max(6.5px, 3cqh))"
+                        : "min(1cqw, 2cqh)"
+                    : portrait()
+                      ? "2.3cqw"
+                      : "1cqw",
             }}
         >
-            <div class="absolute inset-[0_1%_2%_1%] rounded-b-[50%_100%] bg-[#1a1a1a] translate-x-[calc(var(--u)*0.9)] translate-y-[calc(var(--u)*0.9)]" />
-            <div class="absolute inset-[0_1%_2%_1%] rounded-b-[50%_100%] bg-[#c0261a] border-[length:calc(var(--u)*0.4)] border-[#1a1a1a]" />
-            <div
-                class="table-mat absolute inset-[0_calc(1%+var(--u)*2.4)_calc(2%+var(--u)*2.4)_calc(1%+var(--u)*2.4)] rounded-b-[50%_100%] overflow-hidden border-[length:calc(var(--u)*0.4)] border-t-0 border-[#1a1a1a]"
-                style={{ "--mat": "#0f766e" }}
-            >
+            <TableSurface shape="blackjack">
                 <div class="absolute inset-x-0 top-0 h-[calc(var(--u)*1.2)] bg-[#1a1a1a]" />
                 <Show when={!portrait()}>
                     <svg
@@ -193,8 +218,14 @@ export function BlackjackFelt(props: {
                         aria-hidden="true"
                     >
                         <defs>
-                            <path id="bj-arc-1" d="M 60 12 A 45 23 0 0 0 150 12" />
-                            <path id="bj-arc-2" d="M 54 12 A 51 29 0 0 0 156 12" />
+                            <path
+                                id="bj-arc-1"
+                                d="M 60 12 A 45 23 0 0 0 150 12"
+                            />
+                            <path
+                                id="bj-arc-2"
+                                d="M 54 12 A 51 29 0 0 0 156 12"
+                            />
                         </defs>
                         <text
                             font-family="'Bebas Neue', sans-serif"
@@ -203,7 +234,11 @@ export function BlackjackFelt(props: {
                             fill="#f5c542"
                             fill-opacity="0.9"
                         >
-                            <textPath href="#bj-arc-1" startOffset="50%" text-anchor="middle">
+                            <textPath
+                                href="#bj-arc-1"
+                                startOffset="50%"
+                                text-anchor="middle"
+                            >
                                 BLACKJACK PAYS 3 TO 2
                             </textPath>
                         </text>
@@ -214,16 +249,26 @@ export function BlackjackFelt(props: {
                             fill="#f7f2de"
                             fill-opacity="0.55"
                         >
-                            <textPath href="#bj-arc-2" startOffset="50%" text-anchor="middle">
-                                DEALER DRAWS TO 16 · STANDS ON ALL 17s · INSURANCE PAYS 2 TO 1
+                            <textPath
+                                href="#bj-arc-2"
+                                startOffset="50%"
+                                text-anchor="middle"
+                            >
+                                DEALER DRAWS TO 16 · STANDS ON ALL 17s ·
+                                INSURANCE PAYS 2 TO 1
                             </textPath>
                         </text>
                     </svg>
                 </Show>
-            </div>
+            </TableSurface>
 
-            <div class="absolute z-10 -translate-x-1/2" style={{ left: `${SHOE.x}%`, top: "1.5%" }}>
-                <div class={`relative w-[calc(var(--u)*7)] h-[calc(var(--u)*6)] rounded-[calc(var(--u)*0.6)] bg-[#c9c0b0] flex items-end justify-center pb-[calc(var(--u)*0.4)] ${INK_EDGE}`}>
+            <div
+                class="absolute z-10 -translate-x-1/2"
+                style={{ left: `${SHOE.x}%`, top: "1.5%" }}
+            >
+                <div
+                    class={`relative w-[calc(var(--u)*7)] h-[calc(var(--u)*6)] rounded-[calc(var(--u)*0.6)] bg-[#c9c0b0] flex items-end justify-center pb-[calc(var(--u)*0.4)] ${INK_EDGE}`}
+                >
                     <div class="absolute -top-[calc(var(--u)*1.2)] left-[calc(var(--u)*1)] w-[calc(var(--u)*4.6)] rotate-[-8deg]">
                         <TableCard card={null} animate={false} class="w-full" />
                     </div>
@@ -244,20 +289,37 @@ export function BlackjackFelt(props: {
                     <For each={dealerCards()} keyed={false}>
                         {(card, index) => (
                             <div
-                                class={index > 0 ? "-ml-[calc(var(--u)*2.6)]" : ""}
+                                class={
+                                    index > 0 ? "-ml-[calc(var(--u)*2.6)]" : ""
+                                }
                                 style={{
                                     "--deal-from-x": `${SHOE.x - 50}cqw`,
                                     "--deal-from-y": `${SHOE.y - 10}cqh`,
                                 }}
                             >
                                 <Show
-                                    when={card() !== "hidden" ? (card() as Card) : null}
+                                    when={
+                                        card() !== "hidden"
+                                            ? (card() as Card)
+                                            : null
+                                    }
                                     fallback={
                                         <div data-testid="blackjack-dealer-hidden">
                                             <TableCard
                                                 card={null}
                                                 class="w-[calc(var(--u)*6)]"
-                                                delay={initialDeal() ? (index * (props.view.players.length + 1) + props.view.players.length) * 140 : 0}
+                                                delay={
+                                                    initialDeal()
+                                                        ? (index *
+                                                              (props.view
+                                                                  .players
+                                                                  .length +
+                                                                  1) +
+                                                              props.view.players
+                                                                  .length) *
+                                                          140
+                                                        : 0
+                                                }
                                             />
                                         </div>
                                     }
@@ -267,9 +329,24 @@ export function BlackjackFelt(props: {
                                             card={visible()}
                                             class="w-[calc(var(--u)*6)]"
                                             delay={
-                                                index < 2 && initialDeal() && dealerBase() === 0
-                                                    ? (index * (props.view.players.length + 1) + props.view.players.length) * 140
-                                                    : Math.max(0, index - Math.max(dealerBase(), 1)) * DEALER_STEP_MS
+                                                index < 2 &&
+                                                initialDeal() &&
+                                                dealerBase() === 0
+                                                    ? (index *
+                                                          (props.view.players
+                                                              .length +
+                                                              1) +
+                                                          props.view.players
+                                                              .length) *
+                                                      140
+                                                    : Math.max(
+                                                          0,
+                                                          index -
+                                                              Math.max(
+                                                                  dealerBase(),
+                                                                  1,
+                                                              ),
+                                                      ) * DEALER_STEP_MS
                                             }
                                         />
                                     )}
@@ -286,7 +363,9 @@ export function BlackjackFelt(props: {
                         {(value) => (
                             <span
                                 class={`absolute -right-[calc(var(--u)*4.8)] top-1/2 -translate-y-1/2 min-w-[calc(var(--u)*3.6)] text-center rounded-[calc(var(--u)*0.5)] px-[calc(var(--u)*0.8)] pt-[calc(var(--u)*0.4)] pb-[calc(var(--u)*0.1)] font-bebas text-[calc(var(--u)*2)] leading-snug animate-stamp-in ${INK_EDGE} ${props.view.dealer.busted ? "bg-[#c0261a] text-[#f7f2de]" : "bg-[#f7f2de] text-[#1a1a1a]"}`}
-                                style={{ "animation-delay": `${dealerRevealDelay()}ms` }}
+                                style={{
+                                    "animation-delay": `${dealerRevealDelay()}ms`,
+                                }}
                             >
                                 {props.view.dealer.busted ? "BUST" : value()}
                             </span>
@@ -417,9 +496,7 @@ function SpotContent(props: {
                 </Show>
             </div>
 
-            <div
-                class={`relative mt-[calc(var(--u)*0.9)] flex items-center gap-[calc(var(--u)*0.7)] rounded-[calc(var(--u)*0.7)] pr-[calc(var(--u)*1.1)] transition-colors duration-300 ${INK_EDGE} ${props.isTurn ? "bg-[#f5c542] animate-nudge" : "bg-[#f7f2de]"}`}
-            >
+            <TableNameplate variant="blackjack" active={props.isTurn}>
                 <PlayerAvatar
                     id={props.player.id}
                     name={props.player.name}
@@ -437,18 +514,27 @@ function SpotContent(props: {
                         $<AnimatedNumber value={props.player.chips} />
                     </div>
                 </div>
-                <Show when={props.result && props.result.netChips !== 0 ? props.result : null} keyed>
+                <Show
+                    when={
+                        props.result && props.result.netChips !== 0
+                            ? props.result
+                            : null
+                    }
+                    keyed
+                >
                     {(result) => (
                         <span
                             class={`absolute left-1/2 -translate-x-1/2 -bottom-[calc(var(--u)*3)] whitespace-nowrap rounded-[calc(var(--u)*0.4)] px-[calc(var(--u)*0.8)] pt-[calc(var(--u)*0.35)] font-bebas text-[calc(var(--u)*1.8)] leading-none animate-stamp-in ${INK_EDGE} ${result.netChips > 0 ? "bg-[#f5c542] text-[#1a1a1a]" : "bg-[#1a1a1a] text-[#f7f2de]"}`}
-                            style={{ "animation-delay": `${props.revealDelay + 250}ms` }}
+                            style={{
+                                "animation-delay": `${props.revealDelay + 250}ms`,
+                            }}
                         >
                             {result.netChips > 0 ? "+" : "−"}$
                             {Math.abs(result.netChips)}
                         </span>
                     )}
                 </Show>
-            </div>
+            </TableNameplate>
         </div>
     );
 }
@@ -504,11 +590,21 @@ function SpotHand(props: {
                         </div>
                     )}
                 </For>
-                <Show when={props.hand.cards.length > 0 && !(props.hand.busted && outcome()) ? handValueLabel(props.hand) : null} keyed>
+                <Show
+                    when={
+                        props.hand.cards.length > 0 &&
+                        !(props.hand.busted && outcome())
+                            ? handValueLabel(props.hand)
+                            : null
+                    }
+                    keyed
+                >
                     {(label) => (
                         <span
                             class={`absolute -top-[calc(var(--u)*1.4)] -right-[calc(var(--u)*1.8)] z-10 min-w-[calc(var(--u)*3)] text-center rounded-[calc(var(--u)*0.4)] px-[calc(var(--u)*0.6)] pt-[calc(var(--u)*0.3)] font-bebas text-[calc(var(--u)*1.6)] leading-snug animate-pop-in ${INK_EDGE} ${props.hand.isBlackjack ? "bg-[#f5c542] text-[#1a1a1a]" : props.hand.busted ? "bg-[#c0261a] text-[#f7f2de]" : "bg-[#f7f2de] text-[#1a1a1a]"}`}
-                            style={{ "animation-delay": `${delayFor(props.hand.cards.length - 1) + 380}ms` }}
+                            style={{
+                                "animation-delay": `${delayFor(props.hand.cards.length - 1) + 380}ms`,
+                            }}
                         >
                             {label}
                         </span>
@@ -520,7 +616,10 @@ function SpotHand(props: {
                             class={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 whitespace-nowrap rounded-[calc(var(--u)*0.4)] px-[calc(var(--u)*1.1)] pt-[calc(var(--u)*0.45)] pb-[calc(var(--u)*0.1)] font-bebas tracking-wider text-[calc(var(--u)*2.1)] leading-snug animate-stamp-in ${INK_EDGE} ${style.badge}`}
                             style={{
                                 "animation-delay": `${props.revealDelay}ms`,
-                                "--stamp-rot": props.spotIndex % 2 === 0 ? "-6deg" : "5deg",
+                                "--stamp-rot":
+                                    props.spotIndex % 2 === 0
+                                        ? "-6deg"
+                                        : "5deg",
                             }}
                         >
                             {style.label}

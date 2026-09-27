@@ -26,6 +26,7 @@
     "dependencies": {
         "@party/effect-utils": "workspace:*",
         "@solidjs/web": "2.0.0-rc.9",
+        "@stylexjs/stylex": "0.19.1",
         "@tanstack/solid-router": "2.0.0-rc.8",
         "animejs": "^4.2.2",
         "effect": "4.0.0-beta.102",
@@ -41,6 +42,7 @@
         "@effect/platform-node": "4.0.0-beta.102",
         "@playwright/test": "^1.60.0",
         "@solidjs/testing-library": "1.0.0-beta.3",
+        "@stylexjs/unplugin": "0.19.1",
         "@tailwindcss/vite": "^4.1.18",
         "@tanstack/router-plugin": "1.168.40",
         "@testing-library/jest-dom": "^6.9.1",
@@ -54,6 +56,7 @@
         "tailwindcss": "^4.1.18",
         "tsx": "^4.21.0",
         "typescript": "^5.7.2",
+        "unplugin": "^2.3.11",
         "vite": "^8.0.7",
         "vite-plugin-solid": "3.0.0-next.27",
         "vitest": "^4.1.4"

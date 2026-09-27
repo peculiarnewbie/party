@@ -1,3 +1,5 @@
+import * as stylex from "@stylexjs/stylex";
+import { colors as palette, fonts, shadows } from "~/styles/tokens.stylex";
 const PALETTE = [
     ["#c0261a", "#f7f2de"],
     ["#1a3a6e", "#f7f2de"],
@@ -30,7 +32,7 @@ export function PlayerAvatar(props: {
     return (
         <div
             aria-hidden="true"
-            class={`shrink-0 rounded-full flex items-center justify-center font-bebas leading-none pt-[.08em] border-2 border-[#1a1a1a] shadow-[2px_2px_0_#1a1a1a] ${props.class ?? "w-12 h-12 text-2xl"}`}
+            class={`${stylex.attrs(styles.avatar, !props.class && styles.defaultSize).class} ${props.class ?? ""}`}
             style={{
                 background: colors()[0],
                 color: colors()[1],
@@ -40,3 +42,21 @@ export function PlayerAvatar(props: {
         </div>
     );
 }
+
+const styles = stylex.create({
+    avatar: {
+        flexShrink: 0,
+        borderRadius: "50%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: fonts.heading,
+        lineHeight: 1,
+        paddingTop: "0.08em",
+        borderWidth: 2,
+        borderStyle: "solid",
+        borderColor: palette.ink,
+        boxShadow: shadows.small,
+    },
+    defaultSize: { width: 48, height: 48, fontSize: 24 },
+});

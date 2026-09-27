@@ -1,7 +1,4 @@
-import {
-    PartyLayoutControls,
-    type PartyLayout,
-} from "~/components/party-layout-controls";
+import { type PartyLayout } from "~/components/party-layout-controls";
 import {
     createSignal,
     createEffect,
@@ -40,9 +37,7 @@ const FACE_LABELS: Record<number, string> = {
 };
 
 export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
-    const [layout, setLayout] = createSignal(
-        () => props.initialLayout ?? "table",
-    );
+    const layout = () => props.initialLayout ?? "table";
     const isController = () => layout() === "controller";
     const gameView = () => props.connection.view();
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
@@ -238,12 +233,6 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
                     </Show>
                 </div>
             </div>
-
-            <PartyLayoutControls
-                roomId={props.roomId}
-                layout={layout()}
-                onChange={setLayout}
-            />
 
             <Show when={announcement()}>
                 <div

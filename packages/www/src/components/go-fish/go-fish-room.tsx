@@ -1,16 +1,11 @@
-import {
-    createSignal,
-    For,
-    Show,
-    onCleanup,
-} from "solid-js";
+import { createSignal, For, Show, onCleanup } from "solid-js";
 import type { Component } from "solid-js";
 import type { Rank } from "~/assets/card-deck/types";
 import { RANK_LABEL } from "~/assets/card-deck/types";
 import type { GoFishConnection } from "~/game/go-fish/connection";
+import { TableButton, TablePanel, TableLayout } from "~/components/casino";
+import { GoFishFelt } from "./go-fish-felt";
 import { PlayerHand } from "./player-hand";
-import { OpponentZone } from "./opponent-zone";
-import { DrawPile } from "./draw-pile";
 import { BooksDisplay } from "./books-display";
 import { TurnActions } from "./turn-actions";
 import { AnnouncementOverlay } from "./announcement-overlay";
@@ -131,9 +126,7 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
     const currentPlayerName = () => {
         const view = gameView();
         if (!view) return "";
-        const current = view.players.find(
-            (p) => p.id === view.currentPlayerId,
-        );
+        const current = view.players.find((p) => p.id === view.currentPlayerId);
         return current?.name ?? "";
     };
 
@@ -180,10 +173,15 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
     };
 
     return (
-        <div data-testid="go-fish-room" class="min-h-screen bg-[#ddd5c4] font-karla flex flex-col">
-            {/* Top bar */}
+        <div
+            data-testid="go-fish-room"
+            class="h-dvh min-h-0 paper text-ink font-karla flex flex-col"
+        >
             <div class="flex items-center justify-between px-4 py-2 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a]">
                 <div class="flex items-center gap-3">
+                    <span class="border-[3px] border-ink bg-tomato px-3 pt-1 font-bebas text-xl tracking-wider text-cream shadow-ink-sm">
+                        GO FISH
+                    </span>
                     <Show
                         when={isMyTurn()}
                         fallback={
@@ -197,76 +195,78 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
                         </span>
                     </Show>
                 </div>
-                <div class="font-bebas text-[.65rem] tracking-[.25em] text-[#9a9080]">
+                <div class="hidden sm:block font-bebas text-[.65rem] tracking-[.25em] text-muted">
                     ROOM {props.roomId.toUpperCase()}
                 </div>
             </div>
 
-            {/* Opponents */}
-            <div class="flex justify-center gap-4 px-4 py-3 flex-wrap">
-                <For each={opponents()}>
-                    {(opp) => (
-                        <OpponentZone
-                            id={opp.id}
-                            name={opp.name}
-                            cardCount={opp.cardCount}
-                            books={opp.books}
-                            isCurrentTurn={
-                                gameView()?.currentPlayerId === opp.id
+            <TableLayout
+                table={
+                    <GoFishFelt
+                        fit
+                        players={gameView()?.players ?? []}
+                        heroId={props.playerId}
+                        currentPlayerId={gameView()?.currentPlayerId ?? ""}
+                        selectedOpponent={selectedOpponent()}
+                        canAsk={
+                            isMyTurn() &&
+                            gameView()?.turnPhase === "awaiting_ask"
+                        }
+                        drawPileCount={gameView()?.drawPileCount ?? 0}
+                        onSelect={handleSelectOpponent}
+                        announcement={
+                            <AnnouncementOverlay
+                                text={announcement()}
+                                variant={announcementVariant()}
+                            />
+                        }
+                    />
+                }
+            >
+                <div class="w-full max-w-5xl mx-auto flex flex-col gap-1 min-w-0">
+                    <Show when={gameView()}>
+                        <PlayerHand
+                            cards={gameView()!.myHand}
+                            selectedRank={selectedRank()}
+                            onSelectRank={handleSelectRank}
+                            disabled={
+                                !isMyTurn() ||
+                                gameView()?.turnPhase !== "awaiting_ask"
                             }
-                            selectable={
-                                isMyTurn() &&
-                                gameView()?.turnPhase === "awaiting_ask"
-                            }
-                            selected={selectedOpponent() === opp.id}
-                            onSelect={handleSelectOpponent}
                         />
-                    )}
-                </For>
-            </div>
-
-            {/* Center: draw pile + announcements */}
-            <div class="flex-1 flex items-center justify-center relative px-4">
-                <DrawPile
-                    count={gameView()?.drawPileCount ?? 0}
-                    showDrawButton={
-                        isMyTurn() &&
-                        gameView()?.turnPhase === "go_fish"
-                    }
-                    onDraw={sendDraw}
-                />
-                <AnnouncementOverlay
-                    text={announcement()}
-                    variant={announcementVariant()}
-                />
-            </div>
-
-            {/* Turn actions */}
-            <TurnActions
-                isMyTurn={isMyTurn()}
-                turnPhase={gameView()?.turnPhase ?? "awaiting_ask"}
-                selectedOpponent={selectedOpponent()}
-                selectedOpponentName={selectedOpponentName()}
-                selectedRank={selectedRank()}
-                onCancel={cancelSelection}
-                currentPlayerName={currentPlayerName()}
-            />
-
-            {/* Books */}
-            <BooksDisplay books={myBooks()} />
-
-            {/* Hand */}
-            <Show when={gameView()}>
-                <PlayerHand
-                    cards={gameView()!.myHand}
-                    selectedRank={selectedRank()}
-                    onSelectRank={handleSelectRank}
-                    disabled={
-                        !isMyTurn() ||
-                        gameView()?.turnPhase !== "awaiting_ask"
-                    }
-                />
-            </Show>
+                    </Show>
+                    <TablePanel
+                        active={isMyTurn()}
+                        testId="go-fish-actions"
+                        class="w-full max-w-xl mx-auto"
+                    >
+                        <TurnActions
+                            isMyTurn={isMyTurn()}
+                            turnPhase={gameView()?.turnPhase ?? "awaiting_ask"}
+                            selectedOpponent={selectedOpponent()}
+                            selectedOpponentName={selectedOpponentName()}
+                            selectedRank={selectedRank()}
+                            onCancel={cancelSelection}
+                            currentPlayerName={currentPlayerName()}
+                        />
+                        <Show
+                            when={
+                                isMyTurn() &&
+                                gameView()?.turnPhase === "go_fish"
+                            }
+                        >
+                            <TableButton
+                                tone="tomato"
+                                class="w-full"
+                                onClick={sendDraw}
+                            >
+                                Go Fish!
+                            </TableButton>
+                        </Show>
+                        <BooksDisplay books={myBooks()} />
+                    </TablePanel>
+                </div>
+            </TableLayout>
 
             {/* Game over overlay */}
             <Show when={gameView()?.gameOver}>
@@ -310,14 +310,14 @@ export const GoFishRoom: Component<GoFishRoomProps> = (props) => {
                             </For>
                         </div>
 
-                        <button
-                            class="w-full font-bebas text-[1.1rem] tracking-[.12em] bg-[#1a1a1a] text-[#ddd5c4] border-2 border-[#1a1a1a] py-3 cursor-pointer shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#9a9080]"
+                        <TableButton
+                            class="w-full"
                             onClick={() => {
                                 window.location.href = `/room/${props.roomId}`;
                             }}
                         >
                             Back to Lobby
-                        </button>
+                        </TableButton>
                     </div>
                 </div>
             </Show>

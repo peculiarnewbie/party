@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { RANK_LABEL } from "../src/assets/card-deck/types";
+import { MultiplayerRoomPage } from "./helpers/multiplayer-room-page";
 
 import type {
     GoFishClientMessage,
@@ -11,6 +13,135 @@ defineLiveGameSmoke({
     gameType: "go_fish",
     playerCount: 2,
     roomTestId: "go-fish-room",
+});
+
+test("go fish styles react to selection and live turns across player browsers", async ({
+    browser,
+    baseURL,
+}, testInfo) => {
+    const roomId = `stylex-${crypto.randomUUID()}`;
+    const contexts = await Promise.all(
+        [0, 1, 2].map(() =>
+            browser.newContext({ viewport: { width: 390, height: 844 } }),
+        ),
+    );
+    try {
+        const players = [];
+        for (const [index, name] of ["Alice", "Bob", "Cara"].entries()) {
+            const page = await contexts[index]!.newPage();
+            await page.goto(`${baseURL}/room/${roomId}`);
+            const room = new MultiplayerRoomPage(page);
+            await room.waitForDevtools();
+            const id = await room.joinAsBrowser(name);
+            players.push({ page, room, id, name });
+        }
+        const host = players[0]!;
+        await host.room.selectGame("go_fish");
+        await host.room.startGame();
+        const initial = await host.room.waitForGameView<GoFishPlayerView>();
+        const actor = players.find(
+            (player) => player.id === initial.currentPlayerId,
+        )!;
+        const target = players.find((player) => player.id !== actor.id)!;
+        const seat = actor.page.getByTestId(`go-fish-opponent-${target.id}`);
+
+        const nameplate = seat.getByTestId("table-nameplate");
+        await expect(nameplate).toHaveCSS(
+            "background-color",
+            "rgb(247, 242, 222)",
+        );
+        await seat.click();
+        await expect(seat).toHaveAttribute("aria-pressed", "true");
+        await expect(seat).toHaveCSS("outline-style", "solid");
+        await expect(seat).toHaveCSS("outline-color", "rgb(245, 197, 66)");
+        const clear = actor.page.getByRole("button", {
+            name: "Clear",
+            exact: true,
+        });
+        await expect(clear).toHaveCSS("min-height", "40px");
+        await actor.page.keyboard.press("Tab");
+        await clear.focus();
+        await expect(clear).toHaveCSS("outline-style", "solid");
+        await actor.page.screenshot({
+            path: testInfo.outputPath("phone-selected.png"),
+        });
+        await clear.click();
+        await expect(seat).toHaveAttribute("aria-pressed", "false");
+        await expect(seat).toHaveCSS("outline-style", "none");
+
+        const actorView = await actor.room.gameView<GoFishPlayerView>();
+        const otherViews = await Promise.all(
+            players
+                .filter((p) => p.id !== actor.id)
+                .map(async (player) => ({
+                    player,
+                    view: await player.room.waitForGameView<GoFishPlayerView>(),
+                })),
+        );
+        const ask = actorView.myHand.flatMap((card) =>
+            otherViews.map(({ player, view }) => ({
+                rank: card.rank,
+                player,
+                missing: !view.myHand.some((held) => held.rank === card.rank),
+            })),
+        );
+        const choice = ask.find((option) => option.missing) ?? ask[0]!;
+        await actor.page
+            .getByTestId(`go-fish-opponent-${choice.player.id}`)
+            .click();
+        await actor.page
+            .getByRole("button", {
+                name: `Ask for ${RANK_LABEL[choice.rank]}s`,
+                exact: true,
+            })
+            .click();
+        if (choice.missing) {
+            const draw = actor.page.getByRole("button", {
+                name: "Go Fish!",
+                exact: true,
+            });
+            await expect(draw).toBeVisible();
+            await expect(draw).toHaveCSS(
+                "background-color",
+                "rgb(192, 38, 26)",
+            );
+            await actor.page.screenshot({
+                path: testInfo.outputPath("phone-go-fish.png"),
+            });
+            await draw.click();
+            await expect
+                .poll(
+                    async () =>
+                        (await actor.room.gameView<GoFishPlayerView>())
+                            .drawPileCount,
+                )
+                .toBe(actorView.drawPileCount - 1);
+        } else {
+            await expect
+                .poll(
+                    async () =>
+                        (await actor.room.gameView<GoFishPlayerView>())
+                            .lastResult?.type,
+                )
+                .toBe("cards_given");
+        }
+        for (const player of players) {
+            await expect(player.page.getByTestId("go-fish-room")).toBeVisible();
+            expect(
+                await player.page.evaluate(
+                    () =>
+                        document.documentElement.scrollWidth <=
+                        window.innerWidth,
+                ),
+            ).toBe(true);
+        }
+        await host.page.setViewportSize({ width: 1440, height: 1000 });
+        await host.page.screenshot({
+            path: testInfo.outputPath("desktop-table.png"),
+        });
+    } finally {
+        await Promise.all(contexts.map((context) => context.close()));
+    }
 });
 
 test("go fish resolves a legal ask through the live room", async ({ page }) => {

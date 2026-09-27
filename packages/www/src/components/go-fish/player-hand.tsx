@@ -1,7 +1,9 @@
 import { For, Show } from "solid-js";
-import type { Card, Rank } from "~/assets/card-deck/types";
-import { PlayingCard } from "~/assets/card-deck/playing-card";
+import * as stylex from "@stylexjs/stylex";
+import { TableCard } from "~/components/casino";
+import { colors, fonts } from "~/styles/tokens.stylex";
 import { RANK_LABEL } from "~/assets/card-deck/types";
+import type { Card, Rank } from "~/assets/card-deck/types";
 
 interface PlayerHandProps {
     cards: Card[];
@@ -9,80 +11,120 @@ interface PlayerHandProps {
     onSelectRank: (rank: Rank) => void;
     disabled: boolean;
 }
-
-interface RankGroup {
-    rank: Rank;
-    cards: Card[];
+function groupByRank(cards: Card[]) {
+    const groups = new Map<Rank, Card[]>();
+    for (const card of cards)
+        groups.set(card.rank, [...(groups.get(card.rank) ?? []), card]);
+    return Array.from(groups, ([rank, cards]) => ({ rank, cards })).sort(
+        (a, b) => a.rank - b.rank,
+    );
 }
-
-function groupByRank(cards: Card[]): RankGroup[] {
-    const map = new Map<Rank, Card[]>();
-    for (const card of cards) {
-        const existing = map.get(card.rank) ?? [];
-        existing.push(card);
-        map.set(card.rank, existing);
-    }
-    return Array.from(map.entries())
-        .sort(([a], [b]) => a - b)
-        .map(([rank, cards]) => ({ rank, cards }));
-}
-
 export function PlayerHand(props: PlayerHandProps) {
-    const groups = () => groupByRank(props.cards);
-
     return (
-        <div class="border-t-[3px] border-[#1a1a1a] pt-3 pb-4 px-4">
-            <div class="font-bebas text-[.7rem] tracking-[.28em] text-[#9a9080] mb-2">
+        <div data-testid="go-fish-hand" {...stylex.attrs(styles.hand)}>
+            <div {...stylex.attrs(styles.label)}>
                 YOUR HAND ({props.cards.length})
             </div>
-            <div class="flex gap-4 overflow-x-auto pb-2 justify-center flex-wrap">
-                <For each={groups()}>
-                    {(group) => {
-                        const isSelected = () =>
-                            props.selectedRank === group.rank;
-                        return (
-                            <button
-                                class={`flex relative cursor-pointer transition-all duration-[120ms] ${
-                                    isSelected()
-                                        ? "-translate-y-3"
-                                        : props.disabled
-                                          ? "opacity-60 cursor-default"
-                                          : "hover:-translate-y-1"
-                                }`}
-                                onClick={() => {
-                                    if (!props.disabled)
-                                        props.onSelectRank(group.rank);
-                                }}
-                                disabled={props.disabled}
-                            >
-                                <Show when={group.cards.length > 1}>
-                                    <div class="absolute -top-2 -right-1 z-10 bg-[#1a3a6e] text-[#ddd5c4] font-bebas text-[.65rem] tracking-[.1em] w-5 h-5 flex items-center justify-center">
-                                        x{group.cards.length}
+            <div {...stylex.attrs(styles.groups)}>
+                <For each={groupByRank(props.cards)} keyed={false}>
+                    {(group) => (
+                        <button
+                            {...stylex.attrs(
+                                styles.group,
+                                props.selectedRank === group().rank &&
+                                    styles.selected,
+                            )}
+                            type="button"
+                            aria-label={`Ask for ${RANK_LABEL[group().rank]}s`}
+                            aria-pressed={
+                                props.selectedRank === group().rank
+                                    ? "true"
+                                    : "false"
+                            }
+                            disabled={props.disabled}
+                            onClick={() => {
+                                if (!props.disabled)
+                                    props.onSelectRank(group().rank);
+                            }}
+                        >
+                            <Show when={group().cards.length > 1}>
+                                <span {...stylex.attrs(styles.badge)}>
+                                    x{group().cards.length}
+                                </span>
+                            </Show>
+                            <For each={group().cards} keyed={false}>
+                                {(card, index) => (
+                                    <div
+                                        {...stylex.attrs(
+                                            index > 0 && styles.overlap,
+                                        )}
+                                    >
+                                        <TableCard
+                                            card={card()}
+                                            class="w-[56px] sm:w-[72px]"
+                                            delay={index * 100}
+                                            highlight={
+                                                props.selectedRank ===
+                                                group().rank
+                                            }
+                                        />
                                     </div>
-                                </Show>
-                                <For each={group.cards}>
-                                    {(card, i) => (
-                                        <div
-                                            class={`${i() > 0 ? "-ml-[60px] max-sm:-ml-[45px]" : ""}`}
-                                            style={{
-                                                filter: isSelected()
-                                                    ? "drop-shadow(0 4px 12px rgba(26,58,110,0.3))"
-                                                    : undefined,
-                                            }}
-                                        >
-                                            <PlayingCard
-                                                suit={card.suit}
-                                                rank={card.rank}
-                                                size={100}
-                                            />
-                                        </div>
-                                    )}
-                                </For>
-                            </button>
-                        );
-                    }}
+                                )}
+                            </For>
+                        </button>
+                    )}
                 </For>
             </div>
         </div>
     );
 }
+const styles = stylex.create({
+    hand: { paddingInline: 12, paddingBlock: 4 },
+    label: {
+        marginBottom: 2,
+        textAlign: "center",
+        fontFamily: fonts.heading,
+        fontSize: 14,
+        letterSpacing: "0.2em",
+        color: colors.muted,
+    },
+    groups: {
+        display: "flex",
+        justifyContent: "center",
+        columnGap: 12,
+        rowGap: 28,
+        flexWrap: "wrap",
+        paddingInline: 10,
+        paddingTop: 28,
+        paddingBottom: 10,
+    },
+    group: {
+        position: "relative",
+        flexShrink: 0,
+        display: "flex",
+        cursor: { default: "pointer", ":disabled": "default" },
+        transitionProperty: "transform",
+        transitionDuration: "120ms",
+        outline: {
+            default: "none",
+            ":focus-visible": `3px solid ${colors.navy}`,
+        },
+        outlineOffset: 6,
+    },
+    selected: { transform: "translateY(-8px)" },
+    overlap: { marginLeft: { default: -36, "@media (min-width: 640px)": -48 } },
+    badge: {
+        position: "absolute",
+        top: -12,
+        right: -4,
+        zIndex: 10,
+        paddingInline: 6,
+        borderWidth: 2,
+        borderStyle: "solid",
+        borderColor: colors.ink,
+        backgroundColor: colors.navy,
+        color: colors.cream,
+        fontFamily: fonts.heading,
+        fontSize: 14,
+    },
+});

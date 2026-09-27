@@ -80,9 +80,7 @@ describe("Flip7Room", () => {
             type: "flip_7:choose_target",
             data: { targetId: "p2" },
         });
-        fireEvent.click(getByTestId("party-layout-toggle"));
-        flush();
-        expect(queryByText("12", { exact: true })).toBeInTheDocument();
+
     });
 
     it("renders initial state with round number, deck count, and phase", () => {

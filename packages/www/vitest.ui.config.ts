@@ -1,11 +1,12 @@
 import { defineProject } from "vitest/config";
 import viteSolid from "vite-plugin-solid";
+import { stylexPlugin } from "./stylex.config";
 
 export default defineProject({
     resolve: {
         tsconfigPaths: true,
     },
-    plugins: [viteSolid({ hot: false })],
+    plugins: [stylexPlugin({ test: true }), viteSolid({ hot: false })],
     test: {
         name: "ui",
         include: ["src/**/*.test.{ts,tsx}"],

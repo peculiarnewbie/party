@@ -1,4 +1,7 @@
 import { Show } from "solid-js";
+import * as stylex from "@stylexjs/stylex";
+import { TableButton } from "~/components/casino";
+import { colors, fonts } from "~/styles/tokens.stylex";
 import type { Rank } from "~/assets/card-deck/types";
 import { RANK_LABEL } from "~/assets/card-deck/types";
 
@@ -23,37 +26,34 @@ export function TurnActions(props: TurnActionsProps) {
     };
 
     return (
-        <div class="flex items-center justify-center gap-3 px-4 py-2 min-h-[48px]">
+        <div {...stylex.attrs(styles.bar)}>
             <Show
                 when={props.isMyTurn}
                 fallback={
-                    <div class="font-bebas text-[.85rem] tracking-[.15em] text-[#9a9080]">
+                    <div {...stylex.attrs(styles.hint)}>
                         WAITING FOR {props.currentPlayerName.toUpperCase()}...
                     </div>
                 }
             >
                 <Show when={props.turnPhase === "awaiting_ask"}>
-                    <div class="flex items-center gap-3">
-                        <span class="font-bebas text-[.85rem] tracking-[.15em] text-[#9a9080]">
-                            {hint()}
-                        </span>
+                    <div {...stylex.attrs(styles.actions)}>
+                        <span {...stylex.attrs(styles.hint)}>{hint()}</span>
                         <Show
-                            when={
-                                props.selectedOpponent || props.selectedRank
-                            }
+                            when={props.selectedOpponent || props.selectedRank}
                         >
-                            <button
-                                class="font-bebas text-[.85rem] tracking-[.1em] bg-[#c9c0b0] text-[#5a5040] border-2 border-[#b8ae9e] px-4 py-1 cursor-pointer transition-all duration-[120ms] hover:bg-[#bfb5a4] hover:border-[#5a5040]"
+                            <TableButton
+                                size="compact"
+                                class="px-4"
                                 onClick={() => props.onCancel()}
                             >
                                 Clear
-                            </button>
+                            </TableButton>
                         </Show>
                     </div>
                 </Show>
 
                 <Show when={props.turnPhase === "go_fish"}>
-                    <div class="font-bebas text-[1rem] tracking-[.1em] text-[#c0261a]">
+                    <div {...stylex.attrs(styles.hint, styles.draw)}>
                         GO FISH! DRAW A CARD
                     </div>
                 </Show>
@@ -61,3 +61,30 @@ export function TurnActions(props: TurnActionsProps) {
         </div>
     );
 }
+
+const styles = stylex.create({
+    bar: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 12,
+        paddingInline: 4,
+        paddingBlock: 4,
+        minHeight: 40,
+    },
+    actions: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexWrap: "wrap",
+        gap: 12,
+    },
+    hint: {
+        fontFamily: fonts.heading,
+        fontSize: "1rem",
+        letterSpacing: "0.12em",
+        color: colors.muted,
+        textAlign: "center",
+    },
+    draw: { color: colors.tomato },
+});

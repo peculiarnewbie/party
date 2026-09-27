@@ -20,7 +20,7 @@ This is a casual multiplayer party game app built with Solid 2 and TanStack Rout
 - `/room/<code>?view=display` opens the Party display; its QR code uses `?view=controller` for phone controls
 - Texas Hold’em phones show the player’s own cards; Backwards Poker phones show opponents’ cards while hiding the player’s own cards
 - Both poker variants keep unrevealed hole cards off the public display; only public showdown cards may appear there
-- Players can switch between Party mode controls and the full table layout without changing the room or game rules
+- Players choose Party mode phone controls or the full table layout in the lobby; keep Party mode switches and display links out of active-game screens
 - Flip 7 displays face-up cards and scores; phones show the player’s own cards and actions
 - Blackjack displays dealer and player hands while keeping the dealer’s hole card hidden until revealed; phones show the player’s hand and betting/actions
 - Perudo displays bids and dice counts; private dice stay on phones until a public challenge reveal

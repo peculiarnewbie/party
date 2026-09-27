@@ -15,7 +15,7 @@ test.describe("poker-live", () => {
         }, testInfo) => {
             const roomId = createRoomId("poker-party");
             await page.setViewportSize({ width: 390, height: 844 });
-            await page.goto(`/room/${roomId}?view=controller`);
+            await page.goto(`/room/${roomId}`);
             const host = new MultiplayerRoomPage(page);
             await host.waitForDevtools();
             await expect(page.getByTestId("room-join-button")).toBeVisible();
@@ -63,6 +63,10 @@ test.describe("poker-live", () => {
                 const bobId = await bob.joinAsBrowser("Bob");
                 await expect(display.getByText("Players · 2")).toBeVisible();
                 await host.selectGame(gameType);
+                await page
+                    .getByLabel("Play on this device")
+                    .selectOption("controller");
+                await expect(page).toHaveURL(/view=controller/);
                 await host.startGame();
                 await expect(
                     display.getByTestId("poker-table-display"),
@@ -123,18 +127,9 @@ test.describe("poker-live", () => {
                 await expect(
                     page.getByTestId(`poker-seat-${bobId}`),
                 ).toHaveCount(0);
-                await page
-                    .getByRole("button", { name: "View table", exact: true })
-                    .click();
                 await expect(
-                    page.getByTestId(`poker-seat-${bobId}`),
-                ).toBeVisible();
-                await page
-                    .getByRole("button", {
-                        name: "Party mode",
-                        exact: true,
-                    })
-                    .click();
+                    page.getByTestId("poker-layout-toggle"),
+                ).toHaveCount(0);
 
                 await display.reload();
                 await expect(
@@ -378,7 +373,9 @@ test("recovers a phone connection with the same poker seat and host-controlled g
         const guestRoom = new MultiplayerRoomPage(guest);
         await guestRoom.waitForDevtools();
         const guestId = await guestRoom.joinAsBrowser("Bob");
-        await page.getByText("Disconnected players", { exact: true }).click();
+        await page
+            .getByText("Disconnected player settings", { exact: true })
+            .click();
         await page.getByLabel("Reconnect grace period").selectOption("120");
         await host.selectGame("poker");
         await host.startGame();
@@ -387,6 +384,7 @@ test("recovers a phone connection with the same poker seat and host-controlled g
         if (!cutConnection) throw new Error("Missing live connection");
         await cutConnection();
         await expect(guest.getByRole("status")).toContainText("Reconnecting");
+        await page.getByText("1 player disconnected", { exact: true }).click();
         const offline = page.getByTestId(`offline-${guestId}`);
         await expect(offline).toContainText("Bob");
         await offline

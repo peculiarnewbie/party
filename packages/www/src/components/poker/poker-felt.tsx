@@ -1,4 +1,14 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onSettled, Show, untrack } from "solid-js";
+import { TableSurface, TableNameplate } from "~/components/casino";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    For,
+    onCleanup,
+    onSettled,
+    Show,
+    untrack,
+} from "solid-js";
 import type { JSX } from "@solidjs/web";
 import {
     AnimatedNumber,
@@ -40,12 +50,20 @@ const ACTION_TONES: Record<SeatAction["tone"], string> = {
 const INK_EDGE =
     "border-[length:calc(var(--u)*0.25)] border-[#1a1a1a] shadow-[calc(var(--u)*0.35)_calc(var(--u)*0.35)_0_#1a1a1a]";
 
-function ellipsePoint(index: number, count: number, rx: number, ry: number, offset = 0): Point {
-    const angle = ((90 + (index * 360) / Math.max(count, 1) + offset) * Math.PI) / 180;
+function ellipsePoint(
+    index: number,
+    count: number,
+    rx: number,
+    ry: number,
+    offset = 0,
+): Point {
+    const angle =
+        ((90 + (index * 360) / Math.max(count, 1) + offset) * Math.PI) / 180;
     return { x: 50 + rx * Math.cos(angle), y: 50 + ry * Math.sin(angle) };
 }
 
 export function PokerFelt(props: {
+    fit?: boolean;
     players: PokerPlayerPublicView[];
     board: Card[];
     pots: PokerPot[];
@@ -72,9 +90,14 @@ export function PokerFelt(props: {
     });
 
     const seats = createMemo(() => {
-        const heroIndex = props.players.findIndex((player) => player.id === props.heroId);
+        const heroIndex = props.players.findIndex(
+            (player) => player.id === props.heroId,
+        );
         if (heroIndex <= 0) return props.players;
-        return [...props.players.slice(heroIndex), ...props.players.slice(0, heroIndex)];
+        return [
+            ...props.players.slice(heroIndex),
+            ...props.players.slice(0, heroIndex),
+        ];
     });
 
     const geometry = () =>
@@ -83,11 +106,27 @@ export function PokerFelt(props: {
             : { seat: [41, 39], bet: [29, 20], button: [34, 27] };
 
     const seatPoint = (index: number) =>
-        ellipsePoint(index, seats().length, geometry().seat[0], geometry().seat[1]);
+        ellipsePoint(
+            index,
+            seats().length,
+            geometry().seat[0],
+            geometry().seat[1],
+        );
     const betPoint = (index: number) =>
-        ellipsePoint(index, seats().length, geometry().bet[0], geometry().bet[1]);
+        ellipsePoint(
+            index,
+            seats().length,
+            geometry().bet[0],
+            geometry().bet[1],
+        );
     const buttonPoint = (index: number) =>
-        ellipsePoint(index, seats().length, geometry().button[0], geometry().button[1], seats().length > 2 ? 14 : 22);
+        ellipsePoint(
+            index,
+            seats().length,
+            geometry().button[0],
+            geometry().button[1],
+            seats().length > 2 ? 14 : 22,
+        );
 
     const flash = useStreetFlash(() => props.street);
     const finished = () =>
@@ -101,7 +140,8 @@ export function PokerFelt(props: {
     const winnings = () => winningsByPlayer(results());
     const winningCards = () => {
         const keys = new Set<string>();
-        for (const result of results()) for (const card of result.winningCards) keys.add(cardKey(card));
+        for (const result of results())
+            for (const card of result.winningCards) keys.add(cardKey(card));
         return keys;
     };
     const totalPot = () => props.pots.reduce((sum, pot) => sum + pot.amount, 0);
@@ -109,7 +149,10 @@ export function PokerFelt(props: {
         Math.max(
             0,
             totalPot() -
-                props.players.reduce((sum, player) => sum + player.committedThisStreet, 0),
+                props.players.reduce(
+                    (sum, player) => sum + player.committedThisStreet,
+                    0,
+                ),
         );
 
     createEffect(
@@ -125,7 +168,8 @@ export function PokerFelt(props: {
             hand: props.handNumber,
             cards: Math.min(
                 12,
-                props.players.filter((player) => player.holeCardCount > 0).length * 2,
+                props.players.filter((player) => player.holeCardCount > 0)
+                    .length * 2,
             ),
         }),
         (next, previous) => {
@@ -135,7 +179,11 @@ export function PokerFelt(props: {
         },
     );
     createEffect(
-        () => props.players.reduce((sum, player) => sum + player.committedThisStreet, 0),
+        () =>
+            props.players.reduce(
+                (sum, player) => sum + player.committedThisStreet,
+                0,
+            ),
         (total, previous) => {
             if (previous !== undefined && total > previous) playSfx("chip");
         },
@@ -154,7 +202,8 @@ export function PokerFelt(props: {
 
     const seatCards = (player: PokerPlayerPublicView): (Card | null)[] => {
         if (player.visibleHoleCards.length > 0) return player.visibleHoleCards;
-        if (player.id === props.heroId && (props.heroCards?.length ?? 0) > 0) return props.heroCards!;
+        if (player.id === props.heroId && (props.heroCards?.length ?? 0) > 0)
+            return props.heroCards!;
         return Array.from({ length: player.holeCardCount }, () => null);
     };
 
@@ -164,34 +213,56 @@ export function PokerFelt(props: {
             data-testid="poker-felt"
             class="relative w-full mx-auto [container-type:size] select-none"
             style={{
-                "aspect-ratio": portrait() ? "3 / 4" : "2.15 / 1",
-                "--u": portrait() ? "2.3cqw" : "1cqw",
+                height: props.fit ? "100%" : undefined,
+                "aspect-ratio": props.fit
+                    ? "auto"
+                    : portrait()
+                      ? "3 / 4"
+                      : "2.15 / 1",
+                "--u": props.fit
+                    ? portrait()
+                        ? "min(2.3cqw, max(6.5px, 3cqh))"
+                        : "min(1cqw, 2cqh)"
+                    : portrait()
+                      ? "2.3cqw"
+                      : "1cqw",
             }}
         >
-            <div class="absolute inset-[4%_4%] rounded-full bg-[#1a1a1a] translate-x-[calc(var(--u)*0.9)] translate-y-[calc(var(--u)*0.9)]" />
-            <div class="absolute inset-[4%_4%] rounded-full bg-[#c0261a] border-[length:calc(var(--u)*0.4)] border-[#1a1a1a]" />
-            <div class="table-mat absolute inset-[calc(4%+var(--u)*2.4)_calc(4%+var(--u)*2.4)] rounded-full border-[length:calc(var(--u)*0.4)] border-[#1a1a1a] overflow-hidden">
+            <TableSurface>
                 <div class="absolute inset-[calc(var(--u)*3)] rounded-full border-[length:calc(var(--u)*0.25)] border-dashed border-[#f7f2de]/20" />
                 <div class="absolute inset-x-0 top-[15%] text-center font-bebas tracking-[.3em] text-[#f7f2de]/15 text-[calc(var(--u)*3.4)] leading-none">
                     {props.title}
                 </div>
-            </div>
+            </TableSurface>
 
             <div class="absolute left-1/2 top-[47%] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-[calc(var(--u)*1.2)] z-10">
-                <div data-testid="poker-board" class="flex gap-[calc(var(--u)*0.8)]">
+                <div
+                    data-testid="poker-board"
+                    class="flex gap-[calc(var(--u)*0.8)]"
+                >
                     <For each={[0, 1, 2, 3, 4]} keyed={false}>
                         {(slot) => (
                             <Show
                                 when={props.board[slot()]}
-                                fallback={<CardSlot class="w-[calc(var(--u)*6.4)]" />}
+                                fallback={
+                                    <CardSlot class="w-[calc(var(--u)*6.4)]" />
+                                }
                             >
                                 {(card) => (
                                     <TableCard
                                         card={card()}
                                         class="w-[calc(var(--u)*6.4)]"
-                                        delay={Math.max(0, slot() - boardBase()) * 170}
-                                        highlight={winningCards().has(cardKey(card()))}
-                                        dimmed={winningCards().size > 0 && !winningCards().has(cardKey(card()))}
+                                        delay={
+                                            Math.max(0, slot() - boardBase()) *
+                                            170
+                                        }
+                                        highlight={winningCards().has(
+                                            cardKey(card()),
+                                        )}
+                                        dimmed={
+                                            winningCards().size > 0 &&
+                                            !winningCards().has(cardKey(card()))
+                                        }
                                     />
                                 )}
                             </Show>
@@ -200,15 +271,24 @@ export function PokerFelt(props: {
                 </div>
                 <div class="flex items-center gap-[calc(var(--u)*1)] min-h-[calc(var(--u)*4)]">
                     <Show when={!finished() || totalPot() > 0}>
-                    <Show when={collectedPot() > 0}>
-                        <ChipStack amount={collectedPot()} size={22} showLabel={false} class="[&_svg]:w-[calc(var(--u)*2.4)] [&_svg]:h-[calc(var(--u)*2.4)]" />
-                    </Show>
-                    <div
-                        data-testid="poker-pot-total"
-                        class={`rounded-[calc(var(--u)*0.5)] bg-[#f7f2de] px-[calc(var(--u)*1.4)] pt-[calc(var(--u)*0.5)] pb-[calc(var(--u)*0.3)] font-bebas tracking-wider text-[#1a1a1a] text-[calc(var(--u)*2)] leading-none ${INK_EDGE}`}
-                    >
-                        Pot <AnimatedNumber value={totalPot()} class="text-[#c0261a]" />
-                    </div>
+                        <Show when={collectedPot() > 0}>
+                            <ChipStack
+                                amount={collectedPot()}
+                                size={22}
+                                showLabel={false}
+                                class="[&_svg]:w-[calc(var(--u)*2.4)] [&_svg]:h-[calc(var(--u)*2.4)]"
+                            />
+                        </Show>
+                        <div
+                            data-testid="poker-pot-total"
+                            class={`rounded-[calc(var(--u)*0.5)] bg-[#f7f2de] px-[calc(var(--u)*1.4)] pt-[calc(var(--u)*0.5)] pb-[calc(var(--u)*0.3)] font-bebas tracking-wider text-[#1a1a1a] text-[calc(var(--u)*2)] leading-none ${INK_EDGE}`}
+                        >
+                            Pot{" "}
+                            <AnimatedNumber
+                                value={totalPot()}
+                                class="text-[#c0261a]"
+                            />
+                        </div>
                     </Show>
                     <Show when={props.pots.length > 1}>
                         <For each={props.pots.slice(1)} keyed={false}>
@@ -246,20 +326,31 @@ export function PokerFelt(props: {
                     const won = () => winnings()[player().id] ?? 0;
                     const action = () => actions()[player().id];
                     const out = () =>
-                        player().status === "folded" || player().status === "busted";
+                        player().status === "folded" ||
+                        player().status === "busted";
                     const cardsBelow = () => point().y < 35;
                     return (
                         <>
                             <Show when={player().isDealer}>
                                 <div
                                     class={`absolute z-20 -translate-x-1/2 -translate-y-1/2 w-[calc(var(--u)*2.8)] h-[calc(var(--u)*2.8)] rounded-full bg-[#f7f2de] flex items-center justify-center pt-[calc(var(--u)*0.2)] font-bebas text-[calc(var(--u)*1.7)] text-[#1a1a1a] transition-all duration-700 ease-out ${INK_EDGE}`}
-                                    style={{ left: `${buttonPoint(index).x}%`, top: `${buttonPoint(index).y}%` }}
+                                    style={{
+                                        left: `${buttonPoint(index).x}%`,
+                                        top: `${buttonPoint(index).y}%`,
+                                    }}
                                 >
                                     D
                                 </div>
                             </Show>
 
-                            <Show when={player().committedThisStreet > 0 ? player().committedThisStreet : null} keyed>
+                            <Show
+                                when={
+                                    player().committedThisStreet > 0
+                                        ? player().committedThisStreet
+                                        : null
+                                }
+                                keyed
+                            >
                                 {(amount) => (
                                     <div
                                         data-testid={`poker-bet-${player().id}`}
@@ -307,10 +398,15 @@ export function PokerFelt(props: {
                                 data-status={player().status}
                                 data-acting={String(player().isActing)}
                                 data-connected={String(player().connected)}
-                                data-visible-card-count={player().visibleHoleCards.length}
+                                data-visible-card-count={
+                                    player().visibleHoleCards.length
+                                }
                                 data-hole-card-count={player().holeCardCount}
                                 class={`absolute z-10 -translate-x-1/2 -translate-y-1/2 flex items-center w-[calc(var(--u)*16)] transition-[left,top] duration-700 ${cardsBelow() ? "flex-col-reverse" : "flex-col"}`}
-                                style={{ left: `${point().x}%`, top: `${point().y}%` }}
+                                style={{
+                                    left: `${point().x}%`,
+                                    top: `${point().y}%`,
+                                }}
                             >
                                 <Show when={String(props.handNumber)} keyed>
                                     {(_hand) => (
@@ -321,16 +417,41 @@ export function PokerFelt(props: {
                                                 "--deal-from-y": `${50 - point().y}cqh`,
                                             }}
                                         >
-                                            <For each={seatCards(player())} keyed={false}>
+                                            <For
+                                                each={seatCards(player())}
+                                                keyed={false}
+                                            >
                                                 {(card, cardIndex) => (
                                                     <div
-                                                        class={cardIndex === 0 ? "-rotate-6 translate-x-[calc(var(--u)*0.6)]" : "rotate-6 -translate-x-[calc(var(--u)*0.6)]"}
+                                                        class={
+                                                            cardIndex === 0
+                                                                ? "-rotate-6 translate-x-[calc(var(--u)*0.6)]"
+                                                                : "rotate-6 -translate-x-[calc(var(--u)*0.6)]"
+                                                        }
                                                     >
                                                         <TableCard
                                                             card={card()}
-                                                            class={player().id === props.heroId ? "w-[calc(var(--u)*6.8)]" : "w-[calc(var(--u)*5.2)]"}
-                                                            delay={(cardIndex * seats().length + index) * 110}
-                                                            highlight={!!card() && winningCards().has(cardKey(card()!))}
+                                                            class={
+                                                                player().id ===
+                                                                props.heroId
+                                                                    ? "w-[calc(var(--u)*6.8)]"
+                                                                    : "w-[calc(var(--u)*5.2)]"
+                                                            }
+                                                            delay={
+                                                                (cardIndex *
+                                                                    seats()
+                                                                        .length +
+                                                                    index) *
+                                                                110
+                                                            }
+                                                            highlight={
+                                                                !!card() &&
+                                                                winningCards().has(
+                                                                    cardKey(
+                                                                        card()!,
+                                                                    ),
+                                                                )
+                                                            }
                                                         />
                                                     </div>
                                                 )}
@@ -339,30 +460,37 @@ export function PokerFelt(props: {
                                     )}
                                 </Show>
 
-                                <div
-                                    class={`relative w-full flex items-center gap-[calc(var(--u)*0.8)] rounded-[calc(var(--u)*0.8)] pr-[calc(var(--u)*1.2)] transition-[background-color,opacity,filter] duration-300 ${INK_EDGE} ${
-                                        won() > 0
-                                            ? "bg-[#f5c542] animate-wiggle"
-                                            : player().isActing
-                                              ? "bg-[#f5c542] animate-nudge"
-                                              : "bg-[#f7f2de]"
-                                    } ${out() ? "opacity-60 grayscale" : ""}`}
+                                <TableNameplate
+                                    active={player().isActing}
+                                    winner={won() > 0}
+                                    muted={out()}
                                 >
                                     <PlayerAvatar
                                         id={player().id}
                                         name={player().name}
-                                        index={props.players.findIndex((entry) => entry.id === player().id)}
+                                        index={props.players.findIndex(
+                                            (entry) => entry.id === player().id,
+                                        )}
                                         class="w-[calc(var(--u)*4.6)] h-[calc(var(--u)*4.6)] text-[calc(var(--u)*2.4)] -ml-[calc(var(--u)*0.8)] !border-[length:calc(var(--u)*0.25)] !shadow-none"
                                     />
                                     <div class="min-w-0 flex-1 py-[calc(var(--u)*0.5)]">
                                         <div class="font-bebas tracking-wider text-[#1a1a1a] text-[calc(var(--u)*1.75)] leading-none truncate">
                                             {player().name}
-                                            <Show when={player().id === props.heroId}>
-                                                <span class="text-[#c0261a]"> · You</span>
+                                            <Show
+                                                when={
+                                                    player().id === props.heroId
+                                                }
+                                            >
+                                                <span class="text-[#c0261a]">
+                                                    {" "}
+                                                    · You
+                                                </span>
                                             </Show>
                                         </div>
                                         <div class="font-bebas tracking-wide text-[#1a3a6e] text-[calc(var(--u)*1.9)] leading-none mt-[calc(var(--u)*0.2)]">
-                                            <AnimatedNumber value={player().stack} />
+                                            <AnimatedNumber
+                                                value={player().stack}
+                                            />
                                         </div>
                                     </div>
                                     <div class="flex flex-col gap-[calc(var(--u)*0.2)]">
@@ -381,17 +509,45 @@ export function PokerFelt(props: {
                                     <Show
                                         when={
                                             won() > 0
-                                                ? { label: `Wins ${won()}`, cls: "bg-[#c0261a] text-[#f7f2de]", key: `won-${won()}` }
+                                                ? {
+                                                      label: `Wins ${won()}`,
+                                                      cls: "bg-[#c0261a] text-[#f7f2de]",
+                                                      key: `won-${won()}`,
+                                                  }
                                                 : !player().connected
-                                                  ? { label: "Offline", cls: "bg-[#9a9080] text-[#f7f2de]", key: "offline" }
+                                                  ? {
+                                                        label: "Offline",
+                                                        cls: "bg-[#9a9080] text-[#f7f2de]",
+                                                        key: "offline",
+                                                    }
                                                   : player().status === "all_in"
-                                                    ? { label: "All-in", cls: "bg-[#c0261a] text-[#f7f2de]", key: "all_in" }
-                                                    : player().status === "busted"
-                                                      ? { label: "Busted", cls: "bg-[#1a1a1a] text-[#f7f2de]", key: "busted" }
+                                                    ? {
+                                                          label: "All-in",
+                                                          cls: "bg-[#c0261a] text-[#f7f2de]",
+                                                          key: "all_in",
+                                                      }
+                                                    : player().status ===
+                                                        "busted"
+                                                      ? {
+                                                            label: "Busted",
+                                                            cls: "bg-[#1a1a1a] text-[#f7f2de]",
+                                                            key: "busted",
+                                                        }
                                                       : action()
-                                                        ? { label: action()!.label, cls: ACTION_TONES[action()!.tone], key: `a-${action()!.id}` }
+                                                        ? {
+                                                              label: action()!
+                                                                  .label,
+                                                              cls: ACTION_TONES[
+                                                                  action()!.tone
+                                                              ],
+                                                              key: `a-${action()!.id}`,
+                                                          }
                                                         : player().isActing
-                                                          ? { label: "Thinking…", cls: "bg-[#f7f2de] text-[#1a1a1a]", key: "thinking" }
+                                                          ? {
+                                                                label: "Thinking…",
+                                                                cls: "bg-[#f7f2de] text-[#1a1a1a]",
+                                                                key: "thinking",
+                                                            }
                                                           : null
                                         }
                                         keyed
@@ -399,13 +555,18 @@ export function PokerFelt(props: {
                                         {(badge) => (
                                             <span
                                                 class={`absolute left-1/2 ${cardsBelow() ? "-top-[calc(var(--u)*2.9)]" : "-bottom-[calc(var(--u)*2.1)]"} -translate-x-1/2 whitespace-nowrap rounded-[calc(var(--u)*0.35)] border-[length:calc(var(--u)*0.2)] border-[#1a1a1a] px-[calc(var(--u)*0.9)] pt-[calc(var(--u)*0.3)] pb-[calc(var(--u)*0.05)] font-bebas tracking-wider text-[calc(var(--u)*1.45)] leading-snug shadow-[calc(var(--u)*0.25)_calc(var(--u)*0.25)_0_#1a1a1a] animate-stamp-in ${badge.cls}`}
-                                                style={{ "--stamp-rot": index % 2 === 0 ? "-4deg" : "3deg" }}
+                                                style={{
+                                                    "--stamp-rot":
+                                                        index % 2 === 0
+                                                            ? "-4deg"
+                                                            : "3deg",
+                                                }}
                                             >
                                                 {badge.label}
                                             </span>
                                         )}
                                     </Show>
-                                </div>
+                                </TableNameplate>
                             </div>
                         </>
                     );

@@ -18,7 +18,7 @@ describe("OpponentZone", () => {
             />
         ));
         expect(getByText("Bob")).toBeInTheDocument();
-        expect(getByText("4")).toBeInTheDocument();
+        expect(getByText("4 cards")).toBeInTheDocument();
         expect(getByText(/BOOKS: 7, K/)).toBeInTheDocument();
     });
 

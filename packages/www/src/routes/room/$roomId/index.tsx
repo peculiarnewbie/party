@@ -121,6 +121,7 @@ function RouteComponent() {
 }
 
 function PlayerRoom() {
+    const navigate = Route.useNavigate();
     const params = Route.useParams();
     const search = Route.useSearch();
     const roomId = () => normalizeRoomId(params().roomId);
@@ -225,9 +226,6 @@ function PlayerRoom() {
                 status={client().status()}
                 isHost={isHost()}
                 suspended={roomPhase() === "hibernated"}
-                onGraceChange={(seconds) =>
-                    send("set_disconnect_grace", undefined, { seconds })
-                }
                 onManage={(target, action) =>
                     send("manage_disconnect", undefined, {
                         playerId: target,
@@ -255,6 +253,28 @@ function PlayerRoom() {
                             isHost={isHost()}
                             isJoined={isJoined()}
                             selectedGameType={selectedGameType()}
+                            layout={
+                                search().view === "controller"
+                                    ? "controller"
+                                    : "table"
+                            }
+                            onLayoutChange={(layout) => {
+                                void navigate({
+                                    search: {
+                                        ...search(),
+                                        view:
+                                            layout === "controller"
+                                                ? "controller"
+                                                : undefined,
+                                    },
+                                    replace: true,
+                                });
+                            }}
+                            onGraceChange={(seconds) =>
+                                send("set_disconnect_grace", undefined, {
+                                    seconds,
+                                })
+                            }
                             onJoin={join}
                             onLeave={leave}
                             onSelectGame={selectGame}
@@ -280,6 +300,28 @@ function PlayerRoom() {
                             selectedGameType={
                                 (activeGameType() ??
                                     selectedGameType()) as GameType
+                            }
+                            layout={
+                                search().view === "controller"
+                                    ? "controller"
+                                    : "table"
+                            }
+                            onLayoutChange={(layout) => {
+                                void navigate({
+                                    search: {
+                                        ...search(),
+                                        view:
+                                            layout === "controller"
+                                                ? "controller"
+                                                : undefined,
+                                    },
+                                    replace: true,
+                                });
+                            }}
+                            onGraceChange={(seconds) =>
+                                send("set_disconnect_grace", undefined, {
+                                    seconds,
+                                })
                             }
                             onJoin={join}
                             onLeave={leave}

@@ -1,3 +1,5 @@
+import { DisconnectGraceSetting } from "./room-recovery";
+import type { PartyLayout } from "./party-layout-controls";
 import { Show, For, createSignal, createEffect, onSettled } from "solid-js";
 import type { Component } from "solid-js";
 import {
@@ -18,6 +20,9 @@ export const RoomLobby: Component<{
     isHost: boolean;
     isJoined: boolean;
     selectedGameType: GameType;
+    layout?: PartyLayout;
+    onLayoutChange?: (layout: PartyLayout) => void;
+    onGraceChange?: (seconds: RoomRecovery["graceSeconds"]) => void;
     onJoin: (name: string) => void;
     onLeave: () => void;
     onStart: () => void;
@@ -93,6 +98,40 @@ export const RoomLobby: Component<{
                     <h2 class="font-bebas text-2xl tracking-wider">
                         Party mode
                     </h2>
+                    <Show
+                        when={
+                            props.onLayoutChange &&
+                            [
+                                "poker",
+                                "backwards_poker",
+                                "blackjack",
+                                "flip_7",
+                                "perudo",
+                            ].includes(props.selectedGameType)
+                        }
+                    >
+                        <label class="my-3 flex flex-wrap items-center gap-3">
+                            Play on this device
+                            <select
+                                aria-label="Play on this device"
+                                class="border-2 border-ink bg-cream p-2"
+                                value={props.layout ?? "table"}
+                                onChange={(event) =>
+                                    props.onLayoutChange?.(
+                                        event.currentTarget.value ===
+                                            "controller"
+                                            ? "controller"
+                                            : "table",
+                                    )
+                                }
+                            >
+                                <option value="table">Full table</option>
+                                <option value="controller">
+                                    Party mode phone controls
+                                </option>
+                            </select>
+                        </label>
+                    </Show>
                     <a
                         href={`/room/${encodeURIComponent(props.roomId)}?view=display`}
                         target="_blank"
@@ -108,6 +147,20 @@ export const RoomLobby: Component<{
                         7, Blackjack, and Perudo.
                     </p>
                 </div>
+
+                <Show when={props.isHost && props.onGraceChange}>
+                    <details class="mb-6 border-2 border-line p-4">
+                        <summary class="cursor-pointer font-bebas text-xl tracking-wider">
+                            Disconnected player settings
+                        </summary>
+                        <DisconnectGraceSetting
+                            graceSeconds={props.recovery?.graceSeconds}
+                            onChange={(seconds) =>
+                                props.onGraceChange?.(seconds)
+                            }
+                        />
+                    </details>
+                </Show>
 
                 {/* Name input */}
                 <div class="flex gap-2 mb-6">

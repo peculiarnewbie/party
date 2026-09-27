@@ -76,9 +76,7 @@ describe("PerudoRoom", () => {
             type: "perudo:bid",
             data: { quantity: 1, faceValue: 2 },
         });
-        fireEvent.click(getByTestId("party-layout-toggle"));
-        flush();
-        expect(queryByText("Bob")).toBeInTheDocument();
+
     });
 
     it("renders round number and dice in play", () => {

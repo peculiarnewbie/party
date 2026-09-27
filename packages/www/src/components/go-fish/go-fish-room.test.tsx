@@ -78,7 +78,7 @@ describe("GoFishRoom", () => {
             ],
             myHand: SAMPLE_HAND,
         });
-        const { getByRole, connection, container } = renderRoom({
+        const { getByRole, connection } = renderRoom({
             view,
             playerId: "p1",
         });
@@ -86,10 +86,7 @@ describe("GoFishRoom", () => {
         fireEvent.click(getByRole("button", { name: /bob/i }));
         flush();
 
-        const handButtons = container.querySelectorAll(
-            ".border-t-\\[3px\\] button",
-        );
-        fireEvent.click(handButtons[0]!);
+        fireEvent.click(getByRole("button", { name: "Ask for 7s" }));
         flush();
 
         expect(connection.sentMessages).toEqual([

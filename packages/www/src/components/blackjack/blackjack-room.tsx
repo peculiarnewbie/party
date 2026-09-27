@@ -1,7 +1,5 @@
-import {
-    PartyLayoutControls,
-    type PartyLayout,
-} from "~/components/party-layout-controls";
+import { TableButton, TablePanel, TableLayout } from "~/components/casino";
+import { type PartyLayout } from "~/components/party-layout-controls";
 import { PlayerArea } from "./player-area";
 import { BlackjackFelt, OUTCOMES } from "./blackjack-felt";
 import {
@@ -41,28 +39,8 @@ interface BlackjackRoomProps {
 
 const CHIP_VALUES = [10, 25, 50, 100] as const;
 
-function ActionButton(props: {
-    onClick: () => void;
-    class: string;
-    children: JSX.Element;
-    disabled?: boolean;
-}) {
-    return (
-        <button
-            type="button"
-            onClick={props.onClick}
-            disabled={props.disabled}
-            class={`min-h-14 pt-1 border-2 border-[#1a1a1a] font-bebas text-2xl tracking-[.12em] shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] enabled:active:translate-x-[3px] enabled:active:translate-y-[3px] enabled:active:shadow-none disabled:opacity-35 disabled:shadow-none ${props.class}`}
-        >
-            {props.children}
-        </button>
-    );
-}
-
 export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
-    const [layout, setLayout] = createSignal(
-        () => props.initialLayout ?? "table",
-    );
+    const layout = () => props.initialLayout ?? "table";
     const isController = () => layout() === "controller";
     const gameView = () => props.connection.view();
     const [betAmount, setBetAmount] = createSignal(50);
@@ -120,7 +98,14 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                     (r: any) => r.playerId === props.playerId,
                 );
                 if (me && untrack(isController))
-                    playSfx(me.netChips > 0 ? "win" : me.netChips < 0 ? "lose" : "chip", 600);
+                    playSfx(
+                        me.netChips > 0
+                            ? "win"
+                            : me.netChips < 0
+                              ? "lose"
+                              : "chip",
+                        600,
+                    );
                 if (me) {
                     if (me.netChips > 0) {
                         showAnnouncement(
@@ -230,8 +215,12 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
         (myResult()?.netChips ?? 0) > 0;
 
     const actionPanel = () => (
-        <div
-            class={`border-[3px] border-[#1a1a1a] p-4 transition-all duration-300 ${gameView()?.isMyTurn || gameView()?.needsBet || gameView()?.needsInsurance ? "bg-[#f7f2de] shadow-[6px_6px_0_#c0261a]" : "bg-[#c9c0b0] shadow-[4px_4px_0_#1a1a1a]"}`}
+        <TablePanel
+            active={
+                gameView()?.isMyTurn ||
+                gameView()?.needsBet ||
+                gameView()?.needsInsurance
+            }
         >
             <Show when={gameView()?.needsBet}>
                 <div class="flex flex-col items-center gap-3">
@@ -239,7 +228,11 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                         PLACE YOUR BET
                     </span>
                     <div class="flex items-center gap-4 min-h-16">
-                        <ChipStack amount={betAmount()} size={30} showLabel={false} />
+                        <ChipStack
+                            amount={betAmount()}
+                            size={30}
+                            showLabel={false}
+                        />
                         <div class="font-bebas text-5xl tracking-wide text-[#1a1a1a] min-w-24 text-center">
                             ${betAmount()}
                         </div>
@@ -258,7 +251,11 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                                     }
                                     class="rounded-full transition-transform enabled:hover:-translate-y-1 enabled:hover:-rotate-12 enabled:active:scale-90 disabled:opacity-30 drop-shadow-[0_4px_0_#1a1a1a]"
                                 >
-                                    <Chip value={value} size={62} label={`${value}`} />
+                                    <Chip
+                                        value={value}
+                                        size={62}
+                                        label={`${value}`}
+                                    />
                                 </button>
                             )}
                         </For>
@@ -279,13 +276,14 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                             Max
                         </button>
                     </div>
-                    <ActionButton
+                    <TableButton
                         onClick={placeBet}
                         disabled={betAmount() < MIN_BET}
-                        class="w-full max-w-xs bg-[#c0261a] text-[#f7f2de]"
+                        class="w-full max-w-xs"
+                        tone="tomato"
                     >
                         DEAL
-                    </ActionButton>
+                    </TableButton>
                 </div>
             </Show>
 
@@ -314,18 +312,12 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                         bet)
                     </span>
                     <div class="grid grid-cols-2 gap-3 w-full max-w-xs">
-                        <ActionButton
-                            onClick={acceptInsurance}
-                            class="bg-[#1a3a6e] text-[#f7f2de]"
-                        >
+                        <TableButton onClick={acceptInsurance} tone="navy">
                             YES
-                        </ActionButton>
-                        <ActionButton
-                            onClick={declineInsurance}
-                            class="bg-[#ddd5c4] text-[#c0261a]"
-                        >
+                        </TableButton>
+                        <TableButton onClick={declineInsurance} tone="paper">
                             NO
-                        </ActionButton>
+                        </TableButton>
                     </div>
                 </div>
             </Show>
@@ -356,36 +348,24 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                     </span>
                     <div class="grid grid-cols-2 gap-3 w-full">
                         <Show when={gameView()?.canHit}>
-                            <ActionButton
-                                onClick={hit}
-                                class="bg-[#1a3a6e] text-[#f7f2de]"
-                            >
+                            <TableButton onClick={hit} tone="navy">
                                 HIT
-                            </ActionButton>
+                            </TableButton>
                         </Show>
                         <Show when={gameView()?.canStand}>
-                            <ActionButton
-                                onClick={stand}
-                                class="bg-[#c0261a] text-[#f7f2de]"
-                            >
+                            <TableButton onClick={stand} tone="tomato">
                                 STAND
-                            </ActionButton>
+                            </TableButton>
                         </Show>
                         <Show when={gameView()?.canDouble}>
-                            <ActionButton
-                                onClick={doubleDown}
-                                class="bg-[#f5c542] text-[#1a1a1a]"
-                            >
+                            <TableButton onClick={doubleDown} tone="sun">
                                 DOUBLE
-                            </ActionButton>
+                            </TableButton>
                         </Show>
                         <Show when={gameView()?.canSplit}>
-                            <ActionButton
-                                onClick={split}
-                                class="bg-[#0f766e] text-[#f7f2de]"
-                            >
+                            <TableButton onClick={split} tone="teal">
                                 SPLIT
-                            </ActionButton>
+                            </TableButton>
                         </Show>
                     </div>
                 </div>
@@ -431,7 +411,8 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                                                     <span
                                                         class={`font-bebas text-lg tracking-[.08em] ${OUTCOMES[hand.outcome]?.text ?? ""}`}
                                                     >
-                                                        {OUTCOMES[hand.outcome]?.label ?? ""}
+                                                        {OUTCOMES[hand.outcome]
+                                                            ?.label ?? ""}
                                                     </span>
                                                 )}
                                             </For>
@@ -465,14 +446,14 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                     </Show>
                 </div>
             </Show>
-        </div>
+        </TablePanel>
     );
 
     return (
         <div
             data-testid="blackjack-room"
             data-layout={layout()}
-            class="relative min-h-screen paper text-[#1a1a1a] font-karla flex flex-col overflow-x-hidden"
+            class="relative h-dvh min-h-0 paper text-[#1a1a1a] font-karla flex flex-col overflow-x-hidden"
         >
             <Show when={gameView()?.isMyTurn}>
                 <div class="pointer-events-none fixed inset-0 z-30 border-[6px] border-[#c0261a] animate-pulse-fast" />
@@ -508,12 +489,6 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                 </div>
             </div>
 
-            <PartyLayoutControls
-                roomId={props.roomId}
-                layout={layout()}
-                onChange={setLayout}
-            />
-
             <Show when={announcement()} keyed>
                 {(item) => (
                     <div class="pointer-events-none fixed inset-x-0 top-24 z-40 flex justify-center px-4">
@@ -529,26 +504,32 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
             <Show
                 when={isController()}
                 fallback={
-                    <div class="flex-1 w-full max-w-[1500px] mx-auto px-3 pt-4 pb-16 grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] items-start">
-                        <Show when={gameView()}>
-                            {(view) => (
-                                <div class="w-full min-w-0 lg:pt-4">
-                                    <BlackjackFelt
-                                        view={view()}
-                                        heroId={props.playerId}
-                                        dealerTestId="blackjack-player-dealer"
-                                    />
-                                </div>
-                            )}
-                        </Show>
-                        <div class="w-full max-w-xl mx-auto lg:sticky lg:top-4">
+                    <TableLayout
+                        table={
+                            <Show when={gameView()}>
+                                {(view) => (
+                                    <div class="w-full h-full min-w-0">
+                                        <BlackjackFelt
+                                            fit
+                                            view={view()}
+                                            heroId={props.playerId}
+                                            dealerTestId="blackjack-player-dealer"
+                                        />
+                                    </div>
+                                )}
+                            </Show>
+                        }
+                    >
+                        <div class="w-full max-w-xl mx-auto">
                             {actionPanel()}
                         </div>
-                    </div>
+                    </TableLayout>
                 }
             >
                 <div class="flex-1 w-full max-w-md mx-auto px-3 pt-3 pb-16 space-y-3">
-                    <Show when={gameView() && gameView()!.dealer.cards.length > 0}>
+                    <Show
+                        when={gameView() && gameView()!.dealer.cards.length > 0}
+                    >
                         <div
                             data-testid="blackjack-controller-dealer"
                             class="table-mat relative overflow-hidden rounded-2xl border-[3px] border-[#1a1a1a] px-4 py-3 flex items-center justify-between gap-3 shadow-[4px_4px_0_#1a1a1a]"
@@ -558,11 +539,18 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                                 DEALER
                             </span>
                             <div class="relative flex">
-                                <For each={gameView()!.dealer.cards} keyed={false}>
+                                <For
+                                    each={gameView()!.dealer.cards}
+                                    keyed={false}
+                                >
                                     {(card, index) => (
                                         <div class={index > 0 ? "-ml-6" : ""}>
                                             <TableCard
-                                                card={card() === "hidden" ? null : (card() as Card)}
+                                                card={
+                                                    card() === "hidden"
+                                                        ? null
+                                                        : (card() as Card)
+                                                }
                                                 class="w-[46px]"
                                             />
                                         </div>
@@ -595,7 +583,9 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                                 class={`inline-block border-[3px] border-[#1a1a1a] px-4 pt-2 shadow-[5px_5px_0_#1a1a1a] animate-stamp-in ${myResult()!.netChips > 0 ? "bg-[#f5c542] text-[#1a1a1a]" : "bg-[#1a1a1a] text-[#f7f2de]"}`}
                             >
                                 {myResult()!.netChips > 0 ? "+" : "−"}$
-                                <AnimatedNumber value={Math.abs(myResult()!.netChips)} />
+                                <AnimatedNumber
+                                    value={Math.abs(myResult()!.netChips)}
+                                />
                             </span>
                         </div>
                     </Show>
@@ -604,7 +594,16 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                 </div>
             </Show>
 
-            <Show when={isController() && gameView()?.phase === "settled" && bigWin() ? gameView()?.roundNumber : null} keyed>
+            <Show
+                when={
+                    isController() &&
+                    gameView()?.phase === "settled" &&
+                    bigWin()
+                        ? gameView()?.roundNumber
+                        : null
+                }
+                keyed
+            >
                 {(_round) => <Confetti count={50} />}
             </Show>
         </div>

@@ -1,9 +1,8 @@
+import * as stylex from "@stylexjs/stylex";
+import { colors, fonts } from "~/styles/tokens.stylex";
 import { createMemo, Show } from "solid-js";
 import { CardBack, PlayingCard } from "~/assets/card-deck";
 import type { Card } from "~/assets/card-deck/types";
-
-const CARD_EDGE =
-    "rounded-[7%/5%] shadow-[0_0_0_1.5px_#1a1a1a,0_3px_0_1.5px_#1a1a1a]";
 
 export function TableCard(props: {
     card: Card | null | undefined;
@@ -32,7 +31,7 @@ export function TableCard(props: {
     return (
         <div
             data-testid={props.testId}
-            class={`relative shrink-0 aspect-[250/350] transition-[filter,opacity,translate] duration-500 ${props.dimmed ? "opacity-45 grayscale" : ""} ${props.highlight ? "-translate-y-[12%]" : ""} ${props.class ?? ""}`}
+            class={`${stylex.attrs(styles.card, props.dimmed && styles.dimmed, props.highlight && styles.raised).class} ${props.class ?? ""}`}
         >
             <Show
                 when={card()}
@@ -41,7 +40,7 @@ export function TableCard(props: {
                     sawBack = true;
                     return (
                         <div
-                            class={`absolute inset-0 overflow-hidden ${CARD_EDGE} ${animation("deal")}`}
+                            class={`${stylex.attrs(styles.face).class} ${animation("deal")}`}
                             style={delayStyle()}
                         >
                             <CardBack
@@ -55,7 +54,7 @@ export function TableCard(props: {
             >
                 {(visible) => (
                     <div
-                        class={`absolute inset-0 overflow-hidden bg-[#fffdf6] ${CARD_EDGE} ${animation(sawBack ? "flip" : "deal")} ${props.highlight ? "!shadow-[0_0_0_1.5px_#1a1a1a,0_0_0_5px_#f5c542,0_4px_0_5px_#1a1a1a]" : ""}`}
+                        class={`${stylex.attrs(styles.face, styles.front, props.highlight && styles.highlighted).class} ${animation(sawBack ? "flip" : "deal")}`}
                         style={delayStyle()}
                     >
                         <PlayingCard
@@ -73,14 +72,52 @@ export function TableCard(props: {
 
 export function CardSlot(props: { class?: string; label?: string }) {
     return (
-        <div
-            class={`shrink-0 aspect-[250/350] rounded-[7%/5%] border-2 border-dashed border-[#f7f2de]/30 bg-[#1a1a1a]/10 flex items-center justify-center ${props.class ?? ""}`}
-        >
+        <div class={`${stylex.attrs(styles.slot).class} ${props.class ?? ""}`}>
             <Show when={props.label}>
-                <span class="font-bebas tracking-[.2em] text-[#f7f2de]/30 text-sm">
-                    {props.label}
-                </span>
+                <span {...stylex.attrs(styles.label)}>{props.label}</span>
             </Show>
         </div>
     );
 }
+
+const styles = stylex.create({
+    card: {
+        position: "relative",
+        flexShrink: 0,
+        aspectRatio: "250 / 350",
+        transitionProperty: "filter, opacity, translate",
+        transitionDuration: "500ms",
+    },
+    dimmed: { opacity: 0.45, filter: "grayscale(1)" },
+    raised: { translate: "0 -12%" },
+    face: {
+        position: "absolute",
+        inset: 0,
+        overflow: "hidden",
+        borderRadius: "7% / 5%",
+        boxShadow: `0 0 0 1.5px ${colors.ink}, 0 3px 0 1.5px ${colors.ink}`,
+    },
+    front: { backgroundColor: colors.card },
+    highlighted: {
+        boxShadow: `0 0 0 1.5px ${colors.ink}, 0 0 0 5px ${colors.sun}, 0 4px 0 5px ${colors.ink}`,
+    },
+    slot: {
+        flexShrink: 0,
+        aspectRatio: "250 / 350",
+        borderRadius: "7% / 5%",
+        borderWidth: 2,
+        borderStyle: "dashed",
+        borderColor: `color-mix(in srgb, ${colors.cream} 30%, transparent)`,
+        backgroundColor: `color-mix(in srgb, ${colors.ink} 10%, transparent)`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    label: {
+        fontFamily: fonts.heading,
+        letterSpacing: "0.2em",
+        color: `color-mix(in srgb, ${colors.cream} 30%, transparent)`,
+        fontSize: 14,
+        lineHeight: "20px",
+    },
+});

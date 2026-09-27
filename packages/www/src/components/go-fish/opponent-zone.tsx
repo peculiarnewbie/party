@@ -1,7 +1,9 @@
-import { Show } from "solid-js";
-import type { Rank } from "~/assets/card-deck/types";
-import { CardBack } from "~/assets/card-deck/card-back";
+import { For, Show } from "solid-js";
+import * as stylex from "@stylexjs/stylex";
+import { TableCard, TableNameplate, PlayerAvatar } from "~/components/casino";
+import { colors, fonts } from "~/styles/tokens.stylex";
 import { RANK_LABEL } from "~/assets/card-deck/types";
+import type { Rank } from "~/assets/card-deck/types";
 
 interface OpponentZoneProps {
     id: string;
@@ -12,68 +14,142 @@ interface OpponentZoneProps {
     selectable: boolean;
     selected: boolean;
     onSelect: (id: string) => void;
+    index?: number;
+    isHero?: boolean;
 }
 
 export function OpponentZone(props: OpponentZoneProps) {
     return (
         <button
-            class={`flex flex-col items-center gap-2 p-3 transition-all duration-[120ms] ${
-                props.selectable
-                    ? "border-2 border-dashed border-[#1a3a6e] cursor-pointer hover:-translate-y-1 hover:shadow-[3px_3px_0_#1a3a6e]"
-                    : "border-2 border-transparent"
-            } ${
-                props.selected
-                    ? "border-solid border-[#1a3a6e] bg-[#c9c0b0] shadow-[3px_3px_0_#1a3a6e] -translate-y-1"
-                    : ""
-            } ${props.isCurrentTurn ? "bg-[#c9c0b0]/50" : ""}`}
+            data-testid={`go-fish-opponent-${props.id}`}
+            {...stylex.attrs(
+                styles.seat,
+                props.selectable && styles.selectable,
+                props.selected && styles.selected,
+            )}
+            type="button"
+            aria-pressed={props.selected ? "true" : "false"}
             onClick={() => {
                 if (props.selectable) props.onSelect(props.id);
             }}
             disabled={!props.selectable}
         >
-            <div
-                class={`w-10 h-10 flex items-center justify-center font-bebas text-[1.1rem] ${
-                    props.isCurrentTurn
-                        ? "bg-[#c0261a] text-[#ddd5c4]"
-                        : "bg-[#1a3a6e] text-[#ddd5c4]"
-                }`}
-            >
-                {props.name.charAt(0).toUpperCase()}
-            </div>
-
-            <div class="font-karla text-[.85rem] text-[#1a1a1a] text-center leading-tight">
-                {props.name}
-            </div>
-
-            <div class="flex items-center gap-1">
-                <Show
-                    when={props.cardCount > 0}
-                    fallback={
-                        <div class="font-bebas text-[.65rem] tracking-[.15em] text-[#9a9080]">
-                            NO CARDS
-                        </div>
-                    }
+            <div {...stylex.attrs(styles.cards)} aria-hidden="true">
+                <For
+                    each={Array.from(
+                        { length: Math.min(props.cardCount, 3) },
+                        (_, index) => index,
+                    )}
+                    keyed={false}
                 >
-                    <div class="flex -space-x-6">
-                        <CardBack size={35} />
-                        <Show when={props.cardCount > 1}>
-                            <CardBack size={35} />
-                        </Show>
-                        <Show when={props.cardCount > 3}>
-                            <CardBack size={35} />
-                        </Show>
-                    </div>
-                    <div class="font-bebas text-[.75rem] tracking-[.1em] text-[#1a1a1a] ml-1">
-                        {props.cardCount}
-                    </div>
-                </Show>
+                    {(_, index) => (
+                        <div
+                            {...stylex.attrs(
+                                styles.card,
+                                index > 0 && styles.overlap,
+                            )}
+                            style={{ rotate: `${(index - 1) * 6}deg` }}
+                        >
+                            <TableCard
+                                card={null}
+                                class="w-full"
+                                delay={index * 110}
+                            />
+                        </div>
+                    )}
+                </For>
             </div>
-
+            <TableNameplate active={props.isCurrentTurn}>
+                <PlayerAvatar
+                    id={props.id}
+                    name={props.name}
+                    index={props.index}
+                    class="w-[calc(var(--u)*4.6)] h-[calc(var(--u)*4.6)] text-[calc(var(--u)*2.4)] -ml-[calc(var(--u)*0.8)] !border-[length:calc(var(--u)*0.25)] !shadow-none"
+                />
+                <div {...stylex.attrs(styles.details)}>
+                    <div {...stylex.attrs(styles.name)}>
+                        {`${props.name}${props.isHero ? " · You" : ""}`}
+                    </div>
+                    <div {...stylex.attrs(styles.count)}>
+                        <Show when={props.cardCount > 0} fallback="NO CARDS">
+                            {`${props.cardCount} cards`}
+                        </Show>
+                    </div>
+                </div>
+            </TableNameplate>
             <Show when={props.books.length > 0}>
-                <div class="font-bebas text-[.6rem] tracking-[.18em] text-[#9a9080]">
-                    BOOKS: {props.books.map((r) => RANK_LABEL[r]).join(", ")}
+                <div {...stylex.attrs(styles.books)}>
+                    BOOKS:{" "}
+                    {props.books.map((rank) => RANK_LABEL[rank]).join(", ")}
                 </div>
             </Show>
         </button>
     );
 }
+const styles = stylex.create({
+    seat: {
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        width: "100%",
+        borderRadius: "calc(var(--u) * 0.8)",
+        transitionProperty: "transform, outline",
+        transitionDuration: "120ms",
+        outline: {
+            default: "none",
+            ":focus-visible": `3px solid ${colors.sun}`,
+        },
+        outlineOffset: 4,
+    },
+    selectable: {
+        cursor: "pointer",
+        transform: { default: "none", ":hover": "translateY(-4px)" },
+    },
+    selected: {
+        outline: `3px solid ${colors.sun}`,
+        outlineOffset: 4,
+        transform: "translateY(-4px)",
+    },
+    cards: {
+        display: "flex",
+        justifyContent: "center",
+        height: "calc(var(--u) * 6.5)",
+        marginBottom: "calc(var(--u) * -1.8)",
+    },
+    card: { width: "calc(var(--u) * 5.2)" },
+    overlap: { marginLeft: "calc(var(--u) * -2.6)" },
+    details: {
+        minWidth: 0,
+        flexGrow: 1,
+        paddingBlock: "calc(var(--u) * 0.5)",
+        textAlign: "start",
+    },
+    name: {
+        fontFamily: fonts.heading,
+        fontSize: "calc(var(--u) * 1.75)",
+        lineHeight: 1,
+        letterSpacing: "0.05em",
+        color: colors.ink,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+    },
+    count: {
+        fontFamily: fonts.heading,
+        fontSize: "calc(var(--u) * 1.9)",
+        color: colors.navy,
+        lineHeight: 1,
+        marginTop: "calc(var(--u) * 0.2)",
+    },
+    books: {
+        marginTop: "calc(var(--u) * 0.6)",
+        paddingInline: "calc(var(--u) * 0.6)",
+        borderWidth: "calc(var(--u) * 0.2)",
+        borderStyle: "solid",
+        borderColor: colors.ink,
+        backgroundColor: colors.cream,
+        fontFamily: fonts.heading,
+        fontSize: "calc(var(--u) * 1.1)",
+        color: colors.ink,
+    },
+});
