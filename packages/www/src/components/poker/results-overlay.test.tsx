@@ -103,7 +103,7 @@ describe("ResultsOverlay", () => {
             />
         ));
         const names = Array.from(
-            container.querySelectorAll(".font-bebas.text-\\[1rem\\]"),
+            container.querySelectorAll('[data-testid="poker-standing-name"]'),
         ).map((el) => el.textContent);
         expect(names).toEqual(["Bob", "Carol", "Alice"]);
     });

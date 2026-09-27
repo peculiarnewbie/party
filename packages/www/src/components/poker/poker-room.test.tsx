@@ -161,8 +161,7 @@ describe("PokerRoom", () => {
         expect(getByText("HAND 3")).toBeInTheDocument();
         expect(getByTestId("poker-street").textContent).toBe("FLOP");
         expect(getByText("YOUR TURN")).toBeInTheDocument();
-        expect(getByText("MAIN POT")).toBeInTheDocument();
-        expect(getByText("40")).toBeInTheDocument();
+        expect(getByTestId("poker-pot-total")).toHaveTextContent("Pot 40");
     });
 
     it("shows opponent's turn when it is not your turn", () => {

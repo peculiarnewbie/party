@@ -1,9 +1,13 @@
 export function CardBack({
     size = 250,
     class: className,
+    color = "#1a3a6e",
+    pattern = "#254a82",
 }: {
     size?: number;
     class?: string;
+    color?: string;
+    pattern?: string;
 }) {
     const patternId = `crosshatch-${Math.random().toString(36).slice(2, 8)}`;
     const isResponsive = !!className;
@@ -33,7 +37,7 @@ export function CardBack({
                         y1="0"
                         x2="0"
                         y2="12"
-                        stroke="#254a82"
+                        stroke={pattern}
                         stroke-width="1.5"
                         stroke-opacity="0.3"
                     />
@@ -46,7 +50,7 @@ export function CardBack({
                 width="246"
                 height="346"
                 rx="14"
-                fill="#1a3a6e"
+                fill={color}
                 stroke="#1a1a1a"
                 stroke-width="2"
             />

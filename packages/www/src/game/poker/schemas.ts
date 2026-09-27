@@ -100,6 +100,13 @@ export const pokerEventSchema = Schema.Union([
         message: Schema.mutableKey(Schema.String),
         amount: Schema.optionalKey(Schema.mutableKey(Schema.Number)),
         street: Schema.mutableKey(pokerStreetSchema),
+        winnerIds: Schema.optionalKey(
+            Schema.mutableKey(Schema.mutable(Schema.Array(Schema.String))),
+        ),
+        handLabel: Schema.optionalKey(Schema.mutableKey(Schema.String)),
+        winningCards: Schema.optionalKey(
+            Schema.mutableKey(Schema.mutable(Schema.Array(cardSchema))),
+        ),
     }),
     Schema.Struct({
         id: Schema.mutableKey(Schema.Number),

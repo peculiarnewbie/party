@@ -382,11 +382,16 @@ function PlayerRoom() {
                                 });
                             return (
                                 <BlackjackRoom
+                                    initialLayout={
+                                        search().view === "controller"
+                                            ? "controller"
+                                            : "table"
+                                    }
                                     roomId={roomId()}
                                     playerId={playerId()}
                                     isHost={isHost()}
                                     connection={connection}
-                                    onEndGame={endGame}
+                                    onEndGame={returnToLobby}
                                     onReturnToLobby={returnToLobby}
                                 />
                             );
@@ -500,6 +505,11 @@ function PlayerRoom() {
                             );
                             return (
                                 <PerudoRoom
+                                    initialLayout={
+                                        search().view === "controller"
+                                            ? "controller"
+                                            : "table"
+                                    }
                                     roomId={roomId()}
                                     playerId={playerId()}
                                     isHost={isHost()}
@@ -730,6 +740,11 @@ function PlayerRoom() {
                             );
                             return (
                                 <Flip7Room
+                                    initialLayout={
+                                        search().view === "controller"
+                                            ? "controller"
+                                            : "table"
+                                    }
                                     roomId={roomId()}
                                     playerId={playerId()}
                                     isHost={isHost()}
@@ -869,7 +884,7 @@ function PlayerRoom() {
                 <button
                     type="button"
                     onClick={leaveGame}
-                    class="fixed right-4 bottom-4 z-50 font-bebas text-[.85rem] tracking-[.16em] bg-[#ddd5c4] text-[#c0261a] border-2 border-[#1a1a1a] px-4 py-2 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                    class="fixed left-3 bottom-3 z-50 font-bebas text-[.8rem] tracking-[.16em] bg-[#ddd5c4] text-[#c0261a] border-2 border-[#1a1a1a] px-3 pt-1.5 pb-1 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
                 >
                     LEAVE GAME
                 </button>

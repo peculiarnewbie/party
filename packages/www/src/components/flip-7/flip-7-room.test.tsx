@@ -16,6 +16,7 @@ import type { Flip7PlayerView } from "~/game/flip-7/views";
 
 function renderRoom(
     options: {
+        initialLayout?: "table" | "controller";
         view?: Flip7PlayerView;
         playerId?: string | null;
         isHost?: boolean;
@@ -35,6 +36,7 @@ function renderRoom(
     const result = render(() => (
         <Flip7Room
             roomId="room1"
+            initialLayout={options.initialLayout}
             playerId={playerId}
             isHost={isHost}
             connection={connection}
@@ -47,6 +49,42 @@ function renderRoom(
 }
 
 describe("Flip7Room", () => {
+    it("keeps only my cards in Party mode while retaining target selection", () => {
+        const { getByTestId, queryByText, getByRole, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                phase: "awaiting_target",
+                currentPlayerId: "p1",
+                requiresMyTargetChoice: true,
+                targetChoice: {
+                    chooserPlayerId: "p1",
+                    card: "freeze",
+                    validTargetIds: ["p2"],
+                },
+                validTargetIds: ["p2"],
+                players: [
+                    makePlayerInfo({ cards: [numberCard(7)] }),
+                    makePlayerInfo({
+                        id: "p2",
+                        name: "Bob",
+                        cards: [numberCard(12)],
+                    }),
+                ],
+            }),
+        });
+        expect(queryByText("12", { exact: true })).toBeNull();
+        expect(queryByText("HOW SCORING WORKS")).toBeNull();
+        fireEvent.click(getByRole("button", { name: "Bob" }));
+        flush();
+        expect(connection.sentMessages).toContainEqual({
+            type: "flip_7:choose_target",
+            data: { targetId: "p2" },
+        });
+        fireEvent.click(getByTestId("party-layout-toggle"));
+        flush();
+        expect(queryByText("12", { exact: true })).toBeInTheDocument();
+    });
+
     it("renders initial state with round number, deck count, and phase", () => {
         const view = makeView({
             roundNumber: 2,

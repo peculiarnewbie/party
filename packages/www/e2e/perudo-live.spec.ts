@@ -1,3 +1,4 @@
+import { definePartyModeTest } from "./helpers/party-mode";
 import { expect, test } from "@playwright/test";
 
 import type { PerudoClientMessage, PerudoPlayerView } from "../src/game/perudo";
@@ -106,3 +107,5 @@ test("perudo bids, challenges, and reveals every die", async ({ page }) => {
         nextRound.players.find((player) => player.id !== nextRound.myId)!.dice,
     ).toBeNull();
 });
+
+definePartyModeTest("perudo");

@@ -1,3 +1,4 @@
+import { definePartyModeTest } from "./helpers/party-mode";
 import { test, expect } from "@playwright/test";
 import { nanoid } from "nanoid";
 import { MultiplayerRoomPage } from "./helpers/multiplayer-room-page";
@@ -237,3 +238,5 @@ test.describe("blackjack-live", () => {
         ).toBeVisible();
     });
 });
+
+definePartyModeTest("blackjack");

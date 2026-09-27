@@ -1,24 +1,37 @@
 import {
+    PartyLayoutControls,
+    type PartyLayout,
+} from "~/components/party-layout-controls";
+import { PlayerArea } from "./player-area";
+import { BlackjackFelt, OUTCOMES } from "./blackjack-felt";
+import {
+    createEffect,
     createSignal,
     For,
     Show,
     onCleanup,
     createMemo,
+    untrack,
 } from "solid-js";
 import type { Component } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import type { Card } from "~/assets/card-deck/types";
-import { RANK_LABEL } from "~/assets/card-deck/types";
-import { PlayingCard } from "~/assets/card-deck/playing-card";
-import { CardBack } from "~/assets/card-deck/card-back";
-import type {
-    PlayerHandView,
-    PlayerInfoView,
-} from "~/game/blackjack";
+import {
+    AnimatedNumber,
+    Chip,
+    ChipStack,
+    buzz,
+    Confetti,
+    playSfx,
+    SoundToggle,
+    TableCard,
+} from "~/components/casino";
 import { MIN_BET, MAX_BET } from "~/game/blackjack";
 import type { BlackjackConnection } from "~/game/blackjack/connection";
 
 interface BlackjackRoomProps {
     roomId: string;
+    initialLayout?: PartyLayout;
     playerId: string | null;
     isHost: boolean;
     connection: BlackjackConnection;
@@ -26,19 +39,51 @@ interface BlackjackRoomProps {
     onReturnToLobby: () => void;
 }
 
+const CHIP_VALUES = [10, 25, 50, 100] as const;
+
+function ActionButton(props: {
+    onClick: () => void;
+    class: string;
+    children: JSX.Element;
+    disabled?: boolean;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={props.onClick}
+            disabled={props.disabled}
+            class={`min-h-14 pt-1 border-2 border-[#1a1a1a] font-bebas text-2xl tracking-[.12em] shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] enabled:active:translate-x-[3px] enabled:active:translate-y-[3px] enabled:active:shadow-none disabled:opacity-35 disabled:shadow-none ${props.class}`}
+        >
+            {props.children}
+        </button>
+    );
+}
+
 export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
+    const [layout, setLayout] = createSignal(
+        () => props.initialLayout ?? "table",
+    );
+    const isController = () => layout() === "controller";
     const gameView = () => props.connection.view();
     const [betAmount, setBetAmount] = createSignal(50);
-    const [announcement, setAnnouncement] = createSignal<string | null>(null);
-    const [announcementKey, setAnnouncementKey] = createSignal(0);
+    const [announcement, setAnnouncement] = createSignal<{
+        text: string;
+        tone: "good" | "bad" | "info";
+        key: number;
+    } | null>(null);
+    let announcementTimer: ReturnType<typeof setTimeout> | undefined;
+    let announcementKey = 0;
 
-    const showAnnouncement = (text: string) => {
-        setAnnouncement(null);
-        setAnnouncementKey((k) => k + 1);
-        setTimeout(() => {
-            setAnnouncement(text);
-        }, 30);
+    const showAnnouncement = (
+        text: string,
+        tone: "good" | "bad" | "info" = "info",
+    ) => {
+        clearTimeout(announcementTimer);
+        announcementKey += 1;
+        setAnnouncement({ text, tone, key: announcementKey });
+        announcementTimer = setTimeout(() => setAnnouncement(null), 3200);
     };
+    onCleanup(() => clearTimeout(announcementTimer));
 
     onCleanup(
         props.connection.subscribe((event) => {
@@ -46,12 +91,13 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                 const d = event.data as Record<string, any>;
                 if (d.type === "player_hit" && d.busted) {
                     const name = playerName(d.playerId);
-                    showAnnouncement(`${name} BUSTED!`);
+                    showAnnouncement(`${name} BUSTED!`, "bad");
                 }
                 if (d.type === "player_doubled") {
                     const name = playerName(d.playerId);
                     showAnnouncement(
                         `${name} DOUBLED DOWN${d.busted ? " AND BUSTED!" : "!"}`,
+                        d.busted ? "bad" : "info",
                     );
                 }
                 if (d.type === "player_split") {
@@ -63,6 +109,7 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                         d.dealerBlackjack
                             ? "DEALER HAS BLACKJACK!"
                             : "NO BLACKJACK - PLAY ON",
+                        d.dealerBlackjack ? "bad" : "info",
                     );
                 }
             }
@@ -72,12 +119,18 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                 const me = d.results?.find(
                     (r: any) => r.playerId === props.playerId,
                 );
+                if (me && untrack(isController))
+                    playSfx(me.netChips > 0 ? "win" : me.netChips < 0 ? "lose" : "chip", 600);
                 if (me) {
                     if (me.netChips > 0) {
-                        showAnnouncement(`YOU WON ${me.netChips} CHIPS!`);
+                        showAnnouncement(
+                            `YOU WON ${me.netChips} CHIPS!`,
+                            "good",
+                        );
                     } else if (me.netChips < 0) {
                         showAnnouncement(
                             `YOU LOST ${Math.abs(me.netChips)} CHIPS`,
+                            "bad",
                         );
                     } else {
                         showAnnouncement("PUSH - CHIPS RETURNED");
@@ -102,11 +155,8 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
         return view.players.find((p) => p.id === props.playerId) ?? null;
     });
 
-    const others = createMemo(() => {
-        const view = gameView();
-        if (!view) return [];
-        return view.players.filter((p) => p.id !== props.playerId);
-    });
+    const myResult = () =>
+        gameView()?.results?.find((r) => r.playerId === props.playerId);
 
     const currentPlayerName = createMemo(() => {
         const view = gameView();
@@ -114,6 +164,28 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
         const cp = view.players[view.currentPlayerIndex];
         return cp?.name ?? "";
     });
+
+    const maxBet = () => Math.min(MAX_BET, me()?.chips ?? MAX_BET);
+
+    createEffect(
+        () => gameView()?.isMyTurn ?? false,
+        (mine, previous) => {
+            if (!mine || previous) return;
+            playSfx("turn");
+            buzz([60, 40, 60]);
+        },
+    );
+
+    createEffect(
+        () => ({
+            needsBet: gameView()?.needsBet ?? false,
+            over: betAmount() > maxBet(),
+            max: maxBet(),
+        }),
+        ({ needsBet, over, max }) => {
+            if (needsBet && over) setBetAmount(Math.max(MIN_BET, max));
+        },
+    );
 
     const placeBet = () => {
         if (!props.playerId) return;
@@ -153,68 +225,281 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
         });
     };
 
-    function handValueLabel(hand: PlayerHandView): string {
-        if (hand.isBlackjack) return "BJ";
-        if (hand.busted) return "BUST";
-        const prefix = hand.soft ? "Soft " : "";
-        return `${prefix}${hand.value}`;
-    }
+    const bigWin = () =>
+        myResult()?.hands.some((hand) => hand.outcome === "blackjack") ||
+        (myResult()?.netChips ?? 0) > 0;
 
-    function outcomeLabel(outcome: string): string {
-        switch (outcome) {
-            case "blackjack":
-                return "BLACKJACK!";
-            case "win":
-                return "WIN";
-            case "push":
-                return "PUSH";
-            case "lose":
-                return "LOSE";
-            case "bust":
-                return "BUST";
-            default:
-                return "";
-        }
-    }
+    const actionPanel = () => (
+        <div
+            class={`border-[3px] border-[#1a1a1a] p-4 transition-all duration-300 ${gameView()?.isMyTurn || gameView()?.needsBet || gameView()?.needsInsurance ? "bg-[#f7f2de] shadow-[6px_6px_0_#c0261a]" : "bg-[#c9c0b0] shadow-[4px_4px_0_#1a1a1a]"}`}
+        >
+            <Show when={gameView()?.needsBet}>
+                <div class="flex flex-col items-center gap-3">
+                    <span class="font-bebas text-sm tracking-[.3em] text-[#5a5040]">
+                        PLACE YOUR BET
+                    </span>
+                    <div class="flex items-center gap-4 min-h-16">
+                        <ChipStack amount={betAmount()} size={30} showLabel={false} />
+                        <div class="font-bebas text-5xl tracking-wide text-[#1a1a1a] min-w-24 text-center">
+                            ${betAmount()}
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <For each={CHIP_VALUES}>
+                            {(value) => (
+                                <button
+                                    type="button"
+                                    aria-label={`$${value}`}
+                                    disabled={value > maxBet()}
+                                    onClick={() =>
+                                        setBetAmount((amount) =>
+                                            Math.min(maxBet(), amount + value),
+                                        )
+                                    }
+                                    class="rounded-full transition-transform enabled:hover:-translate-y-1 enabled:hover:-rotate-12 enabled:active:scale-90 disabled:opacity-30 drop-shadow-[0_4px_0_#1a1a1a]"
+                                >
+                                    <Chip value={value} size={62} label={`${value}`} />
+                                </button>
+                            )}
+                        </For>
+                    </div>
+                    <div class="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setBetAmount(MIN_BET)}
+                            class="min-h-10 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-4 pt-1 font-bebas tracking-[.14em] text-[#1a1a1a] shadow-[2px_2px_0_#1a1a1a] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+                        >
+                            Reset
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setBetAmount(maxBet())}
+                            class="min-h-10 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-4 pt-1 font-bebas tracking-[.14em] text-[#1a1a1a] shadow-[2px_2px_0_#1a1a1a] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+                        >
+                            Max
+                        </button>
+                    </div>
+                    <ActionButton
+                        onClick={placeBet}
+                        disabled={betAmount() < MIN_BET}
+                        class="w-full max-w-xs bg-[#c0261a] text-[#f7f2de]"
+                    >
+                        DEAL
+                    </ActionButton>
+                </div>
+            </Show>
 
-    function outcomeColor(outcome: string): string {
-        switch (outcome) {
-            case "blackjack":
-            case "win":
-                return "text-[#2d8a4e]";
-            case "push":
-                return "text-[#b8860b]";
-            case "lose":
-            case "bust":
-                return "text-[#c0261a]";
-            default:
-                return "text-[#1a1a1a]";
-        }
-    }
+            <Show
+                when={
+                    gameView()?.phase === "betting" &&
+                    !gameView()?.needsBet &&
+                    me() &&
+                    me()!.bet > 0
+                }
+            >
+                <div class="text-center py-2">
+                    <span class="font-bebas text-lg tracking-[.2em] text-[#5a5040] animate-pulse-fast">
+                        WAITING FOR OTHER BETS...
+                    </span>
+                </div>
+            </Show>
+
+            <Show when={gameView()?.needsInsurance}>
+                <div class="flex flex-col items-center gap-3">
+                    <span class="font-bebas text-xl tracking-[.16em] text-[#1a1a1a]">
+                        DEALER SHOWS ACE - INSURANCE?
+                    </span>
+                    <span class="font-karla text-sm text-[#5a5040]">
+                        Cost: ${Math.floor((me()?.bet ?? 0) / 2)} (half your
+                        bet)
+                    </span>
+                    <div class="grid grid-cols-2 gap-3 w-full max-w-xs">
+                        <ActionButton
+                            onClick={acceptInsurance}
+                            class="bg-[#1a3a6e] text-[#f7f2de]"
+                        >
+                            YES
+                        </ActionButton>
+                        <ActionButton
+                            onClick={declineInsurance}
+                            class="bg-[#ddd5c4] text-[#c0261a]"
+                        >
+                            NO
+                        </ActionButton>
+                    </div>
+                </div>
+            </Show>
+
+            <Show
+                when={
+                    gameView()?.phase === "insurance" &&
+                    !gameView()?.needsInsurance &&
+                    me()?.insuranceDecided
+                }
+            >
+                <div class="text-center py-2">
+                    <span class="font-bebas text-lg tracking-[.2em] text-[#5a5040] animate-pulse-fast">
+                        WAITING FOR OTHERS...
+                    </span>
+                </div>
+            </Show>
+
+            <Show when={gameView()?.isMyTurn}>
+                <div class="flex flex-col items-center gap-3">
+                    <span class="border-2 border-[#1a1a1a] bg-[#c0261a] px-3 pt-1 pb-0.5 font-bebas text-sm tracking-[.25em] text-[#f7f2de] shadow-[2px_2px_0_#1a1a1a] animate-stamp-in">
+                        YOUR TURN
+                        <Show when={me() && me()!.hands.length > 1}>
+                            {" "}
+                            - HAND {(me()!.currentHandIndex ?? 0) + 1} OF{" "}
+                            {me()!.hands.length}
+                        </Show>
+                    </span>
+                    <div class="grid grid-cols-2 gap-3 w-full">
+                        <Show when={gameView()?.canHit}>
+                            <ActionButton
+                                onClick={hit}
+                                class="bg-[#1a3a6e] text-[#f7f2de]"
+                            >
+                                HIT
+                            </ActionButton>
+                        </Show>
+                        <Show when={gameView()?.canStand}>
+                            <ActionButton
+                                onClick={stand}
+                                class="bg-[#c0261a] text-[#f7f2de]"
+                            >
+                                STAND
+                            </ActionButton>
+                        </Show>
+                        <Show when={gameView()?.canDouble}>
+                            <ActionButton
+                                onClick={doubleDown}
+                                class="bg-[#f5c542] text-[#1a1a1a]"
+                            >
+                                DOUBLE
+                            </ActionButton>
+                        </Show>
+                        <Show when={gameView()?.canSplit}>
+                            <ActionButton
+                                onClick={split}
+                                class="bg-[#0f766e] text-[#f7f2de]"
+                            >
+                                SPLIT
+                            </ActionButton>
+                        </Show>
+                    </div>
+                </div>
+            </Show>
+
+            <Show
+                when={gameView()?.phase === "playing" && !gameView()?.isMyTurn}
+            >
+                <div class="text-center py-2">
+                    <span class="font-bebas text-xl tracking-[.2em] text-[#1a1a1a]">
+                        {currentPlayerName().toUpperCase()}'S TURN
+                    </span>
+                </div>
+            </Show>
+
+            <Show when={gameView()?.phase === "dealer_turn"}>
+                <div class="text-center py-2">
+                    <span class="font-bebas text-xl tracking-[.2em] text-[#1a1a1a] animate-pulse-fast">
+                        DEALER IS DRAWING...
+                    </span>
+                </div>
+            </Show>
+
+            <Show when={gameView()?.phase === "settled"}>
+                <div class="flex flex-col items-center gap-3">
+                    <Show when={gameView()?.results}>
+                        <div class="flex flex-col gap-1.5 items-stretch w-full max-w-sm">
+                            <For
+                                each={gameView()!.results!.filter(
+                                    (result) =>
+                                        !isController() ||
+                                        result.playerId === props.playerId,
+                                )}
+                            >
+                                {(result) => (
+                                    <div class="flex items-center gap-2 border-2 border-[#1a1a1a] bg-[#f7f2de] px-3 py-2 shadow-[2px_2px_0_#1a1a1a] animate-rise-in">
+                                        <span class="font-karla font-semibold text-sm text-[#1a1a1a]">
+                                            {result.playerName}:
+                                        </span>
+                                        <span class="flex gap-1.5 flex-1">
+                                            <For each={result.hands}>
+                                                {(hand) => (
+                                                    <span
+                                                        class={`font-bebas text-lg tracking-[.08em] ${OUTCOMES[hand.outcome]?.text ?? ""}`}
+                                                    >
+                                                        {OUTCOMES[hand.outcome]?.label ?? ""}
+                                                    </span>
+                                                )}
+                                            </For>
+                                        </span>
+                                        <span
+                                            class={`font-bebas text-xl tracking-[.08em] ${
+                                                result.netChips >= 0
+                                                    ? "text-[#0f766e]"
+                                                    : "text-[#c0261a]"
+                                            }`}
+                                        >
+                                            {result.netChips >= 0 ? "+" : ""}
+                                            {result.netChips}
+                                        </span>
+                                    </div>
+                                )}
+                            </For>
+                        </div>
+                    </Show>
+                    <span class="font-bebas text-sm tracking-[.2em] text-[#5a5040]">
+                        NEXT ROUND STARTING SOON...
+                    </span>
+                    <Show when={props.isHost}>
+                        <button
+                            type="button"
+                            class="min-h-10 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-5 pt-1 font-bebas tracking-[.14em] text-[#1a1a1a] shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                            onClick={props.onReturnToLobby}
+                        >
+                            RETURN TO LOBBY
+                        </button>
+                    </Show>
+                </div>
+            </Show>
+        </div>
+    );
 
     return (
-        <div data-testid="blackjack-room" class="min-h-screen bg-[#1a5c2e] font-karla flex flex-col">
-            {/* Top bar */}
-            <div class="flex items-center justify-between px-4 py-2 bg-[#0d3d1a] border-b-[3px] border-[#0a2e13]">
+        <div
+            data-testid="blackjack-room"
+            data-layout={layout()}
+            class="relative min-h-screen paper text-[#1a1a1a] font-karla flex flex-col overflow-x-hidden"
+        >
+            <Show when={gameView()?.isMyTurn}>
+                <div class="pointer-events-none fixed inset-0 z-30 border-[6px] border-[#c0261a] animate-pulse-fast" />
+            </Show>
+
+            <div class="flex items-center justify-between px-4 py-2 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a]">
                 <div class="flex items-center gap-3">
-                    <span class="font-bebas text-[1.1rem] tracking-[.12em] text-[#ddd5c4]">
+                    <span class="font-bebas text-xl tracking-[.12em] bg-[#0f766e] text-[#f7f2de] border-2 border-[#1a1a1a] px-2.5 pt-1 shadow-[2px_2px_0_#1a1a1a] -rotate-2">
                         BLACKJACK
                     </span>
                     <Show when={gameView()}>
-                        <span class="font-bebas text-[.75rem] tracking-[.15em] text-[#7ab889]">
+                        <span class="font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]">
                             ROUND {gameView()!.roundNumber}
                         </span>
                     </Show>
                 </div>
                 <div class="flex items-center gap-3">
+                    <SoundToggle compact class="!px-1.5 !py-0.5" />
                     <Show when={me()}>
-                        <span class="font-bebas text-[.8rem] tracking-[.1em] text-[#ddd5c4]">
+                        <span class="font-bebas text-xl tracking-[.1em] text-[#1a3a6e]">
                             ${me()!.chips}
                         </span>
                     </Show>
                     <Show when={props.isHost}>
                         <button
-                            class="font-bebas text-[.7rem] tracking-[.15em] text-[#c0261a] border border-[#c0261a]/40 px-2 py-0.5 hover:bg-[#c0261a]/10 transition-colors"
+                            type="button"
+                            class="font-bebas text-sm tracking-[.15em] border-2 border-[#1a1a1a] bg-[#ddd5c4] text-[#c0261a] px-2.5 pt-1 pb-0.5 cursor-pointer transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_#1a1a1a]"
                             onClick={props.onEndGame}
                         >
                             END
@@ -223,516 +508,105 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                 </div>
             </div>
 
-            {/* Dealer area */}
-            <div class="flex flex-col items-center pt-4 pb-2">
-                <div class="font-bebas text-[.65rem] tracking-[.25em] text-[#7ab889] mb-2">
-                    DEALER
-                </div>
-                <div class="flex gap-1 items-end mb-1">
-                    <Show when={gameView()?.dealer.cards.length}>
-                        <For each={gameView()?.dealer.cards ?? []}>
-                            {(card) => (
-                                <div class="transition-all duration-300">
-                                    <Show
-                                        when={card !== "hidden"}
-                                        fallback={<CardBack size={70} />}
-                                    >
-                                        <PlayingCard
-                                            suit={
-                                                (card as Card).suit
-                                            }
-                                            rank={
-                                                (card as Card).rank
-                                            }
-                                            size={70}
-                                        />
-                                    </Show>
+            <PartyLayoutControls
+                roomId={props.roomId}
+                layout={layout()}
+                onChange={setLayout}
+            />
+
+            <Show when={announcement()} keyed>
+                {(item) => (
+                    <div class="pointer-events-none fixed inset-x-0 top-24 z-40 flex justify-center px-4">
+                        <span
+                            class={`border-[3px] border-[#1a1a1a] px-6 pt-2.5 pb-1.5 font-bebas text-2xl tracking-[.12em] shadow-[5px_5px_0_#1a1a1a] animate-stamp-in [--stamp-rot:-2deg] ${item.tone === "good" ? "bg-[#f5c542] text-[#1a1a1a]" : item.tone === "bad" ? "bg-[#c0261a] text-[#f7f2de]" : "bg-[#f7f2de] text-[#1a1a1a]"}`}
+                        >
+                            {item.text}
+                        </span>
+                    </div>
+                )}
+            </Show>
+
+            <Show
+                when={isController()}
+                fallback={
+                    <div class="flex-1 w-full max-w-[1500px] mx-auto px-3 pt-4 pb-16 grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] items-start">
+                        <Show when={gameView()}>
+                            {(view) => (
+                                <div class="w-full min-w-0 lg:pt-4">
+                                    <BlackjackFelt
+                                        view={view()}
+                                        heroId={props.playerId}
+                                        dealerTestId="blackjack-player-dealer"
+                                    />
                                 </div>
                             )}
-                        </For>
-                    </Show>
-                </div>
-                <Show when={gameView()?.dealer.value !== null && gameView()?.dealer.value !== undefined}>
-                    <span
-                        class={`font-bebas text-[1rem] tracking-[.08em] ${
-                            gameView()?.dealer.busted
-                                ? "text-[#c0261a]"
-                                : "text-[#ddd5c4]"
-                        }`}
-                    >
-                        {gameView()?.dealer.busted
-                            ? "BUST"
-                            : gameView()?.dealer.value}
-                    </span>
-                </Show>
-                <Show when={gameView()?.dealer.value === null && gameView()?.dealer.upCardValue}>
-                    <span class="font-bebas text-[.85rem] tracking-[.08em] text-[#7ab889]">
-                        {gameView()!.dealer.upCardValue}
-                    </span>
-                </Show>
-            </div>
-
-            {/* Announcement */}
-            <Show when={announcement()}>
-                <div
-                    class="text-center py-2 px-4 animate-fade-in"
-                    style={{ "--fade-key": announcementKey() } as any}
-                >
-                    <span class="font-bebas text-[1.4rem] tracking-[.12em] text-[#ddd5c4] drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-                        {announcement()}
-                    </span>
-                </div>
-            </Show>
-
-            {/* Other players */}
-            <Show when={others().length > 0}>
-                <div class="px-4 py-2">
-                    <div class="flex flex-wrap gap-3 justify-center">
-                        <For each={others()}>
-                            {(player) => (
-                                <PlayerArea
-                                    player={player}
-                                    isCurrentTurn={
-                                        gameView()?.phase === "playing" &&
-                                        gameView()?.players[
-                                            gameView()!.currentPlayerIndex
-                                        ]?.id === player.id
-                                    }
-                                    results={gameView()?.results?.find(
-                                        (r) =>
-                                            r.playerId === player.id,
-                                    )}
-                                    compact
-                                />
-                            )}
-                        </For>
+                        </Show>
+                        <div class="w-full max-w-xl mx-auto lg:sticky lg:top-4">
+                            {actionPanel()}
+                        </div>
                     </div>
-                </div>
-            </Show>
-
-            {/* Spacer */}
-            <div class="flex-1" />
-
-            {/* My hands */}
-            <Show when={me() && me()!.hands.length > 0}>
-                <div class="px-4 pb-2">
-                    <PlayerArea
-                        player={me()!}
-                        isCurrentTurn={gameView()?.isMyTurn ?? false}
-                        results={gameView()?.results?.find(
-                            (r) => r.playerId === props.playerId,
-                        )}
-                        compact={false}
-                    />
-                </div>
-            </Show>
-
-            {/* Action controls */}
-            <div class="px-4 py-3 bg-[#0d3d1a]/60 border-t border-[#7ab889]/20">
-                {/* Betting phase */}
-                <Show when={gameView()?.needsBet}>
-                    <div class="flex flex-col items-center gap-3">
-                        <span class="font-bebas text-[.7rem] tracking-[.25em] text-[#7ab889]">
-                            PLACE YOUR BET
-                        </span>
-                        <div class="flex items-center gap-3">
-                            <button
-                                class="font-bebas text-[1rem] w-8 h-8 bg-[#ddd5c4] text-[#1a1a1a] border-2 border-[#1a1a1a] shadow-[2px_2px_0_#0a2e13] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                                onClick={() =>
-                                    setBetAmount((a) =>
-                                        Math.max(MIN_BET, a - 10),
-                                    )
-                                }
-                            >
-                                -
-                            </button>
-                            <div class="font-bebas text-[1.8rem] tracking-[.08em] text-[#ddd5c4] min-w-[80px] text-center">
-                                ${betAmount()}
-                            </div>
-                            <button
-                                class="font-bebas text-[1rem] w-8 h-8 bg-[#ddd5c4] text-[#1a1a1a] border-2 border-[#1a1a1a] shadow-[2px_2px_0_#0a2e13] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                                onClick={() =>
-                                    setBetAmount((a) =>
-                                        Math.min(
-                                            MAX_BET,
-                                            me()?.chips ?? MAX_BET,
-                                            a + 10,
-                                        ),
-                                    )
-                                }
-                            >
-                                +
-                            </button>
-                        </div>
-                        <div class="flex gap-2">
-                            <For each={[10, 25, 50, 100]}>
-                                {(preset) => (
-                                    <button
-                                        class={`font-bebas text-[.85rem] tracking-[.1em] px-3 py-1 border-2 border-[#1a1a1a] shadow-[2px_2px_0_#0a2e13] transition-all active:translate-x-0.5 active:translate-y-0.5 active:shadow-none ${
-                                            betAmount() === preset
-                                                ? "bg-[#ddd5c4] text-[#1a1a1a]"
-                                                : "bg-transparent text-[#ddd5c4] border-[#7ab889]/40"
-                                        }`}
-                                        onClick={() => {
-                                            const max = Math.min(
-                                                MAX_BET,
-                                                me()?.chips ?? MAX_BET,
-                                            );
-                                            setBetAmount(
-                                                Math.min(preset, max),
-                                            );
-                                        }}
-                                    >
-                                        ${preset}
-                                    </button>
-                                )}
-                            </For>
-                        </div>
-                        <button
-                            class="font-bebas text-[1.1rem] tracking-[.12em] bg-[#ddd5c4] text-[#1a1a1a] border-2 border-[#1a1a1a] px-8 py-2 shadow-[3px_3px_0_#0a2e13] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#0a2e13] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                            onClick={placeBet}
+                }
+            >
+                <div class="flex-1 w-full max-w-md mx-auto px-3 pt-3 pb-16 space-y-3">
+                    <Show when={gameView() && gameView()!.dealer.cards.length > 0}>
+                        <div
+                            data-testid="blackjack-controller-dealer"
+                            class="table-mat relative overflow-hidden rounded-2xl border-[3px] border-[#1a1a1a] px-4 py-3 flex items-center justify-between gap-3 shadow-[4px_4px_0_#1a1a1a]"
+                            style={{ "--mat": "#0f766e" }}
                         >
-                            DEAL
-                        </button>
-                    </div>
-                </Show>
-
-                {/* Waiting for bets */}
-                <Show
-                    when={
-                        gameView()?.phase === "betting" &&
-                        !gameView()?.needsBet &&
-                        me() &&
-                        me()!.bet > 0
-                    }
-                >
-                    <div class="text-center">
-                        <span class="font-bebas text-[.8rem] tracking-[.2em] text-[#7ab889]">
-                            WAITING FOR OTHER BETS...
-                        </span>
-                    </div>
-                </Show>
-
-                {/* Insurance prompt */}
-                <Show when={gameView()?.needsInsurance}>
-                    <div class="flex flex-col items-center gap-3">
-                        <span class="font-bebas text-[.8rem] tracking-[.2em] text-[#ddd5c4]">
-                            DEALER SHOWS ACE - INSURANCE?
-                        </span>
-                        <span class="font-karla text-[.75rem] text-[#7ab889]">
-                            Cost: ${Math.floor((me()?.bet ?? 0) / 2)}{" "}
-                            (half your bet)
-                        </span>
-                        <div class="flex gap-3">
-                            <button
-                                class="font-bebas text-[1rem] tracking-[.12em] bg-[#2d8a4e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-6 py-2 shadow-[3px_3px_0_#0a2e13] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#0a2e13]"
-                                onClick={acceptInsurance}
-                            >
-                                YES
-                            </button>
-                            <button
-                                class="font-bebas text-[1rem] tracking-[.12em] bg-[#c0261a] text-[#ddd5c4] border-2 border-[#1a1a1a] px-6 py-2 shadow-[3px_3px_0_#0a2e13] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#0a2e13]"
-                                onClick={declineInsurance}
-                            >
-                                NO
-                            </button>
-                        </div>
-                    </div>
-                </Show>
-
-                {/* Waiting for insurance */}
-                <Show
-                    when={
-                        gameView()?.phase === "insurance" &&
-                        !gameView()?.needsInsurance &&
-                        me()?.insuranceDecided
-                    }
-                >
-                    <div class="text-center">
-                        <span class="font-bebas text-[.8rem] tracking-[.2em] text-[#7ab889]">
-                            WAITING FOR OTHERS...
-                        </span>
-                    </div>
-                </Show>
-
-                {/* Playing actions */}
-                <Show when={gameView()?.isMyTurn}>
-                    <div class="flex flex-col items-center gap-2">
-                        <span class="font-bebas text-[.7rem] tracking-[.25em] text-[#ddd5c4]">
-                            YOUR TURN
-                            <Show when={me() && me()!.hands.length > 1}>
-                                {" "}
-                                - HAND {(me()!.currentHandIndex ?? 0) + 1} OF{" "}
-                                {me()!.hands.length}
-                            </Show>
-                        </span>
-                        <div class="flex gap-2 flex-wrap justify-center">
-                            <Show when={gameView()?.canHit}>
-                                <button
-                                    class="font-bebas text-[1.05rem] tracking-[.12em] bg-[#ddd5c4] text-[#1a1a1a] border-2 border-[#1a1a1a] px-5 py-2 shadow-[3px_3px_0_#0a2e13] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#0a2e13] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                                    onClick={hit}
-                                >
-                                    HIT
-                                </button>
-                            </Show>
-                            <Show when={gameView()?.canStand}>
-                                <button
-                                    class="font-bebas text-[1.05rem] tracking-[.12em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-2 shadow-[3px_3px_0_#0a2e13] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#0a2e13] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                                    onClick={stand}
-                                >
-                                    STAND
-                                </button>
-                            </Show>
-                            <Show when={gameView()?.canDouble}>
-                                <button
-                                    class="font-bebas text-[1.05rem] tracking-[.12em] bg-[#b8860b] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-2 shadow-[3px_3px_0_#0a2e13] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#0a2e13] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                                    onClick={doubleDown}
-                                >
-                                    DOUBLE
-                                </button>
-                            </Show>
-                            <Show when={gameView()?.canSplit}>
-                                <button
-                                    class="font-bebas text-[1.05rem] tracking-[.12em] bg-[#7b2d8a] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-2 shadow-[3px_3px_0_#0a2e13] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#0a2e13] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                                    onClick={split}
-                                >
-                                    SPLIT
-                                </button>
-                            </Show>
-                        </div>
-                    </div>
-                </Show>
-
-                {/* Waiting for other player */}
-                <Show
-                    when={
-                        gameView()?.phase === "playing" &&
-                        !gameView()?.isMyTurn
-                    }
-                >
-                    <div class="text-center">
-                        <span class="font-bebas text-[.8rem] tracking-[.2em] text-[#7ab889]">
-                            {currentPlayerName().toUpperCase()}'S TURN
-                        </span>
-                    </div>
-                </Show>
-
-                {/* Settled */}
-                <Show when={gameView()?.phase === "settled"}>
-                    <div class="flex flex-col items-center gap-3">
-                        <Show when={gameView()?.results}>
-                            <div class="flex flex-col gap-1 items-center">
-                                <For each={gameView()!.results!}>
-                                    {(result) => (
-                                        <div class="flex items-center gap-2">
-                                            <span class="font-karla text-[.8rem] text-[#ddd5c4]">
-                                                {result.playerName}:
-                                            </span>
-                                            <For each={result.hands}>
-                                                {(hand) => (
-                                                    <span
-                                                        class={`font-bebas text-[.85rem] tracking-[.08em] ${outcomeColor(hand.outcome)}`}
-                                                    >
-                                                        {outcomeLabel(
-                                                            hand.outcome,
-                                                        )}
-                                                    </span>
-                                                )}
-                                            </For>
-                                            <span
-                                                class={`font-bebas text-[.85rem] tracking-[.08em] ${
-                                                    result.netChips >= 0
-                                                        ? "text-[#2d8a4e]"
-                                                        : "text-[#c0261a]"
-                                                }`}
-                                            >
-                                                {result.netChips >= 0
-                                                    ? "+"
-                                                    : ""}
-                                                {result.netChips}
-                                            </span>
+                            <span class="relative font-bebas tracking-[.25em] text-sm text-[#f7f2de]/80">
+                                DEALER
+                            </span>
+                            <div class="relative flex">
+                                <For each={gameView()!.dealer.cards} keyed={false}>
+                                    {(card, index) => (
+                                        <div class={index > 0 ? "-ml-6" : ""}>
+                                            <TableCard
+                                                card={card() === "hidden" ? null : (card() as Card)}
+                                                class="w-[46px]"
+                                            />
                                         </div>
                                     )}
                                 </For>
                             </div>
-                        </Show>
-                        <span class="font-bebas text-[.65rem] tracking-[.2em] text-[#7ab889]">
-                            NEXT ROUND STARTING SOON...
-                        </span>
-                        <Show when={props.isHost}>
-                            <button
-                                class="font-bebas text-[.85rem] tracking-[.12em] text-[#ddd5c4] border border-[#7ab889]/40 px-4 py-1 hover:bg-[#7ab889]/10 transition-colors"
-                                onClick={props.onReturnToLobby}
-                            >
-                                RETURN TO LOBBY
-                            </button>
-                        </Show>
-                    </div>
-                </Show>
-
-                {/* Shoe info */}
-                <Show when={gameView()}>
-                    <div class="text-center mt-2">
-                        <span class="font-bebas text-[.55rem] tracking-[.2em] text-[#7ab889]/50">
-                            SHOE: {gameView()!.shoeCount} CARDS
-                        </span>
-                    </div>
-                </Show>
-            </div>
-        </div>
-    );
-};
-
-function PlayerArea(props: {
-    player: PlayerInfoView;
-    isCurrentTurn: boolean;
-    results?: { hands: { outcome: string; payout: number }[] } | null;
-    compact: boolean;
-}) {
-    const cardSize = () => (props.compact ? 48 : 64);
-
-    return (
-        <div
-            data-testid={`blackjack-player-${props.player.id}`}
-            data-current-turn={props.isCurrentTurn ? "true" : "false"}
-            class={`rounded px-3 py-2 transition-all ${
-                props.isCurrentTurn
-                    ? "bg-[#2d8a4e]/30 ring-1 ring-[#7ab889]"
-                    : "bg-[#0d3d1a]/30"
-            }`}
-        >
-            <div class="flex items-center justify-between mb-1">
-                <span
-                    class={`font-bebas text-[.7rem] tracking-[.15em] ${
-                        props.isCurrentTurn
-                            ? "text-[#ddd5c4]"
-                            : "text-[#7ab889]"
-                    }`}
-                >
-                    {props.player.name.toUpperCase()}
-                </span>
-                <span class="font-bebas text-[.65rem] tracking-[.1em] text-[#7ab889]/70">
-                    ${props.player.chips}
-                </span>
-            </div>
-
-            <For each={props.player.hands}>
-                {(hand, handIdx) => (
-                    <div
-                        class="mb-1"
-                        data-testid={`blackjack-hand-${props.player.id}-${handIdx()}`}
-                        data-card-count={hand.cards.length}
-                        data-value={handValueLabel(hand)}
-                    >
-                        <Show when={props.player.hands.length > 1}>
-                            <div class="font-bebas text-[.5rem] tracking-[.2em] text-[#7ab889]/50 mb-0.5">
-                                HAND {handIdx() + 1}
-                                <Show
-                                    when={
-                                        props.isCurrentTurn &&
-                                        handIdx() ===
-                                            props.player.currentHandIndex
-                                    }
-                                >
-                                    {" "}
-                                    <span class="text-[#ddd5c4]">
-                                        (ACTIVE)
-                                    </span>
-                                </Show>
-                            </div>
-                        </Show>
-                        <div class="flex gap-0.5 items-end">
-                            <For each={hand.cards}>
-                                {(card) => (
-                                    <PlayingCard
-                                        suit={card.suit}
-                                        rank={card.rank}
-                                        size={cardSize()}
-                                    />
-                                )}
-                            </For>
-                        </div>
-                        <div class="flex items-center gap-2 mt-0.5">
                             <span
-                                class={`font-bebas text-[.75rem] tracking-[.08em] ${
-                                    hand.busted
-                                        ? "text-[#c0261a]"
-                                        : hand.isBlackjack
-                                          ? "text-[#b8860b]"
-                                          : "text-[#ddd5c4]"
-                                }`}
+                                class={`relative min-w-12 text-center border-2 border-[#1a1a1a] px-3 pt-1 font-bebas text-2xl shadow-[2px_2px_0_#1a1a1a] ${gameView()!.dealer.busted ? "bg-[#c0261a] text-[#f7f2de]" : "bg-[#f7f2de] text-[#1a1a1a]"}`}
                             >
-                                {handValueLabel(hand)}
+                                {gameView()!.dealer.busted
+                                    ? "BUST"
+                                    : (gameView()!.dealer.value ??
+                                      gameView()!.dealer.upCardValue ??
+                                      "")}
                             </span>
-                            <Show when={hand.bet > 0}>
-                                <span class="font-bebas text-[.6rem] tracking-[.1em] text-[#7ab889]/70">
-                                    ${hand.bet}
-                                    {hand.doubled ? " (2x)" : ""}
-                                </span>
-                            </Show>
-                            <Show
-                                when={
-                                    props.results?.hands[handIdx()]
-                                }
-                            >
-                                <span
-                                    class={`font-bebas text-[.7rem] tracking-[.1em] ${outcomeColor(props.results!.hands[handIdx()]!.outcome)}`}
-                                >
-                                    {outcomeLabel(
-                                        props.results!.hands[handIdx()]!
-                                            .outcome,
-                                    )}
-                                </span>
-                            </Show>
                         </div>
-                    </div>
-                )}
-            </For>
+                    </Show>
 
-            <Show when={props.player.insuranceBet > 0}>
-                <div class="font-bebas text-[.55rem] tracking-[.15em] text-[#b8860b] mt-1">
-                    INSURED: ${props.player.insuranceBet}
+                    <Show when={me() && me()!.hands.length > 0}>
+                        <PlayerArea
+                            player={me()!}
+                            isCurrentTurn={gameView()?.isMyTurn ?? false}
+                            results={myResult()}
+                        />
+                    </Show>
+
+                    <Show when={myResult() && myResult()!.netChips !== 0}>
+                        <div class="text-center font-bebas text-5xl leading-none">
+                            <span
+                                class={`inline-block border-[3px] border-[#1a1a1a] px-4 pt-2 shadow-[5px_5px_0_#1a1a1a] animate-stamp-in ${myResult()!.netChips > 0 ? "bg-[#f5c542] text-[#1a1a1a]" : "bg-[#1a1a1a] text-[#f7f2de]"}`}
+                            >
+                                {myResult()!.netChips > 0 ? "+" : "−"}$
+                                <AnimatedNumber value={Math.abs(myResult()!.netChips)} />
+                            </span>
+                        </div>
+                    </Show>
+
+                    {actionPanel()}
                 </div>
+            </Show>
+
+            <Show when={isController() && gameView()?.phase === "settled" && bigWin() ? gameView()?.roundNumber : null} keyed>
+                {(_round) => <Confetti count={50} />}
             </Show>
         </div>
     );
-}
-
-function handValueLabel(hand: PlayerHandView): string {
-    if (hand.isBlackjack) return "BJ";
-    if (hand.busted) return "BUST";
-    const prefix = hand.soft ? "Soft " : "";
-    return `${prefix}${hand.value}`;
-}
-
-function outcomeLabel(outcome: string): string {
-    switch (outcome) {
-        case "blackjack":
-            return "BLACKJACK!";
-        case "win":
-            return "WIN";
-        case "push":
-            return "PUSH";
-        case "lose":
-            return "LOSE";
-        case "bust":
-            return "BUST";
-        default:
-            return "";
-    }
-}
-
-function outcomeColor(outcome: string): string {
-    switch (outcome) {
-        case "blackjack":
-        case "win":
-            return "text-[#2d8a4e]";
-        case "push":
-            return "text-[#b8860b]";
-        case "lose":
-        case "bust":
-            return "text-[#c0261a]";
-        default:
-            return "text-[#1a1a1a]";
-    }
-}
+};

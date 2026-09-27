@@ -155,7 +155,7 @@ test.describe("poker-live", () => {
                         .evaluateAll((cards) =>
                             cards.every(
                                 (card) =>
-                                    card.getBoundingClientRect().width <= 32,
+                                    card.getBoundingClientRect().width <= 56,
                             ),
                         ),
                 ).toBe(true);
@@ -172,8 +172,8 @@ test.describe("poker-live", () => {
                     .getByTestId("poker-fold-button")
                     .click();
                 await expect(
-                    display.getByText(/won \d+ chips uncontested/),
-                ).toBeVisible();
+                    display.getByTestId("poker-hand-winners"),
+                ).toContainText(/wins \d+\s*Everyone else folded/);
                 expect(sent).toEqual([]);
                 expect(received.length).toBeGreaterThan(0);
                 for (const raw of received) {

@@ -83,6 +83,12 @@ describe("poker initGame", () => {
         expect(state.players[1].committedThisStreet).toBe(POKER_SMALL_BLIND);
         expect(state.players[2].committedThisStreet).toBe(POKER_BIG_BLIND);
         expect(state.actingPlayerIndex).toBe(0);
+        expect(state.pots).toEqual([
+            {
+                amount: POKER_SMALL_BLIND + POKER_BIG_BLIND,
+                eligiblePlayerIds: ["a", "b", "c"],
+            },
+        ]);
     });
 
     it("uses heads-up blind order with dealer posting the small blind", () => {

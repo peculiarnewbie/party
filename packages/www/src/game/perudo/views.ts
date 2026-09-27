@@ -5,7 +5,7 @@ export type { PerudoPlayerInfo, PerudoPlayerView };
 
 export function getPlayerView(
     state: PerudoState,
-    playerId: string,
+    playerId: string | null,
 ): PerudoPlayerView {
     const activePlayers = state.players.filter((p) => !p.eliminated);
     const currentPlayer =
@@ -71,7 +71,7 @@ export function getPlayerView(
         (state.phase === "bidding" || state.phase === "round_start");
 
     return {
-        myId: playerId,
+        myId: playerId ?? "",
         phase: state.phase,
         roundNumber: state.roundNumber,
         currentBid: state.currentBid,

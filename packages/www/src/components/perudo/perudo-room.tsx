@@ -1,4 +1,8 @@
 import {
+    PartyLayoutControls,
+    type PartyLayout,
+} from "~/components/party-layout-controls";
+import {
     createSignal,
     createEffect,
     createMemo,
@@ -18,6 +22,7 @@ import type { PerudoConnection } from "~/game/perudo/connection";
 
 interface PerudoRoomProps {
     roomId: string;
+    initialLayout?: PartyLayout;
     playerId: string | null;
     isHost: boolean;
     connection: PerudoConnection;
@@ -35,6 +40,10 @@ const FACE_LABELS: Record<number, string> = {
 };
 
 export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
+    const [layout, setLayout] = createSignal(
+        () => props.initialLayout ?? "table",
+    );
+    const isController = () => layout() === "controller";
     const gameView = () => props.connection.view();
     const [announcement, setAnnouncement] = createSignal<string | null>(null);
     const [announcementKey, setAnnouncementKey] = createSignal(0);
@@ -194,6 +203,7 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
     return (
         <div
             data-testid="perudo-room"
+            data-layout={layout()}
             class="min-h-screen bg-[#0d2818] font-karla flex flex-col"
         >
             <div class="flex items-center justify-between px-4 py-3 bg-[#0a1f14] border-b-2 border-[#d4a017]/40">
@@ -229,6 +239,12 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
                 </div>
             </div>
 
+            <PartyLayoutControls
+                roomId={props.roomId}
+                layout={layout()}
+                onChange={setLayout}
+            />
+
             <Show when={announcement()}>
                 <div
                     class="text-center py-2 px-4 animate-fade-in"
@@ -240,19 +256,28 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
                 </div>
             </Show>
 
-            <div class="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto">
-                <Show
-                    when={
-                        gameView()?.phase === "revealing" ||
-                        gameView()?.lastChallengeResult
-                    }
-                >
+            <div
+                class={`px-4 py-4 flex flex-col gap-4 ${isController() ? "w-full max-w-md mx-auto order-2" : "flex-1 overflow-y-auto"}`}
+            >
+                <Show when={!isController() && gameView()?.lastChallengeResult}>
                     <ChallengeReveal
                         result={gameView()!.lastChallengeResult!}
                         players={gameView()!.players}
                         myId={props.playerId ?? ""}
                         playerName={playerName}
                     />
+                </Show>
+
+                <Show when={isController() && gameView()?.lastChallengeResult}>
+                    <p
+                        data-testid="perudo-controller-result"
+                        class="text-center text-[#f5e6c8]"
+                    >
+                        {gameView()!.lastChallengeResult!.actualCount} matching
+                        dice.{" "}
+                        {playerName(gameView()!.lastChallengeResult!.loserId)}{" "}
+                        lost a die.
+                    </p>
                 </Show>
 
                 <Show when={gameView()?.phase === "game_over"}>
@@ -265,16 +290,18 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
                 </Show>
 
                 <Show when={gameView()?.phase !== "game_over"}>
-                    <div class="space-y-3">
-                        <For each={otherPlayers()}>
-                            {(player) => (
-                                <PlayerCard
-                                    player={player}
-                                    isCurrentPlayer={player.isCurrentPlayer}
-                                />
-                            )}
-                        </For>
-                    </div>
+                    <Show when={!isController()}>
+                        <div class="space-y-3">
+                            <For each={otherPlayers()}>
+                                {(player) => (
+                                    <PlayerCard
+                                        player={player}
+                                        isCurrentPlayer={player.isCurrentPlayer}
+                                    />
+                                )}
+                            </For>
+                        </div>
+                    </Show>
 
                     <Show when={lastBid()}>
                         <CurrentBidDisplay
@@ -319,7 +346,10 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
                     </Show>
 
                     <Show
-                        when={gameView()?.phase === "bidding" && canChallenge()}
+                        when={
+                            gameView()?.phase === "bidding" &&
+                            gameView()?.canBid
+                        }
                     >
                         <div class="flex flex-col items-center gap-3 py-4 border-t border-[#d4a017]/20">
                             <span class="font-bebas text-[.75rem] tracking-[.2em] text-[#f5e6c8]/80">
@@ -388,6 +418,7 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
                                 <button
                                     class="font-bebas text-[.9rem] tracking-[.14em] text-[#c0261a] border-2 border-[#c0261a]/60 px-6 py-1.5 hover:bg-[#c0261a]/10 transition-colors"
                                     onClick={challenge}
+                                    disabled={!canChallenge()}
                                 >
                                     CHALLENGE
                                 </button>
@@ -397,7 +428,10 @@ export const PerudoRoom: Component<PerudoRoomProps> = (props) => {
                 </Show>
             </div>
 
-            <div class="px-4 py-4 bg-[#0a1f14] border-t border-[#d4a017]/20">
+            <div
+                data-testid="perudo-my-dice"
+                class={`px-4 py-4 bg-[#0a1f14] border-t border-[#d4a017]/20 ${isController() ? "w-full max-w-md mx-auto order-1" : ""}`}
+            >
                 <div class="flex items-center justify-between mb-2">
                     <span class="font-bebas text-[.7rem] tracking-[.15em] text-[#d4a017]">
                         YOUR DICE

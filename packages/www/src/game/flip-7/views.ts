@@ -1,8 +1,4 @@
-import type {
-    Flip7Card,
-    Flip7PendingChoice,
-    Flip7State,
-} from "./types";
+import type { Flip7Card, Flip7PendingChoice, Flip7State } from "./types";
 import type {
     Flip7CardView,
     Flip7PlayerInfo,
@@ -93,13 +89,13 @@ function roundScore(
 
 export function getPlayerView(
     state: Flip7State,
-    playerId: string,
+    playerId: string | null,
 ): Flip7PlayerView {
     const me = state.players.find((player) => player.id === playerId) ?? null;
     const currentPlayerId =
         state.currentPlayerIndex === null
             ? null
-            : state.players[state.currentPlayerIndex]?.id ?? null;
+            : (state.players[state.currentPlayerIndex]?.id ?? null);
     const targetChoice = state.pendingChoice
         ? {
               chooserPlayerId: state.pendingChoice.chooserPlayerId,
@@ -109,7 +105,7 @@ export function getPlayerView(
         : null;
 
     return {
-        myId: playerId,
+        myId: playerId ?? "",
         hostId: state.hostId,
         phase: state.phase,
         roundNumber: state.roundNumber,

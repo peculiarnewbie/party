@@ -1,5 +1,6 @@
 import type { Component } from "solid-js";
 import { For, Show } from "solid-js";
+import { Confetti, PlayerAvatar } from "~/components/casino";
 import type { PokerPlayerPublicView } from "~/game/poker";
 
 export const ResultsOverlay: Component<{
@@ -21,37 +22,56 @@ export const ResultsOverlay: Component<{
     return (
         <div
             data-testid="poker-results-overlay"
-            class="fixed inset-0 bg-[#1a1a1a]/60 flex items-center justify-center z-50 p-4"
+            class="fixed inset-0 bg-[#1a3a6e]/85 flex items-center justify-center z-50 p-4"
         >
-            <div class="w-full max-w-[520px] border-2 border-[#1a1a1a] bg-[#ddd5c4] px-6 py-6 shadow-[6px_6px_0_#1a1a1a]">
-                <div class="font-bebas text-[.7rem] tracking-[.28em] text-[#c0261a] mb-2">
-                    {props.endedByHost ? "HOST ENDED THE GAME" : "TOURNAMENT COMPLETE"}
+            <Show when={!props.endedByHost}>
+                <Confetti count={90} />
+            </Show>
+            <div class="w-full max-w-[520px] border-[3px] border-[#1a1a1a] bg-[#ddd5c4] px-6 py-6 shadow-[10px_10px_0_#1a1a1a] animate-stamp-in [--stamp-rot:-1deg]">
+                <div class="inline-block font-bebas text-sm tracking-[.28em] bg-[#c0261a] text-[#f7f2de] px-2.5 pt-1 mb-3">
+                    {props.endedByHost
+                        ? "HOST ENDED THE GAME"
+                        : "TOURNAMENT COMPLETE"}
                 </div>
                 <div
                     data-testid="poker-results-title"
-                    class="font-bebas text-[clamp(2rem,5vw,3rem)] leading-[.9] text-[#1a1a1a]"
+                    class="font-bebas text-[#1a1a1a] text-[clamp(2.4rem,9vw,3.6rem)] leading-[.9]"
                 >
-                    {winnerNames() ? `${winnerNames().toUpperCase()} LEADS` : "TABLE CLOSED"}
+                    {winnerNames()
+                        ? `${winnerNames().toUpperCase()} LEADS`
+                        : "TABLE CLOSED"}
                 </div>
 
                 <div class="mt-5 space-y-2">
                     <For each={standings()}>
                         {(player, index) => (
-                            <div class="flex items-center justify-between border-b border-[#b8ae9e] pb-2 last:border-b-0">
+                            <div
+                                class={`flex items-center justify-between border-2 border-[#1a1a1a] px-3 py-2 shadow-[3px_3px_0_#1a1a1a] animate-rise-in ${index() === 0 ? "bg-[#f5c542]" : "bg-[#f7f2de]"}`}
+                                style={{ "animation-delay": `${250 + index() * 110}ms` }}
+                            >
                                 <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 flex items-center justify-center bg-[#1a3a6e] text-[#ddd5c4] font-bebas text-[.95rem]">
+                                    <span class="font-bebas text-2xl w-6 text-[#c0261a]">
                                         {index() + 1}
-                                    </div>
+                                    </span>
+                                    <PlayerAvatar
+                                        id={player.id}
+                                        name={player.name}
+                                        index={props.players.findIndex((entry) => entry.id === player.id)}
+                                        class="w-9 h-9 text-lg"
+                                    />
                                     <div>
-                                        <div class="font-bebas text-[1rem] tracking-[.06em] text-[#1a1a1a]">
+                                        <div
+                                            data-testid="poker-standing-name"
+                                            class="font-bebas text-xl tracking-[.06em] text-[#1a1a1a] leading-none"
+                                        >
                                             {player.name}
                                         </div>
-                                        <div class="font-bebas text-[.6rem] tracking-[.18em] text-[#9a9080]">
+                                        <div class="font-bebas text-xs tracking-[.18em] text-[#5a5040]">
                                             {player.status.toUpperCase()}
                                         </div>
                                     </div>
                                 </div>
-                                <div class="font-bebas text-[1.2rem] tracking-[.06em] text-[#1a3a6e]">
+                                <div class="font-bebas text-2xl tracking-[.06em] text-[#1a3a6e]">
                                     {player.stack}
                                 </div>
                             </div>
@@ -64,7 +84,7 @@ export const ResultsOverlay: Component<{
                         type="button"
                         data-testid="poker-return-button"
                         onClick={props.onReturnToLobby}
-                        class="mt-6 w-full font-bebas text-[1.1rem] tracking-[.12em] border-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#ddd5c4] py-3 cursor-pointer shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#9a9080]"
+                        class="mt-6 w-full min-h-14 pt-1 border-2 border-[#1a1a1a] bg-[#c0261a] font-bebas text-2xl tracking-[.12em] text-[#f7f2de] shadow-[4px_4px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_#1a1a1a] active:translate-x-1 active:translate-y-1 active:shadow-none"
                     >
                         Return To Lobby
                     </button>

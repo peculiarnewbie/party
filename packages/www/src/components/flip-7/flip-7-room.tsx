@@ -1,17 +1,11 @@
 import {
-    createSignal,
-    For,
-    Match,
-    onCleanup,
-    Show,
-    Switch,
-} from "solid-js";
+    PartyLayoutControls,
+    type PartyLayout,
+} from "~/components/party-layout-controls";
+import { PlayerBoard } from "./player-board";
+import { createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
 import type { Component } from "solid-js";
-import type {
-    Flip7CardView,
-    Flip7PlayerInfo,
-    Flip7PlayerView,
-} from "~/game/flip-7/views";
+import type { Flip7PlayerView } from "~/game/flip-7/views";
 import type {
     Flip7ClientOutgoing,
     Flip7Connection,
@@ -19,6 +13,7 @@ import type {
 
 interface Flip7RoomProps {
     roomId: string;
+    initialLayout?: PartyLayout;
     playerId: string | null;
     isHost: boolean;
     connection: Flip7Connection;
@@ -33,6 +28,10 @@ const TARGET_LABELS = {
 } as const;
 
 export const Flip7Room: Component<Flip7RoomProps> = (props) => {
+    const [layout, setLayout] = createSignal(
+        () => props.initialLayout ?? "table",
+    );
+    const isController = () => layout() === "controller";
     const view = () => props.connection.view();
     const [error, setError] = createSignal<string | null>(null);
 
@@ -55,13 +54,25 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
     );
 
     const playerName = (playerId: string) =>
-        view()?.players.find((player) => player.id === playerId)?.name ?? "Unknown";
+        view()?.players.find((player) => player.id === playerId)?.name ??
+        "Unknown";
 
     return (
-        <div data-testid="flip-7-room" class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla">
+        <div
+            data-testid="flip-7-room"
+            data-layout={layout()}
+            class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla"
+        >
+            <PartyLayoutControls
+                roomId={props.roomId}
+                layout={layout()}
+                onChange={setLayout}
+            />
             <Show when={view()} keyed>
                 {(state) => (
-                    <div class="max-w-6xl mx-auto px-4 py-6">
+                    <div
+                        class={`mx-auto px-4 py-6 ${isController() ? "max-w-md" : "max-w-6xl"}`}
+                    >
                         <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
                             <div>
                                 <div class="font-bebas text-[.78rem] tracking-[.24em] text-[#c0261a] mb-2">
@@ -71,28 +82,36 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                                     FLIP 7
                                 </h1>
                                 <div class="font-bebas text-[.78rem] tracking-[.18em] text-[#9a9080] mt-2">
-                                    ROOM {props.roomId.toUpperCase()} · ROUND {state.roundNumber} ·
-                                    TARGET {state.targetScore}
+                                    ROOM {props.roomId.toUpperCase()} · ROUND{" "}
+                                    {state.roundNumber} · TARGET{" "}
+                                    {state.targetScore}
                                 </div>
                             </div>
                             <div class="flex flex-wrap items-center gap-3">
-                                <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] px-4 py-2 shadow-[3px_3px_0_#1a1a1a]">
-                                    <div class="font-bebas text-[.68rem] tracking-[.18em] text-[#9a9080]">
-                                        DECK
+                                <Show when={!isController()}>
+                                    <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] px-4 py-2 shadow-[3px_3px_0_#1a1a1a]">
+                                        <div class="font-bebas text-[.68rem] tracking-[.18em] text-[#9a9080]">
+                                            DECK
+                                        </div>
+                                        <div class="font-bebas text-[1.3rem] tracking-[.08em]">
+                                            {state.deckCount}
+                                        </div>
                                     </div>
-                                    <div class="font-bebas text-[1.3rem] tracking-[.08em]">
-                                        {state.deckCount}
+                                    <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] px-4 py-2 shadow-[3px_3px_0_#1a1a1a]">
+                                        <div class="font-bebas text-[.68rem] tracking-[.18em] text-[#9a9080]">
+                                            DISCARD
+                                        </div>
+                                        <div class="font-bebas text-[1.3rem] tracking-[.08em]">
+                                            {state.discardCount}
+                                        </div>
                                     </div>
-                                </div>
-                                <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] px-4 py-2 shadow-[3px_3px_0_#1a1a1a]">
-                                    <div class="font-bebas text-[.68rem] tracking-[.18em] text-[#9a9080]">
-                                        DISCARD
-                                    </div>
-                                    <div class="font-bebas text-[1.3rem] tracking-[.08em]">
-                                        {state.discardCount}
-                                    </div>
-                                </div>
-                                <Show when={props.isHost && state.phase !== "game_over"}>
+                                </Show>
+                                <Show
+                                    when={
+                                        props.isHost &&
+                                        state.phase !== "game_over"
+                                    }
+                                >
                                     <button
                                         type="button"
                                         onClick={props.onEndGame}
@@ -104,38 +123,61 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 xl:grid-cols-[1.45fr_1fr] gap-6">
-                            <div class="space-y-6">
-                                <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] p-5 shadow-[4px_4px_0_#1a1a1a]">
-                                    <div class="flex flex-wrap gap-4 items-center justify-between mb-4">
-                                        <div>
-                                            <div class="font-bebas text-[.72rem] tracking-[.22em] text-[#9a9080]">
-                                                DEALER
+                        <div
+                            class={
+                                isController()
+                                    ? "space-y-4"
+                                    : "grid grid-cols-1 xl:grid-cols-[1.45fr_1fr] gap-6"
+                            }
+                        >
+                            <div
+                                class={
+                                    isController()
+                                        ? "flex flex-col gap-4"
+                                        : "space-y-6"
+                                }
+                            >
+                                <div
+                                    class={`border-2 border-[#1a1a1a] bg-[#c9c0b0] p-5 shadow-[4px_4px_0_#1a1a1a] ${isController() ? "order-2" : ""}`}
+                                >
+                                    <Show when={!isController()}>
+                                        <div class="flex flex-wrap gap-4 items-center justify-between mb-4">
+                                            <div>
+                                                <div class="font-bebas text-[.72rem] tracking-[.22em] text-[#9a9080]">
+                                                    DEALER
+                                                </div>
+                                                <div class="font-bebas text-[1.25rem] tracking-[.08em]">
+                                                    {state.dealerId
+                                                        ? playerName(
+                                                              state.dealerId,
+                                                          )
+                                                        : "TBD"}
+                                                </div>
                                             </div>
-                                            <div class="font-bebas text-[1.25rem] tracking-[.08em]">
-                                                {state.dealerId ? playerName(state.dealerId) : "TBD"}
+                                            <div>
+                                                <div class="font-bebas text-[.72rem] tracking-[.22em] text-[#9a9080]">
+                                                    CURRENT TURN
+                                                </div>
+                                                <div class="font-bebas text-[1.25rem] tracking-[.08em]">
+                                                    {state.currentPlayerId
+                                                        ? playerName(
+                                                              state.currentPlayerId,
+                                                          )
+                                                        : "RESOLVING"}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="font-bebas text-[.72rem] tracking-[.22em] text-[#9a9080]">
+                                                    PHASE
+                                                </div>
+                                                <div class="font-bebas text-[1.25rem] tracking-[.08em]">
+                                                    {state.phase
+                                                        .replaceAll("_", " ")
+                                                        .toUpperCase()}
+                                                </div>
                                             </div>
                                         </div>
-                                        <div>
-                                            <div class="font-bebas text-[.72rem] tracking-[.22em] text-[#9a9080]">
-                                                CURRENT TURN
-                                            </div>
-                                            <div class="font-bebas text-[1.25rem] tracking-[.08em]">
-                                                {state.currentPlayerId
-                                                    ? playerName(state.currentPlayerId)
-                                                    : "RESOLVING"}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="font-bebas text-[.72rem] tracking-[.22em] text-[#9a9080]">
-                                                PHASE
-                                            </div>
-                                            <div class="font-bebas text-[1.25rem] tracking-[.08em]">
-                                                {state.phase.replaceAll("_", " ").toUpperCase()}
-                                            </div>
-                                        </div>
-                                    </div>
-
+                                    </Show>
                                     <Show when={error()}>
                                         <div class="mb-4 border-2 border-[#c0261a] bg-[#f4d6d1] px-4 py-3 text-[.92rem] text-[#7f1d1d]">
                                             {error()}
@@ -143,7 +185,9 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                                     </Show>
 
                                     <Switch>
-                                        <Match when={state.requiresMyTargetChoice}>
+                                        <Match
+                                            when={state.requiresMyTargetChoice}
+                                        >
                                             <TargetChoicePanel
                                                 view={state}
                                                 playerName={playerName}
@@ -155,14 +199,24 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                                                 }
                                             />
                                         </Match>
-                                        <Match when={state.phase === "initial_deal"}>
+                                        <Match
+                                            when={
+                                                state.phase === "initial_deal"
+                                            }
+                                        >
                                             <InfoPanel
                                                 eyebrow="DEALING"
                                                 title="Opening Cards Are Being Dealt"
                                                 body="Action cards can interrupt the opening deal. Wait for the state to settle before taking your turn."
                                             />
                                         </Match>
-                                        <Match when={state.phase === "awaiting_target" && state.targetChoice}>
+                                        <Match
+                                            when={
+                                                state.phase ===
+                                                    "awaiting_target" &&
+                                                state.targetChoice
+                                            }
+                                        >
                                             <InfoPanel
                                                 eyebrow="ACTION CARD"
                                                 title={`${playerName(state.targetChoice!.chooserPlayerId)} must choose a target`}
@@ -171,6 +225,7 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                                         </Match>
                                         <Match when={state.phase === "turn"}>
                                             <TurnPanel
+                                                compact={isController()}
                                                 view={state}
                                                 playerName={playerName}
                                                 onHit={() =>
@@ -187,7 +242,12 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                                                 }
                                             />
                                         </Match>
-                                        <Match when={state.phase === "round_over" && state.lastRoundResult}>
+                                        <Match
+                                            when={
+                                                state.phase === "round_over" &&
+                                                state.lastRoundResult
+                                            }
+                                        >
                                             <RoundOverPanel
                                                 view={state}
                                                 playerName={playerName}
@@ -197,27 +257,50 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                                                         data: {},
                                                     })
                                                 }
-                                                onReturnToLobby={props.onReturnToLobby}
+                                                onReturnToLobby={
+                                                    props.onReturnToLobby
+                                                }
                                             />
                                         </Match>
-                                        <Match when={state.phase === "game_over"}>
+                                        <Match
+                                            when={state.phase === "game_over"}
+                                        >
                                             <GameOverPanel
                                                 view={state}
                                                 playerName={playerName}
-                                                onReturnToLobby={props.onReturnToLobby}
+                                                onReturnToLobby={
+                                                    props.onReturnToLobby
+                                                }
                                             />
                                         </Match>
                                     </Switch>
                                 </div>
 
-                                <div class="space-y-4">
-                                    <For each={state.players}>
+                                <div
+                                    class={`space-y-4 ${isController() ? "order-1" : ""}`}
+                                >
+                                    <For
+                                        each={
+                                            isController()
+                                                ? state.players.filter(
+                                                      (player) =>
+                                                          player.id ===
+                                                          props.playerId,
+                                                  )
+                                                : state.players
+                                        }
+                                    >
                                         {(player) => (
                                             <PlayerBoard
                                                 player={player}
-                                                isCurrent={state.currentPlayerId === player.id}
+                                                isCurrent={
+                                                    state.currentPlayerId ===
+                                                    player.id
+                                                }
                                                 isWinner={
-                                                    state.winners?.includes(player.id) ?? false
+                                                    state.winners?.includes(
+                                                        player.id,
+                                                    ) ?? false
                                                 }
                                             />
                                         )}
@@ -225,52 +308,85 @@ export const Flip7Room: Component<Flip7RoomProps> = (props) => {
                                 </div>
                             </div>
 
-                            <div class="space-y-6">
-                                <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] p-5 shadow-[4px_4px_0_#1a1a1a]">
-                                    <div class="font-bebas text-[.78rem] tracking-[.22em] text-[#c0261a] mb-3">
-                                        HOW SCORING WORKS
-                                    </div>
-                                    <div class="text-[.95rem] leading-relaxed text-[#5a5040] space-y-2">
-                                        <p>Number cards add together.</p>
-                                        <p>`x2` doubles number-card points before flat bonuses are added.</p>
-                                        <p>`+2` to `+10` adds flat points even if you have no numbers.</p>
-                                        <p>`Second Chance` scores nothing, but it can cancel one duplicate number.</p>
-                                        <p>Flip 7 unique numbers to end the round immediately and earn +15.</p>
-                                    </div>
-                                </div>
-
-                                <Show when={state.lastRoundResult}>
+                            <Show when={!isController()}>
+                                <div class="space-y-6">
                                     <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] p-5 shadow-[4px_4px_0_#1a1a1a]">
                                         <div class="font-bebas text-[.78rem] tracking-[.22em] text-[#c0261a] mb-3">
-                                            LAST ROUND
+                                            HOW SCORING WORKS
                                         </div>
-                                        <div class="space-y-3">
-                                            <For each={state.lastRoundResult?.scores ?? []}>
-                                                {(score) => (
-                                                    <div class="flex items-center justify-between border-b border-[#b8ae9e] pb-2 last:border-b-0 last:pb-0">
-                                                        <div>
-                                                            <div class="font-bebas text-[1rem] tracking-[.08em]">
-                                                                {playerName(score.playerId)}
-                                                            </div>
-                                                            <div class="font-bebas text-[.66rem] tracking-[.18em] text-[#9a9080]">
-                                                                {score.status.replaceAll("_", " ").toUpperCase()}
-                                                            </div>
-                                                        </div>
-                                                        <div class="text-right">
-                                                            <div class="font-bebas text-[1.1rem] tracking-[.08em]">
-                                                                +{score.score}
-                                                            </div>
-                                                            <div class="font-bebas text-[.66rem] tracking-[.18em] text-[#9a9080]">
-                                                                TOTAL {score.totalScore}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </For>
+                                        <div class="text-[.95rem] leading-relaxed text-[#5a5040] space-y-2">
+                                            <p>Number cards add together.</p>
+                                            <p>
+                                                `x2` doubles number-card points
+                                                before flat bonuses are added.
+                                            </p>
+                                            <p>
+                                                `+2` to `+10` adds flat points
+                                                even if you have no numbers.
+                                            </p>
+                                            <p>
+                                                `Second Chance` scores nothing,
+                                                but it can cancel one duplicate
+                                                number.
+                                            </p>
+                                            <p>
+                                                Flip 7 unique numbers to end the
+                                                round immediately and earn +15.
+                                            </p>
                                         </div>
                                     </div>
-                                </Show>
-                            </div>
+
+                                    <Show when={state.lastRoundResult}>
+                                        <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] p-5 shadow-[4px_4px_0_#1a1a1a]">
+                                            <div class="font-bebas text-[.78rem] tracking-[.22em] text-[#c0261a] mb-3">
+                                                LAST ROUND
+                                            </div>
+                                            <div class="space-y-3">
+                                                <For
+                                                    each={
+                                                        state.lastRoundResult
+                                                            ?.scores ?? []
+                                                    }
+                                                >
+                                                    {(score) => (
+                                                        <div class="flex items-center justify-between border-b border-[#b8ae9e] pb-2 last:border-b-0 last:pb-0">
+                                                            <div>
+                                                                <div class="font-bebas text-[1rem] tracking-[.08em]">
+                                                                    {playerName(
+                                                                        score.playerId,
+                                                                    )}
+                                                                </div>
+                                                                <div class="font-bebas text-[.66rem] tracking-[.18em] text-[#9a9080]">
+                                                                    {score.status
+                                                                        .replaceAll(
+                                                                            "_",
+                                                                            " ",
+                                                                        )
+                                                                        .toUpperCase()}
+                                                                </div>
+                                                            </div>
+                                                            <div class="text-right">
+                                                                <div class="font-bebas text-[1.1rem] tracking-[.08em]">
+                                                                    +
+                                                                    {
+                                                                        score.score
+                                                                    }
+                                                                </div>
+                                                                <div class="font-bebas text-[.66rem] tracking-[.18em] text-[#9a9080]">
+                                                                    TOTAL{" "}
+                                                                    {
+                                                                        score.totalScore
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </For>
+                                            </div>
+                                        </div>
+                                    </Show>
+                                </div>
+                            </Show>
                         </div>
                     </div>
                 )}
@@ -298,6 +414,7 @@ const InfoPanel: Component<{
 const TurnPanel: Component<{
     view: Flip7PlayerView;
     playerName: (playerId: string) => string;
+    compact?: boolean;
     onHit: () => void;
     onStay: () => void;
 }> = (props) => (
@@ -322,16 +439,18 @@ const TurnPanel: Component<{
             <h2 class="font-bebas text-[1.9rem] tracking-[.06em] leading-none mb-3">
                 HIT OR STAY
             </h2>
-            <p class="text-[.96rem] leading-relaxed text-[#5a5040] mb-5">
-                `Hit` draws one more card. `Stay` banks your current line, but you need at
-                least one face-up card to do it.
-            </p>
+            <Show when={!props.compact}>
+                <p class="text-[.96rem] leading-relaxed text-[#5a5040] mb-5">
+                    `Hit` draws one more card. `Stay` banks your current line,
+                    but you need at least one face-up card to do it.
+                </p>
+            </Show>
             <div class="flex flex-wrap gap-3">
                 <button
                     type="button"
                     onClick={props.onHit}
                     disabled={!props.view.canHit}
-                    class="flex-1 min-w-[180px] font-bebas text-[1.1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] disabled:opacity-40 disabled:cursor-default disabled:shadow-none enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[5px_5px_0_#1a1a1a]"
+                    class="flex-1 min-w-[100px] font-bebas text-[1.1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] disabled:opacity-40 disabled:cursor-default disabled:shadow-none enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[5px_5px_0_#1a1a1a]"
                 >
                     HIT
                 </button>
@@ -339,7 +458,7 @@ const TurnPanel: Component<{
                     type="button"
                     onClick={props.onStay}
                     disabled={!props.view.canStay}
-                    class="flex-1 min-w-[180px] font-bebas text-[1.1rem] tracking-[.14em] bg-[#c9c0b0] text-[#1a1a1a] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] disabled:opacity-40 disabled:cursor-default disabled:shadow-none enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[5px_5px_0_#9a9080]"
+                    class="flex-1 min-w-[100px] font-bebas text-[1.1rem] tracking-[.14em] bg-[#c9c0b0] text-[#1a1a1a] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#9a9080] transition-all duration-[120ms] disabled:opacity-40 disabled:cursor-default disabled:shadow-none enabled:hover:-translate-x-0.5 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[5px_5px_0_#9a9080]"
                 >
                     STAY
                 </button>
@@ -395,8 +514,8 @@ const RoundOverPanel: Component<{
                 : "Everyone is done for the round"}
         </h2>
         <p class="text-[.96rem] leading-relaxed text-[#5a5040] mb-5">
-            Scores are banked. The next round starts with the dealer passing to the
-            left.
+            Scores are banked. The next round starts with the dealer passing to
+            the left.
         </p>
         <Show
             when={props.view.hostId === props.view.myId}
@@ -448,9 +567,12 @@ const GameOverPanel: Component<{
         <p class="text-[.96rem] leading-relaxed text-[#5a5040] mb-5">
             <Show
                 when={!props.view.endedByHost}
-                fallback={"The host ended this game before the target score was reached."}
+                fallback={
+                    "The host ended this game before the target score was reached."
+                }
             >
-                First to at least {props.view.targetScore} at the end of a round takes it.
+                First to at least {props.view.targetScore} at the end of a round
+                takes it.
             </Show>
         </p>
         <Show when={props.view.hostId === props.view.myId}>
@@ -464,79 +586,3 @@ const GameOverPanel: Component<{
         </Show>
     </div>
 );
-
-const PlayerBoard: Component<{
-    player: Flip7PlayerInfo;
-    isCurrent: boolean;
-    isWinner: boolean;
-}> = (props) => (
-    <div
-        class={`border-2 p-4 shadow-[4px_4px_0_#1a1a1a] ${
-            props.isWinner
-                ? "border-[#c0261a] bg-[#f2dfd8]"
-                : props.isCurrent
-                  ? "border-[#1a3a6e] bg-[#d9d8e6]"
-                  : "border-[#1a1a1a] bg-[#c9c0b0]"
-        }`}
-    >
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
-            <div>
-                <div class="font-bebas text-[1.25rem] tracking-[.08em]">
-                    {props.player.name}
-                </div>
-                <div class="font-bebas text-[.68rem] tracking-[.18em] text-[#9a9080]">
-                    {statusLabel(props.player.status)}
-                </div>
-            </div>
-            <div class="text-right">
-                <div class="font-bebas text-[1.35rem] tracking-[.08em]">
-                    {props.player.totalScore}
-                </div>
-                <div class="font-bebas text-[.68rem] tracking-[.18em] text-[#9a9080]">
-                    ROUND {props.player.roundScore}
-                </div>
-            </div>
-        </div>
-
-        <div class="flex flex-wrap gap-2 mb-4">
-            <For each={props.player.cards}>
-                {(card) => <CardPill card={card} />}
-            </For>
-            <Show when={props.player.cards.length === 0}>
-                <div class="font-bebas text-[.78rem] tracking-[.18em] text-[#9a9080]">
-                    NO CARDS YET
-                </div>
-            </Show>
-        </div>
-
-        <div class="flex flex-wrap gap-4 font-bebas text-[.72rem] tracking-[.16em] text-[#5a5040]">
-            <span>UNIQUE NUMBERS {props.player.uniqueNumberCount}</span>
-            <Show when={props.player.hasSecondChance}>
-                <span>SECOND CHANCE READY</span>
-            </Show>
-        </div>
-    </div>
-);
-
-const CardPill: Component<{ card: Flip7CardView }> = (props) => (
-    <div
-        class={`min-w-[54px] text-center border-2 px-3 py-2 font-bebas text-[1rem] tracking-[.08em] ${
-            props.card.kind === "number"
-                ? "border-[#1a3a6e] bg-[#f7f2de] text-[#1a1a1a]"
-                : props.card.kind === "bonus"
-                  ? "border-[#c0261a] bg-[#ffe0c2] text-[#7c2d12]"
-                  : props.card.kind === "multiplier"
-                    ? "border-[#c0261a] bg-[#ffd5ae] text-[#7c2d12]"
-                    : "border-[#0f766e] bg-[#d7f1eb] text-[#115e59]"
-        }`}
-    >
-        {props.card.label}
-    </div>
-);
-
-function statusLabel(status: Flip7PlayerInfo["status"]) {
-    if (status === "stayed") return "STAYED";
-    if (status === "busted") return "BUSTED";
-    if (status === "frozen") return "FROZEN";
-    return "ACTIVE";
-}

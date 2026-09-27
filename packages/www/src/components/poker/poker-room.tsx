@@ -1,48 +1,34 @@
-import { createEffect, createSignal, onCleanup, Show, For } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, Show, For } from "solid-js";
 import type { Component } from "solid-js";
-import type { PokerActionType, PokerEvent } from "~/game/poker";
+import type { PokerActionType } from "~/game/poker";
+import { evaluateBestHand } from "~/game/poker/engine";
 import type { PokerConnection } from "~/game/poker/connection";
+import type { Card } from "~/assets/card-deck/types";
+import {
+    CardSlot,
+    buzz,
+    Confetti,
+    playSfx,
+    SoundToggle,
+    TableCard,
+} from "~/components/casino";
 import { ActionControls } from "./action-controls";
-import { CommunityBoard } from "./community-board";
 import { EventLog } from "./event-log";
-import { HandResultBanner } from "./hand-result-banner";
 import { HeroHand } from "./hero-hand";
-import { PotDisplay } from "./pot-display";
 import { ResultsOverlay } from "./results-overlay";
-import { StreetBanner } from "./street-banner";
-import { TableSeat } from "./table-seat";
-import { PlayingCard } from "~/assets/card-deck";
 import { OpponentHands } from "./opponent-hands";
+import { PokerFelt } from "./poker-felt";
+import { potResults, winningsByPlayer } from "./hand-events";
 import type { PokerVisibilityMode } from "~/game/poker/views";
 
-function isPlayerAction(
-    event: PokerEvent,
-): event is PokerEvent & { type: "player_action" } {
-    return event.type === "player_action";
-}
-
-function getLastActionText(
-    event: PokerEvent & { type: "player_action" },
-): string {
-    const msg = event.message;
-    if (msg.includes("folded")) return "Folded";
-    if (msg.includes("checked")) return "Checked";
-    if (msg.includes("called")) return "Called";
-    if (msg.includes("raised to")) return "Raised";
-    if (msg.includes("bet")) return "Bet";
-    if (msg.includes("all-in")) return "All-in";
-    return "";
-}
-
-function computeLastActions(events: PokerEvent[]): Record<string, string> {
-    const actions: Record<string, string> = {};
-    for (const event of events.filter(isPlayerAction)) {
-        const text = getLastActionText(event);
-        if (text) {
-            actions[event.playerId] = text;
-        }
-    }
-    return actions;
+function describeHand(cards: Card[], board: Card[]): string | null {
+    if (cards.length === 0) return null;
+    const all = [...cards, ...board];
+    if (all.length >= 5) return evaluateBestHand(all).label;
+    if (cards.length === 2 && cards[0].rank === cards[1].rank)
+        return "Pocket Pair";
+    if (cards.length === 2 && cards[0].suit === cards[1].suit) return "Suited";
+    return null;
 }
 
 export const PokerRoom: Component<{
@@ -63,6 +49,8 @@ export const PokerRoom: Component<{
         () => props.initialLayout ?? "table",
     );
     const isController = () => layout() === "controller";
+    const isMyTurn = () =>
+        !!props.playerId && gameView()?.actingPlayerId === props.playerId;
 
     createEffect(gameView, (view) => {
         if (!view) return;
@@ -71,6 +59,13 @@ export const PokerRoom: Component<{
             setAmount(String(view.minBetOrRaise));
         }
     });
+
+    createEffect(isMyTurn, (mine, previous) => {
+        if (!mine || previous) return;
+        playSfx("turn");
+        buzz([60, 40, 60]);
+    });
+
 
     onCleanup(
         props.connection.subscribe((event) => {
@@ -93,8 +88,27 @@ export const PokerRoom: Component<{
         (gameView()?.players ?? []).filter(
             (player) => player.id !== props.playerId,
         );
-
-    const lastActions = () => computeLastActions(gameView()?.eventLog ?? []);
+    const me = () =>
+        gameView()?.players.find((player) => player.id === props.playerId);
+    const pot = () =>
+        (gameView()?.pots ?? []).reduce((total, pot) => total + pot.amount, 0);
+    const finished = () =>
+        ["hand_over", "tournament_over"].includes(gameView()?.street ?? "");
+    const results = createMemo(() => {
+        const view = gameView();
+        if (!view || !finished()) return [];
+        return potResults(view.eventLog, view.players);
+    });
+    const myWinnings = () =>
+        props.playerId ? (winningsByPlayer(results())[props.playerId] ?? 0) : 0;
+    createEffect(
+        () => ({ won: myWinnings(), controller: isController() }),
+        (next, previous) => {
+            if (next.controller && next.won > 0 && !previous?.won) playSfx("win");
+        },
+    );
+    const handLabel = () =>
+        describeHand(gameView()?.myHoleCards ?? [], gameView()?.board ?? []);
 
     const sendAction = (type: PokerActionType, numericAmount?: number) => {
         if (!props.playerId) return;
@@ -110,51 +124,88 @@ export const PokerRoom: Component<{
         });
     };
 
-    const view = () => gameView();
+    const controls = () => (
+        <ActionControls
+            legalActions={gameView()?.legalActions ?? []}
+            callAmount={gameView()?.callAmount ?? 0}
+            minBetOrRaise={gameView()?.minBetOrRaise ?? null}
+            maxBet={gameView()?.maxBet ?? 0}
+            stack={gameView()?.myStack ?? 0}
+            amount={amount()}
+            setAmount={setAmount}
+            isSpectator={gameView()?.isSpectator ?? true}
+            isMyTurn={isMyTurn()}
+            onAction={sendAction}
+            pot={pot()}
+            committed={me()?.committedThisStreet ?? 0}
+            waitingFor={
+                gameView()?.actingPlayerId ? actingPlayerName() : undefined
+            }
+        />
+    );
+
+    const errorBanner = () => (
+        <Show when={actionError()}>
+            <div
+                data-testid="poker-action-error"
+                role="alert"
+                class="border-2 border-[#1a1a1a] bg-[#c0261a] px-4 pt-2 pb-1.5 font-bebas tracking-[.12em] text-[#f7f2de] shadow-[4px_4px_0_#1a1a1a] animate-wiggle"
+            >
+                {actionError()}
+            </div>
+        </Show>
+    );
 
     return (
         <div
             data-testid="poker-room"
             data-layout={layout()}
-            class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla flex flex-col"
+            class="relative min-h-screen paper text-[#1a1a1a] font-karla flex flex-col overflow-x-hidden"
         >
-            <div class="flex items-center justify-between px-3 py-1.5 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a] flex-wrap gap-2">
-                <div class="flex items-center gap-2">
-                    <Show
-                        when={gameView()?.actingPlayerId === props.playerId}
-                        fallback={
-                            <span
-                                data-testid="poker-turn-banner"
-                                class="font-bebas text-[.75rem] tracking-[.12em] text-[#1a1a1a] px-2 py-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
-                            >
-                                {actingPlayerName().toUpperCase()}'S TURN
-                            </span>
-                        }
-                    >
+            <Show when={isMyTurn()}>
+                <div class="pointer-events-none fixed inset-0 z-30 border-[6px] border-[#c0261a] animate-pulse-fast" />
+            </Show>
+
+            <header class="flex items-center justify-between gap-2 px-3 py-2 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a] flex-wrap">
+                <Show
+                    when={isMyTurn()}
+                    fallback={
                         <span
                             data-testid="poker-turn-banner"
-                            class="font-bebas text-[.75rem] tracking-[.12em] text-[#ddd5c4] px-2 py-0.5 bg-[#c0261a] animate-pulse-fast"
+                            class="font-bebas text-sm tracking-[.12em] text-[#1a1a1a] px-2.5 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
                         >
-                            YOUR TURN
+                            {gameView()?.actingPlayerId
+                                ? `${actingPlayerName().toUpperCase()}'S TURN`
+                                : finished()
+                                  ? "HAND OVER"
+                                  : "SHUFFLING…"}
                         </span>
-                    </Show>
-                </div>
-                <div class="flex items-center gap-1.5 flex-wrap">
+                    }
+                >
+                    <span
+                        data-testid="poker-turn-banner"
+                        class="font-bebas text-sm tracking-[.16em] text-[#f7f2de] px-2.5 pt-1 pb-0.5 bg-[#c0261a] border-2 border-[#1a1a1a] shadow-[2px_2px_0_#1a1a1a] animate-nudge"
+                    >
+                        YOUR TURN
+                    </span>
+                </Show>
+                <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                    <SoundToggle compact class="!px-1.5 !py-0.5" />
                     <span
                         data-testid="poker-title"
-                        class="font-bebas text-[.65rem] tracking-[.18em] text-[#5a5040] px-2 py-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
+                        class="font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
                     >
                         {props.title.toUpperCase()}
                     </span>
                     <span
                         data-testid="poker-hand-number"
-                        class="font-bebas text-[.65rem] tracking-[.18em] text-[#5a5040] px-2 py-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
+                        class="font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
                     >
                         HAND {gameView()?.handNumber ?? 0}
                     </span>
                     <span
                         data-testid="poker-street"
-                        class="font-bebas text-[.65rem] tracking-[.18em] text-[#5a5040] px-2 py-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
+                        class="font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]"
                     >
                         {gameView()
                             ?.street?.replaceAll("_", " ")
@@ -170,207 +221,188 @@ export const PokerRoom: Component<{
                             type="button"
                             data-testid="poker-end-button"
                             onClick={props.onEndGame}
-                            class="font-bebas text-[.65rem] tracking-[.16em] border-2 border-[#1a1a1a] bg-[#ddd5c4] px-2 py-0.5 cursor-pointer transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_#1a1a1a]"
+                            class="font-bebas text-xs tracking-[.16em] border-2 border-[#1a1a1a] bg-[#ddd5c4] text-[#c0261a] px-2 pt-1 pb-0.5 cursor-pointer transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_#1a1a1a]"
                         >
                             END GAME
                         </button>
                     </Show>
-                    <span class="font-bebas text-[.6rem] tracking-[.25em] text-[#9a9080]">
-                        ROOM {props.roomId.toUpperCase()}
-                    </span>
                 </div>
-            </div>
+            </header>
 
-            <div class="flex items-center justify-between gap-3 px-3 py-2 border-b border-[#b8ae9e]">
+            <div class="flex items-center justify-between gap-3 px-3 py-2 border-b border-[#b8ae9e] text-sm">
                 <button
                     type="button"
                     data-testid="poker-layout-toggle"
                     onClick={() =>
                         setLayout(isController() ? "table" : "controller")
                     }
-                    class="min-h-11 border-2 border-[#1a1a1a] px-4 py-2 font-bebas tracking-wider"
+                    class="min-h-10 border-2 border-[#1a1a1a] bg-[#f7f2de] px-4 pt-1 font-bebas tracking-wider shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
                 >
                     {isController() ? "View table" : "Party mode"}
                 </button>
+                <span class="hidden sm:inline font-bebas tracking-[.25em] text-[#9a9080] text-xs">
+                    ROOM {props.roomId.toUpperCase()}
+                </span>
                 <a
                     href={`/room/${encodeURIComponent(props.roomId)}?view=display`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="font-bebas tracking-wider underline"
+                    class="font-bebas tracking-wider text-[#1a3a6e] underline underline-offset-4 decoration-2"
                 >
                     Open Party screen
                 </a>
             </div>
 
-            <div
-                class={`flex-1 px-3 py-4 mx-auto w-full ${isController() ? "max-w-md" : "max-w-6xl"}`}
+            <Show
+                when={isController()}
+                fallback={
+                    <div class="flex-1 w-full max-w-[1500px] mx-auto px-3 pt-4 pb-16 grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px] items-start">
+                        <div class="w-full pt-[3%]">
+                            <PokerFelt
+                                players={gameView()?.players ?? []}
+                                board={gameView()?.board ?? []}
+                                pots={gameView()?.pots ?? []}
+                                street={gameView()?.street ?? "preflop"}
+                                handNumber={gameView()?.handNumber ?? 0}
+                                eventLog={gameView()?.eventLog ?? []}
+                                title={props.title}
+                                heroId={props.playerId}
+                                heroCards={gameView()?.myHoleCards ?? []}
+                                center={
+                                    <Show when={results().length > 0}>
+                                        <div class="rounded-[calc(var(--u)*0.6)] border-[length:calc(var(--u)*0.3)] border-[#1a1a1a] bg-[#f5c542] px-[calc(var(--u)*2)] pt-[calc(var(--u)*0.8)] pb-[calc(var(--u)*0.4)] text-center font-bebas tracking-wider text-[#1a1a1a] text-[calc(var(--u)*2.2)] whitespace-nowrap shadow-[calc(var(--u)*0.5)_calc(var(--u)*0.5)_0_#1a1a1a] animate-stamp-in [--stamp-rot:-2deg]">
+                                            <For each={results()}>
+                                                {(result) => <div>{result.message}</div>}
+                                            </For>
+                                        </div>
+                                    </Show>
+                                }
+                            />
+                            <Show when={(gameView()?.spectators.length ?? 0) > 0}>
+                                <div class="mt-4 text-center">
+                                    <span class="font-bebas text-xs tracking-[.22em] text-[#9a9080]">
+                                        SPECTATORS{" "}
+                                    </span>
+                                    <span
+                                        data-testid="poker-spectator-list"
+                                        class="font-bebas tracking-[.08em] text-[#1a1a1a]"
+                                    >
+                                        {gameView()
+                                            ?.spectators.map((spectator) => spectator.name)
+                                            .join(" · ")}
+                                    </span>
+                                </div>
+                            </Show>
+                        </div>
+                        <div class="space-y-3 lg:sticky lg:top-4">
+                            <Show when={gameView()?.isSpectator}>
+                                <HeroHand
+                                    cards={[]}
+                                    cardCount={0}
+                                    isSpectator
+                                />
+                            </Show>
+                            {controls()}
+                            {errorBanner()}
+                            <EventLog events={gameView()?.eventLog ?? []} />
+                        </div>
+                    </div>
+                }
             >
-                <Show when={isController()}>
+                <div class="flex-1 w-full max-w-md mx-auto px-3 pt-3 pb-16 space-y-3">
                     <div
                         data-testid="poker-controller-context"
-                        class="border-2 border-[#b8ae9e] p-3 mb-4 text-center"
+                        class="table-mat relative overflow-hidden rounded-2xl border-[3px] border-[#1a1a1a] p-3 text-center text-[#f7f2de] shadow-[4px_4px_0_#1a1a1a]"
                     >
-                        <div class="flex items-center justify-center gap-2">
-                            <For each={[0, 1, 2, 3, 4]}>
+                        <div class="relative flex items-center justify-center gap-1.5">
+                            <For each={[0, 1, 2, 3, 4]} keyed={false}>
                                 {(index) => (
                                     <Show
-                                        when={gameView()?.board[index]}
-                                        fallback={
-                                            <div class="w-8 h-11 border border-dashed border-[#9a9080] rounded-sm" />
-                                        }
+                                        when={gameView()?.board[index()]}
+                                        fallback={<CardSlot class="w-[52px]" />}
                                     >
                                         {(card) => (
-                                            <div class="w-8 shrink-0">
-                                                <PlayingCard
-                                                    suit={card().suit}
-                                                    rank={card().rank}
-                                                    class="w-full"
-                                                />
-                                            </div>
+                                            <TableCard
+                                                card={card()}
+                                                class="w-[52px]"
+                                            />
                                         )}
                                     </Show>
                                 )}
                             </For>
                         </div>
-                        <p class="mt-2 font-bebas text-lg tracking-wider">
-                            Pot{" "}
-                            {(gameView()?.pots ?? []).reduce(
-                                (total, pot) => total + pot.amount,
-                                0,
-                            )}{" "}
-                            · To call {gameView()?.callAmount ?? 0}
+                        <p class="relative mt-2.5 font-bebas text-lg tracking-wider">
+                            Pot <span class="text-[#f5c542]">{pot()}</span> · To
+                            call{" "}
+                            <span class="text-[#f5c542]">
+                                {gameView()?.callAmount ?? 0}
+                            </span>
                         </p>
                     </div>
-                </Show>
-                <div
-                    class={
-                        isController()
-                            ? "space-y-4"
-                            : "grid grid-cols-[1.5fr_.95fr] gap-4 max-lg:grid-cols-1"
-                    }
-                >
-                    <Show when={!isController()}>
-                        <div class="space-y-4 max-lg:contents">
-                            <div class="flex flex-wrap justify-center gap-2 max-lg:order-2">
-                                <For each={otherSeats()}>
-                                    {(player) => (
-                                        <TableSeat
-                                            player={player}
-                                            isMe={false}
-                                            lastAction={
-                                                lastActions()[player.id]
-                                            }
-                                        />
-                                    )}
-                                </For>
-                            </div>
 
-                            <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] px-3 py-4 shadow-[3px_3px_0_#1a1a1a] max-lg:order-1">
-                                <CommunityBoard
-                                    board={gameView()?.board ?? []}
-                                />
-                                <div class="mt-4">
-                                    <PotDisplay pots={gameView()?.pots ?? []} />
-                                </div>
-                                <Show
-                                    when={
-                                        (gameView()?.spectators.length ?? 0) > 0
-                                    }
-                                >
-                                    <div class="mt-4 text-center">
-                                        <div class="font-bebas text-[.6rem] tracking-[.22em] text-[#7a7060]">
-                                            SPECTATORS
-                                        </div>
-                                        <div
-                                            data-testid="poker-spectator-list"
-                                            class="font-bebas text-[.85rem] tracking-[.08em] text-[#1a1a1a] mt-1"
-                                        >
-                                            {gameView()
-                                                ?.spectators.map(
-                                                    (spectator) =>
-                                                        spectator.name,
-                                                )
-                                                .join(" · ")}
-                                        </div>
-                                    </div>
-                                </Show>
-                            </div>
-
-                            <div class="max-lg:order-5">
-                                <EventLog events={gameView()?.eventLog ?? []} />
-                            </div>
-                        </div>
-                    </Show>
-
-                    <div
-                        class={
-                            isController()
-                                ? "space-y-4 [&_button]:min-h-11 [&_input]:min-h-11"
-                                : "space-y-3 max-lg:contents"
+                    <Show
+                        when={
+                            props.visibilityMode === "backwards" &&
+                            !gameView()?.isSpectator
+                        }
+                        fallback={
+                            <HeroHand
+                                cards={gameView()?.myHoleCards ?? []}
+                                cardCount={gameView()?.myHoleCardCount ?? 0}
+                                isSpectator={gameView()?.isSpectator ?? false}
+                                handNumber={gameView()?.handNumber ?? 0}
+                                label={handLabel()}
+                                folded={gameView()?.myStatus === "folded"}
+                            />
                         }
                     >
-                        <div class="max-lg:order-3">
-                            <Show
-                                when={
-                                    isController() &&
-                                    props.visibilityMode === "backwards" &&
-                                    !gameView()?.isSpectator
-                                }
-                                fallback={
-                                    <HeroHand
-                                        cards={gameView()?.myHoleCards ?? []}
-                                        cardCount={
-                                            gameView()?.myHoleCardCount ?? 0
-                                        }
-                                        isSpectator={
-                                            gameView()?.isSpectator ?? false
-                                        }
-                                    />
-                                }
-                            >
-                                <OpponentHands players={otherSeats()} />
-                            </Show>
-                        </div>
+                        <OpponentHands
+                            players={otherSeats()}
+                            seatOrder={(gameView()?.players ?? []).map((player) => player.id)}
+                        />
+                    </Show>
 
-                        <div class="max-lg:order-4">
-                            <ActionControls
-                                legalActions={gameView()?.legalActions ?? []}
-                                callAmount={gameView()?.callAmount ?? 0}
-                                minBetOrRaise={
-                                    gameView()?.minBetOrRaise ?? null
-                                }
-                                maxBet={gameView()?.maxBet ?? 0}
-                                stack={gameView()?.myStack ?? 0}
-                                amount={amount()}
-                                setAmount={setAmount}
-                                isSpectator={gameView()?.isSpectator ?? true}
-                                isMyTurn={
-                                    gameView()?.actingPlayerId ===
-                                    props.playerId
-                                }
-                                onAction={sendAction}
-                            />
-                        </div>
+                    {controls()}
+                    {errorBanner()}
+                </div>
+            </Show>
 
-                        <Show when={actionError()}>
-                            <div
-                                data-testid="poker-action-error"
-                                class="border-2 border-[#c0261a] bg-[#ddd5c4] px-3 py-2 font-bebas text-[.75rem] tracking-[.14em] text-[#c0261a] max-lg:order-5"
-                            >
-                                {actionError()}
-                            </div>
+            <Show when={isController() && results().length > 0 && gameView()?.street === "hand_over"}>
+                <div class="fixed inset-x-0 bottom-14 z-40 flex justify-center px-4 pointer-events-none">
+                    <div
+                        data-testid="poker-phone-result"
+                        class={`w-full max-w-sm border-[3px] border-[#1a1a1a] px-5 pt-4 pb-3 text-center shadow-[6px_6px_0_#1a1a1a] animate-stamp-in [--stamp-rot:-1.5deg] ${myWinnings() > 0 ? "bg-[#f5c542]" : "bg-[#f7f2de]"}`}
+                    >
+                        <Show
+                            when={myWinnings() > 0}
+                            fallback={
+                                <For each={results()}>
+                                    {(result) => (
+                                        <p class="font-bebas text-2xl tracking-wide text-[#1a1a1a]">
+                                            {result.message}
+                                        </p>
+                                    )}
+                                </For>
+                            }
+                        >
+                            <p class="inline-block font-bebas tracking-[.3em] bg-[#c0261a] text-[#f7f2de] px-3 pt-1">
+                                You win
+                            </p>
+                            <p class="font-bebas text-[#1a1a1a] text-6xl leading-none mt-2">
+                                +{myWinnings()}
+                            </p>
+                            <p class="font-bebas tracking-[.2em] text-[#5a5040]">
+                                {results()[0]?.uncontested
+                                    ? "Everyone folded"
+                                    : results()[0]?.handLabel}
+                            </p>
                         </Show>
                     </div>
                 </div>
-            </div>
-
-            <StreetBanner street={view()?.street ?? "preflop"} />
-            <HandResultBanner
-                events={view()?.eventLog ?? []}
-                players={view()?.players ?? []}
-                handNumber={view()?.handNumber ?? 0}
-                street={view()?.street ?? "preflop"}
-            />
+                <Show when={myWinnings() > 0 ? gameView()?.handNumber : null} keyed>
+                    {(_hand) => <Confetti count={50} />}
+                </Show>
+            </Show>
 
             <Show when={gameView()?.street === "tournament_over"}>
                 <ResultsOverlay

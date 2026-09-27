@@ -88,9 +88,9 @@ export const RoomLobby: Component<{
                     </a>
                     <p class="mt-1 text-sm">
                         Playing in the same room? Put the table on a TV or
-                        laptop, then scan the QR code for private cards and
-                        controls on your phones. Available for Texas Hold’em and
-                        Backwards Poker.
+                        laptop, then scan the QR code for private cards, dice,
+                        and controls on your phones. Available for poker, Flip
+                        7, Blackjack, and Perudo.
                     </p>
                 </div>
 

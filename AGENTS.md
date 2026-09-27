@@ -21,7 +21,13 @@ This is a casual multiplayer party game app built with Solid 2 and TanStack Rout
 - Texas Hold’em phones show the player’s own cards; Backwards Poker phones show opponents’ cards while hiding the player’s own cards
 - Both poker variants keep unrevealed hole cards off the public display; only public showdown cards may appear there
 - Players can switch between Party mode controls and the full table layout without changing the room or game rules
+- Flip 7 displays face-up cards and scores; phones show the player’s own cards and actions
+- Blackjack displays dealer and player hands while keeping the dealer’s hole card hidden until revealed; phones show the player’s hand and betting/actions
+- Perudo displays bids and dice counts; private dice stay on phones until a public challenge reveal
 - Other games currently show room information on the display; add game-specific public views and phone controls when extending Party mode
+- Card tables (poker, blackjack) share `src/components/casino`: `TableCard` deal/flip animations, chip stacks, animated numbers, confetti, and synthesized sound effects with a mute toggle
+- Keep every screen in the paper board-game style: `paper` backgrounds, `table-mat` surfaces, ink outlines with hard offset shadows, Bebas Neue headings, and the palette tokens in `src/styles/app.css`; avoid dark casino styling, glows, and gradients
+- Card lists that animate on arrival use index-stable `For keyed={false}` so replacement views do not replay animations
 
 ### Player Model
 

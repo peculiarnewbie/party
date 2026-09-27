@@ -17,6 +17,7 @@ export const Route = createRootRoute({
 function RootLayout() {
     const immersive = useRouterState({
         select: (state) =>
+            state.location.pathname.startsWith("/room/") ||
             state.location.search.view === "display" ||
             state.location.search.view === "controller",
     });

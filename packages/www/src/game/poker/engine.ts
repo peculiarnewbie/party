@@ -158,32 +158,56 @@ function resetStreet(state: PokerState) {
 }
 
 function buildPots(players: PokerPlayer[]): PokerPot[] {
-    const thresholds = [
-        ...new Set(players.map((player) => player.committedThisHand)),
-    ]
-        .filter((amount) => amount > 0)
-        .sort((a, b) => a - b);
+    const highest = Math.max(
+        0,
+        ...players.map((player) => player.committedThisHand),
+    );
+    if (highest === 0) return [];
+
+    const levels = [
+        ...new Set([
+            ...players
+                .filter(
+                    (player) =>
+                        player.status === "all_in" &&
+                        player.committedThisHand > 0,
+                )
+                .map((player) => player.committedThisHand),
+            highest,
+        ]),
+    ].sort((a, b) => a - b);
 
     const pots: PokerPot[] = [];
     let previous = 0;
 
-    for (const threshold of thresholds) {
-        const contributors = players.filter(
-            (player) => player.committedThisHand >= threshold,
+    for (const level of levels) {
+        const amount = players.reduce(
+            (sum, player) =>
+                sum +
+                Math.max(0, Math.min(player.committedThisHand, level) - previous),
+            0,
         );
-        const amount = (threshold - previous) * contributors.length;
-        if (amount <= 0) {
-            previous = threshold;
+        const eligiblePlayerIds = players
+            .filter(
+                (player) =>
+                    player.status === "active" ||
+                    (player.status === "all_in" &&
+                        player.committedThisHand >= level),
+            )
+            .map((player) => player.id);
+        previous = level;
+        if (amount <= 0) continue;
+
+        const last = pots.at(-1);
+        if (
+            last &&
+            last.eligiblePlayerIds.length === eligiblePlayerIds.length &&
+            last.eligiblePlayerIds.every((id) => eligiblePlayerIds.includes(id))
+        ) {
+            last.amount += amount;
             continue;
         }
-
-        pots.push({
-            amount,
-            eligiblePlayerIds: contributors
-                .filter((player) => isContestantStatus(player.status))
-                .map((player) => player.id),
-        });
-        previous = threshold;
+        pots.push({ amount, eligiblePlayerIds });
     }
 
     return pots;
@@ -340,15 +364,16 @@ export function evaluateBestHand(cards: Card[]): PokerHandValue {
             for (let c = b + 1; c < cards.length - 2; c += 1) {
                 for (let d = c + 1; d < cards.length - 1; d += 1) {
                     for (let e = d + 1; e < cards.length; e += 1) {
-                        const value = evaluateFiveCardHand([
+                        const five = [
                             cards[a],
                             cards[b],
                             cards[c],
                             cards[d],
                             cards[e],
-                        ]);
+                        ];
+                        const value = evaluateFiveCardHand(five);
                         if (!best || compareHandValues(value, best) > 0) {
-                            best = value;
+                            best = { ...value, cards: five };
                         }
                     }
                 }
@@ -518,6 +543,7 @@ function awardUncontestedPot(state: PokerState, winnerId: string) {
         amount: total,
         street: state.street,
         message: `${winner.name} won ${total} chips uncontested`,
+        winnerIds: [winner.id],
     });
     closeHand(state, [winner.id]);
 }
@@ -620,6 +646,12 @@ function resolveShowdown(state: PokerState) {
             amount: pot.amount,
             street: state.street,
             message: `${winnerNames} won ${pot.amount} chips with ${bestValue.label}`,
+            winnerIds: winnerIndexes.map((index) => state.players[index].id),
+            handLabel: bestValue.label,
+            winningCards: winnerIndexes.flatMap(
+                (index) =>
+                    handValues.get(state.players[index].id)?.cards ?? [],
+            ),
         });
     }
 

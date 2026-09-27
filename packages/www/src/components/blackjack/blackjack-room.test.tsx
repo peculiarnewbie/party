@@ -18,6 +18,7 @@ import type { BlackjackPlayerView } from "~/game/blackjack";
 
 function renderRoom(
     options: {
+        initialLayout?: "table" | "controller";
         view?: BlackjackPlayerView;
         playerId?: string | null;
         isHost?: boolean;
@@ -37,6 +38,7 @@ function renderRoom(
     const result = render(() => (
         <BlackjackRoom
             roomId="room1"
+            initialLayout={options.initialLayout}
             playerId={playerId}
             isHost={isHost}
             connection={connection}
@@ -49,6 +51,28 @@ function renderRoom(
 }
 
 describe("BlackjackRoom", () => {
+    it("keeps my hands and betting controls on the phone and can restore the table", () => {
+        const { getByTestId, queryByTestId, getByRole, connection } =
+            renderRoom({ initialLayout: "controller" });
+        expect(getByTestId("blackjack-player-p1")).toBeInTheDocument();
+        expect(queryByTestId("blackjack-player-p2")).toBeNull();
+        expect(queryByTestId("blackjack-player-dealer")).toBeNull();
+        fireEvent.click(getByRole("button", { name: "DEAL" }));
+        flush();
+        expect(connection.sentMessages).toContainEqual({
+            type: "blackjack:bet",
+            data: { amount: 50 },
+        });
+        fireEvent.click(getByTestId("party-layout-toggle"));
+        flush();
+        expect(getByTestId("blackjack-player-p2")).toBeInTheDocument();
+        expect(getByTestId("blackjack-player-dealer")).toBeInTheDocument();
+        expect(getByTestId("blackjack-room")).toHaveAttribute(
+            "data-layout",
+            "table",
+        );
+    });
+
     it("renders round number, chips, and DEALER area", () => {
         const view = makeView({
             roundNumber: 4,

@@ -194,11 +194,14 @@ describe("ActionControls", () => {
 
         fireEvent.click(getByTestId("poker-adjust-10"));
         flush();
-        fireEvent.click(getByTestId("poker-adjust--100"));
+        fireEvent.click(getByTestId("poker-adjust--10"));
+        flush();
+        fireEvent.click(getByTestId("poker-preset-pot"));
         flush();
 
         expect(setAmount).toHaveBeenNthCalledWith(1, "60");
-        expect(setAmount).toHaveBeenNthCalledWith(2, "0");
+        expect(setAmount).toHaveBeenNthCalledWith(2, "40");
+        expect(setAmount).toHaveBeenNthCalledWith(3, "20");
     });
 
     it("fires onAction with all_in when All-in is clicked", () => {

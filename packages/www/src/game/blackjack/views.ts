@@ -5,31 +5,20 @@ import type {
     PlayerHandView,
     PlayerInfoView,
 } from "./schemas";
-import {
-    getHandValue,
-    isHandDone,
-    canSplit,
-    canDoubleDown,
-} from "./engine";
+import { getHandValue, isHandDone, canSplit, canDoubleDown } from "./engine";
 
-export type {
-    BlackjackPlayerView,
-    DealerView,
-    PlayerHandView,
-    PlayerInfoView,
-};
+export type { BlackjackPlayerView, DealerView, PlayerHandView, PlayerInfoView };
 
 export function getPlayerView(
     state: BlackjackState,
-    playerId: string,
+    playerId: string | null,
 ): BlackjackPlayerView {
     const me = state.players.find((p) => p.id === playerId);
     const isMyTurn =
         state.phase === "playing" &&
         state.players[state.currentPlayerIndex]?.id === playerId;
 
-    const currentHand =
-        isMyTurn && me ? me.hands[me.currentHandIndex] : null;
+    const currentHand = isMyTurn && me ? me.hands[me.currentHandIndex] : null;
 
     const dealerCards: BlackjackPlayerView["dealer"]["cards"] =
         state.dealerHand.map((card, i) => {
@@ -45,7 +34,7 @@ export function getPlayerView(
     return {
         phase: state.phase,
         roundNumber: state.roundNumber,
-        myId: playerId,
+        myId: playerId ?? "",
         dealer: {
             cards: state.dealerHand.length > 0 ? dealerCards : [],
             value: state.dealerRevealed
@@ -82,10 +71,8 @@ export function getPlayerView(
         currentPlayerIndex: state.currentPlayerIndex,
         results: state.results,
         shoeCount: state.shoe.length,
-        canHit:
-            isMyTurn && !!currentHand && !isHandDone(currentHand),
-        canStand:
-            isMyTurn && !!currentHand && !isHandDone(currentHand),
+        canHit: isMyTurn && !!currentHand && !isHandDone(currentHand),
+        canStand: isMyTurn && !!currentHand && !isHandDone(currentHand),
         canDouble:
             isMyTurn &&
             !!currentHand &&
@@ -99,11 +86,7 @@ export function getPlayerView(
             !isHandDone(currentHand) &&
             canSplit(me, currentHand),
         isMyTurn,
-        needsBet:
-            state.phase === "betting" &&
-            !!me &&
-            me.bet === 0 &&
-            !me.done,
+        needsBet: state.phase === "betting" && !!me && me.bet === 0 && !me.done,
         needsInsurance:
             state.phase === "insurance" &&
             !!me &&

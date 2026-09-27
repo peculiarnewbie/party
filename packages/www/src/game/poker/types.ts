@@ -1,3 +1,4 @@
+import type { Card } from "~/assets/card-deck/types";
 import type { PokerStreet } from "./schemas";
 
 export type {
@@ -27,4 +28,5 @@ export interface PokerHandValue {
     category: number;
     label: string;
     values: number[];
+    cards?: Card[];
 }

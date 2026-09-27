@@ -34,11 +34,11 @@ test.describe("blackjack-seeded", () => {
 
         await expect(page.getByTestId("blackjack-room")).toBeVisible();
         await expect(page.getByText("YOUR TURN")).toBeVisible();
-        await expect(page.getByText("HIT")).toBeVisible();
-        await expect(page.getByText("STAND")).toBeVisible();
-        await expect(page.getByText("DOUBLE")).toBeVisible();
+        await expect(page.getByRole("button", { name: "HIT" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "STAND" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "DOUBLE" })).toBeVisible();
 
-        await page.getByText("HIT").click();
+        await page.getByRole("button", { name: "HIT" }).click();
 
         const sent = await fixture.sentMessages();
         expect(sent).toEqual([

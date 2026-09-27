@@ -28,11 +28,11 @@ describe("EventLog", () => {
         expect(getByText("Alice bets 20.")).toBeInTheDocument();
     });
 
-    it("renders the most recent event first (reversed order)", () => {
+    it("renders the most recent event first, matching the engine's newest-first log", () => {
         const events: PokerEvent[] = [
-            { id: 1, type: "hand_started", street: "preflop", message: "First event" },
-            { id: 2, type: "board_dealt", street: "flop", message: "Second event" },
             { id: 3, type: "pot_awarded", street: "showdown", message: "Third event" },
+            { id: 2, type: "board_dealt", street: "flop", message: "Second event" },
+            { id: 1, type: "hand_started", street: "preflop", message: "First event" },
         ];
         const { container } = render(() => <EventLog events={events} />);
         const messages = Array.from(

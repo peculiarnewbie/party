@@ -1,3 +1,4 @@
+import { definePartyModeTest } from "./helpers/party-mode";
 import { expect, test } from "@playwright/test";
 
 import type { Flip7ClientMessage, Flip7PlayerView } from "../src/game/flip-7";
@@ -105,3 +106,5 @@ test("flip 7 resolves random action cards, scores a round, and advances the deal
     expect(nextRound.phase).not.toBe("round_over");
     expect(nextRound.dealerId).not.toBe(dealerId);
 });
+
+definePartyModeTest("flip_7");

@@ -1,7 +1,7 @@
-import { For, Show } from "solid-js";
-import { CardBack, PlayingCard } from "~/assets/card-deck";
-import { CommunityBoard } from "./community-board";
-import { PotDisplay } from "./pot-display";
+import { createMemo, For, Show } from "solid-js";
+import { Confetti, PlayerAvatar } from "~/components/casino";
+import { PokerFelt } from "./poker-felt";
+import { potResults } from "./hand-events";
 import type { PokerTableView } from "~/game/poker/table-view";
 
 export function PokerTableDisplay(props: {
@@ -12,133 +12,157 @@ export function PokerTableDisplay(props: {
         props.view.players.find(
             (player) => player.id === props.view.actingPlayerId,
         );
-    const result = () =>
-        props.view.eventLog.find((event) => event.type === "pot_awarded");
     const finished = () =>
         ["hand_over", "tournament_over"].includes(props.view.street);
+    const results = createMemo(() =>
+        finished() ? potResults(props.view.eventLog, props.view.players) : [],
+    );
+    const showdown = () =>
+        results().length > 0 && results().some((result) => !result.uncontested);
+    const nameOf = (id: string) =>
+        props.view.players.find((player) => player.id === id)?.name ?? "Someone";
+    const standings = () =>
+        [...props.view.players].sort((a, b) => b.stack - a.stack);
 
     return (
         <section
             data-testid="poker-table-display"
-            class="mx-auto w-full max-w-[1600px] px-6 py-5"
+            class="relative mx-auto w-full max-w-[1800px] px-6 pt-4 pb-6 flex flex-col items-center"
         >
-            <div class="flex items-center justify-between gap-4 mb-6 font-bebas tracking-wider">
-                <h1 class="text-4xl">{props.title}</h1>
-                <span class="text-2xl">
-                    Hand {props.view.handNumber} ·{" "}
-                    {props.view.street.replaceAll("_", " ")}
-                </span>
-            </div>
-            <div class="rounded-[3rem] border-4 border-[#1a1a1a] bg-[#c9c0b0] px-8 py-6 text-center shadow-[8px_8px_0_#1a1a1a]">
-                <div
-                    aria-live="polite"
-                    class="font-bebas text-4xl tracking-wider mb-4 text-[#1a3a6e]"
-                >
+            <div class="w-full flex items-center justify-between gap-4 mb-2 font-bebas tracking-wider">
+                <h1 class="text-4xl bg-[#c0261a] text-[#f7f2de] border-2 border-[#1a1a1a] px-4 pt-1.5 pb-0.5 shadow-[4px_4px_0_#1a1a1a] -rotate-2">
+                    {props.title}
+                </h1>
+                <div aria-live="polite" class="text-5xl text-[#1a1a1a]">
                     <Show
                         when={acting()}
                         fallback={
                             <span>
                                 {props.view.endedByHost
                                     ? "Game ended by host"
-                                    : finished()
-                                      ? "Hand complete"
-                                      : "Waiting for the next hand"}
+                                    : props.view.street === "tournament_over"
+                                      ? "Game over"
+                                      : finished()
+                                        ? "Hand complete"
+                                        : "Shuffling up…"}
                             </span>
                         }
                     >
-                        {(player) => <span>{player().name}’s turn</span>}
+                        {(player) => (
+                            <span class="inline-flex items-center gap-3 animate-rise-in">
+                                <PlayerAvatar
+                                    id={player().id}
+                                    name={player().name}
+                                    index={props.view.players.findIndex((entry) => entry.id === player().id)}
+                                    class="w-12 h-12 text-2xl"
+                                />
+                                <span>
+                                    {player().name}’s turn
+                                </span>
+                            </span>
+                        )}
                     </Show>
                 </div>
-                <CommunityBoard board={props.view.board} />
-                <div class="mt-4">
-                    <PotDisplay pots={props.view.pots} />
-                </div>
-                <Show when={finished() && result()}>
-                    {(event) => (
-                        <p class="font-bebas text-3xl mt-4 text-[#c0261a]">
-                            {event().message}
+                <span class="text-2xl text-[#1a1a1a] border-2 border-[#1a1a1a] bg-[#f7f2de] px-4 pt-1.5 pb-0.5 shadow-[4px_4px_0_#1a1a1a]">
+                    Hand {props.view.handNumber} ·{" "}
+                    <span class="text-[#c0261a]">
+                        {props.view.street.replaceAll("_", " ")}
+                    </span>
+                </span>
+            </div>
+
+            <div class="relative w-full max-w-[calc((100vh-200px)*2.15)] pt-[3%]">
+                <PokerFelt
+                    players={props.view.players}
+                    board={props.view.board}
+                    pots={props.view.pots}
+                    street={props.view.street}
+                    handNumber={props.view.handNumber}
+                    eventLog={props.view.eventLog}
+                    title={props.title}
+                    seatTestIdPrefix="display-seat"
+                    center={
+                        <Show when={finished() && results().length > 0}>
+                            <div
+                                data-testid="poker-hand-winners"
+                                role="status"
+                                class="flex flex-col items-center gap-[calc(var(--u)*0.4)] rounded-[calc(var(--u)*0.8)] border-[length:calc(var(--u)*0.35)] border-[#1a1a1a] bg-[#f5c542] px-[calc(var(--u)*3)] pt-[calc(var(--u)*1.2)] pb-[calc(var(--u)*0.8)] shadow-[calc(var(--u)*0.6)_calc(var(--u)*0.6)_0_#1a1a1a] animate-stamp-in"
+                                style={{ "--stamp-rot": "-2deg" }}
+                            >
+                                <For each={results()}>
+                                    {(result) => (
+                                        <div class="text-center">
+                                            <div class="font-bebas text-[#1a1a1a] text-[calc(var(--u)*3)] leading-none whitespace-nowrap">
+                                                {result.winnerIds.length > 0
+                                                    ? result.winnerIds.map(nameOf).join(" & ")
+                                                    : result.message.split(" won ")[0]}{" "}
+                                                {result.winnerIds.length > 1 ? "split" : "wins"}{" "}
+                                                {result.amount}
+                                            </div>
+                                            <div class="font-bebas tracking-[.2em] text-[#c0261a] text-[calc(var(--u)*1.5)] leading-tight">
+                                                {result.uncontested
+                                                    ? "Everyone else folded"
+                                                    : result.handLabel}
+                                            </div>
+                                        </div>
+                                    )}
+                                </For>
+                            </div>
+                        </Show>
+                    }
+                />
+
+            </div>
+
+            <Show when={showdown() ? props.view.handNumber : null} keyed>
+                {(_hand) => <Confetti count={70} />}
+            </Show>
+
+            <Show when={props.view.street === "tournament_over"}>
+                <div class="absolute inset-0 z-50 flex items-center justify-center bg-[#1a3a6e]/85">
+                    <Show when={!props.view.endedByHost}>
+                        <Confetti count={140} />
+                    </Show>
+                    <div class="w-full max-w-2xl border-[3px] border-[#1a1a1a] bg-[#ddd5c4] p-10 text-center shadow-[12px_12px_0_#1a1a1a] animate-stamp-in [--stamp-rot:-1deg]">
+                        <p class="inline-block font-bebas tracking-[.3em] text-2xl bg-[#c0261a] text-[#f7f2de] px-4 pt-1">
+                            {props.view.endedByHost ? "Table closed" : "Champion"}
                         </p>
-                    )}
-                </Show>
-                <Show when={props.view.street === "tournament_over"}>
-                    <p class="mt-3 text-xl">
-                        Game complete. The host can return everyone to the lobby
-                        from their phone.
-                    </p>
-                </Show>
-            </div>
-            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5 mt-8">
-                <For each={props.view.players}>
-                    {(player, index) => (
-                        <div
-                            data-testid={`display-seat-${player.id}`}
-                            data-acting={String(player.isActing)}
-                            data-visible-card-count={
-                                player.visibleHoleCards.length
-                            }
-                            class={`border-2 p-4 ${player.isActing ? "border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] shadow-[5px_5px_0_#1a1a1a]" : "border-[#b8ae9e] bg-[#c9c0b0]"}`}
-                        >
-                            <div class="flex items-center justify-between gap-3">
-                                <h2 class="font-bebas text-3xl truncate">
-                                    {index() + 1}. {player.name}
-                                </h2>
-                                <span class="font-bebas text-lg">
-                                    {player.isDealer ? "D " : ""}
-                                    {player.isSmallBlind ? "SB" : ""}
-                                    {player.isBigBlind ? "BB" : ""}
-                                </span>
-                            </div>
-                            <div class="flex items-center justify-between gap-3 mt-3">
-                                <div class="flex gap-1">
-                                    <Show
-                                        when={
-                                            player.visibleHoleCards.length > 0
-                                        }
-                                        fallback={
-                                            <For
-                                                each={Array.from({
-                                                    length: player.holeCardCount,
-                                                })}
-                                            >
-                                                {() => (
-                                                    <div class="w-12 shrink-0">
-                                                        <CardBack class="w-full" />
-                                                    </div>
-                                                )}
-                                            </For>
-                                        }
+                        <h2 class="font-bebas text-[#1a1a1a] text-8xl leading-none mt-4">
+                            {standings()[0]?.name ?? "—"}
+                        </h2>
+                        <ol class="mt-8 space-y-3 text-left">
+                            <For each={standings()}>
+                                {(player, index) => (
+                                    <li
+                                        class={`flex items-center gap-4 border-2 border-[#1a1a1a] px-5 py-3 shadow-[4px_4px_0_#1a1a1a] animate-rise-in ${index() === 0 ? "bg-[#f5c542]" : "bg-[#f7f2de]"}`}
+                                        style={{ "animation-delay": `${300 + index() * 120}ms` }}
                                     >
-                                        <For each={player.visibleHoleCards}>
-                                            {(card) => (
-                                                <div class="w-12 shrink-0">
-                                                    <PlayingCard
-                                                        suit={card.suit}
-                                                        rank={card.rank}
-                                                        class="w-full"
-                                                    />
-                                                </div>
-                                            )}
-                                        </For>
-                                    </Show>
-                                </div>
-                                <div class="text-right">
-                                    <div class="font-bebas text-3xl">
-                                        {player.stack}
-                                    </div>
-                                    <div class="text-sm">
-                                        Bet {player.committedThisStreet}
-                                    </div>
-                                </div>
-                            </div>
-                            <p class="mt-3 uppercase tracking-widest text-sm">
-                                {player.connected
-                                    ? player.status.replaceAll("_", " ")
-                                    : "Disconnected"}
-                            </p>
-                        </div>
-                    )}
-                </For>
-            </div>
+                                        <span class="font-bebas text-3xl w-8 text-[#c0261a]">
+                                            {index() + 1}
+                                        </span>
+                                        <PlayerAvatar
+                                            id={player.id}
+                                            name={player.name}
+                                            index={props.view.players.findIndex((entry) => entry.id === player.id)}
+                                            class="w-11 h-11 text-xl"
+                                        />
+                                        <span class="font-bebas text-3xl text-[#1a1a1a] flex-1">
+                                            {player.name}
+                                        </span>
+                                        <span class="font-bebas text-3xl text-[#1a3a6e]">
+                                            {player.stack}
+                                        </span>
+                                    </li>
+                                )}
+                            </For>
+                        </ol>
+                        <p class="mt-8 text-xl text-[#5a5040]">
+                            The host can return everyone to the lobby from their phone.
+                        </p>
+                    </div>
+                </div>
+            </Show>
+
         </section>
     );
 }

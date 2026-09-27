@@ -17,6 +17,7 @@ import type { PerudoPlayerView } from "~/game/perudo";
 
 function renderRoom(
     options: {
+        initialLayout?: "table" | "controller";
         view?: PerudoPlayerView;
         playerId?: string | null;
         isHost?: boolean;
@@ -36,6 +37,7 @@ function renderRoom(
     const result = render(() => (
         <PerudoRoom
             roomId="room1"
+            initialLayout={options.initialLayout}
             playerId={playerId}
             isHost={isHost}
             connection={connection}
@@ -48,6 +50,37 @@ function renderRoom(
 }
 
 describe("PerudoRoom", () => {
+    it("shows private dice and allows the opening bid in Party mode before a challenge is possible", () => {
+        const { getByTestId, getByRole, queryByText, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                canBid: true,
+                canChallenge: false,
+                currentBid: null,
+                players: [
+                    makePlayerInfo({ dice: [1, 2, 3, 4, 5] }),
+                    makePlayerInfo({ id: "p2", name: "Bob" }),
+                ],
+            }),
+        });
+        expect(
+            getByTestId("perudo-my-dice").querySelectorAll("svg"),
+        ).toHaveLength(5);
+        expect(queryByText("Bob")).toBeNull();
+        expect(
+            getByRole("button", { name: "CHALLENGE" }),
+        ).toBeDisabled();
+        fireEvent.click(getByRole("button", { name: "BID" }));
+        flush();
+        expect(connection.sentMessages).toContainEqual({
+            type: "perudo:bid",
+            data: { quantity: 1, faceValue: 2 },
+        });
+        fireEvent.click(getByTestId("party-layout-toggle"));
+        flush();
+        expect(queryByText("Bob")).toBeInTheDocument();
+    });
+
     it("renders round number and dice in play", () => {
         const view = makeView({ roundNumber: 3, totalDiceInPlay: 12 });
         const { getByText } = renderRoom({ view });

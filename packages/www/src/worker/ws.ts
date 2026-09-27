@@ -46,7 +46,14 @@ import {
 } from "~/game/rps/schemas";
 import type { RpsClientMessage } from "~/game/rps/messages";
 import { getPokerTableView } from "~/game/poker/table-view";
-import { displayMessageSchema, type DisplayState } from "~/room/display-protocol";
+import {
+    displayMessageSchema,
+    type DisplayState,
+} from "~/room/display-protocol";
+
+import { getFlip7TableView } from "~/game/flip-7/table-view";
+import { getBlackjackTableView } from "~/game/blackjack/table-view";
+import { getPerudoTableView } from "~/game/perudo/table-view";
 
 const HIBERNATION_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 const MAX_WEBSOCKET_MESSAGE_BYTES = 64 * 1024;
@@ -258,19 +265,47 @@ export class GameRoom extends DurableObject {
 
     displayStateMessage() {
         const snapshot = this.getCurrentGameSnapshot();
+        let game: DisplayState["game"] = null;
+        if (this.state.phase === "playing") {
+            switch (snapshot?.gameType) {
+                case "flip_7":
+                    game = {
+                        type: "flip_7",
+                        view: getFlip7TableView(snapshot.state),
+                    };
+                    break;
+                case "blackjack":
+                    game = {
+                        type: "blackjack",
+                        view: getBlackjackTableView(snapshot.state),
+                    };
+                    break;
+                case "perudo":
+                    game = {
+                        type: "perudo",
+                        view: getPerudoTableView(snapshot.state),
+                    };
+                    break;
+            }
+        }
         const data: DisplayState = {
+            game,
             phase: this.state.phase,
             selectedGameType: this.state.selectedGameType,
             activeGameType: this.state.activeGameType,
             players: this.state.players.map(({ id, name }) => ({ id, name })),
             poker:
                 this.state.phase === "playing" &&
-                (snapshot?.gameType === "poker" || snapshot?.gameType === "backwards_poker")
+                (snapshot?.gameType === "poker" ||
+                    snapshot?.gameType === "backwards_poker")
                     ? getPokerTableView(snapshot.state)
                     : null,
         };
         return JSON.stringify(
-            Schema.encodeSync(displayMessageSchema)({ type: "display:state", data }),
+            Schema.encodeSync(displayMessageSchema)({
+                type: "display:state",
+                data,
+            }),
         );
     }
 
@@ -579,7 +614,12 @@ export class GameRoom extends DurableObject {
                         const previous = sql
                             .exec<{
                                 payload: string;
-                            }>("SELECT payload FROM rps_rpc_receipts WHERE session_id = ? AND player_id = ? AND command_id = ?", room.state.gameSessionId, playerId, receipt.id)
+                            }>(
+                                "SELECT payload FROM rps_rpc_receipts WHERE session_id = ? AND player_id = ? AND command_id = ?",
+                                room.state.gameSessionId,
+                                playerId,
+                                receipt.id,
+                            )
                             .toArray()[0];
                         if (previous) {
                             if (previous.payload !== receipt.payload)

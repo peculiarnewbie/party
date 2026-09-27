@@ -29,7 +29,15 @@ async function join(roomId: string, id: string, name: string) {
 }
 
 describe("Party mode display connections", () => {
-    it.each(["identify", "join", "end", "poker:act"])(
+    it.each([
+        "identify",
+        "join",
+        "end",
+        "poker:act",
+        "flip_7:hit",
+        "blackjack:hit",
+        "perudo:bid",
+    ])(
         "does not take a seat or become host, and rejects %s commands",
         async (type) => {
             const roomId = `display-read-only-${type.replace(":", "-")}`;
@@ -182,3 +190,155 @@ describe("Party mode display connections", () => {
         },
     );
 });
+
+it.each(["flip_7", "blackjack", "perudo"] as const)(
+    "streams public %s snapshots through reconnect and game end",
+    async (gameType) => {
+        const roomId = `display-party-${gameType}`;
+        const display = await connectDisplay(roomId);
+        const alice = await join(roomId, "alice", "Alice");
+        const bob = await join(roomId, "bob", "Bob");
+        const charlie =
+            gameType === "flip_7"
+                ? await join(roomId, "charlie", "Charlie")
+                : null;
+        const send = (
+            type: string,
+            data: Record<string, unknown> = {},
+            playerId = "alice",
+        ) =>
+            (playerId === "alice" ? alice : bob).send({
+                type,
+                data,
+                playerId,
+                playerName: playerId,
+            });
+        send("select_game", { gameType });
+        await alice.waitForMessage(
+            (message) =>
+                message.type === "room_state" &&
+                message.data.selectedGameType === gameType,
+        );
+        send("start");
+        const start = Schema.decodeUnknownSync(displayMessageSchema)(
+            await display.waitForMessage(
+                (message) =>
+                    Schema.decodeUnknownSync(displayMessageSchema)(message).data
+                        .game?.type === gameType,
+            ),
+        );
+        expect(start.data.game?.view.players).toHaveLength(
+            gameType === "flip_7" ? 3 : 2,
+        );
+        expect(start.data.game?.view).not.toHaveProperty("myId");
+        expect(start.data.game?.view).not.toHaveProperty("shoe");
+        expect(start.data.game?.view).not.toHaveProperty("deck");
+        if (start.data.game?.type === "perudo") {
+            expect(
+                start.data.game.view.players.every(
+                    (player) => player.dice === null,
+                ),
+            ).toBe(true);
+            const bidderId = start.data.game.view.currentPlayerId;
+            send("perudo:start_round");
+            await display.waitForMessage(
+                (message) =>
+                    Schema.decodeUnknownSync(displayMessageSchema)(message).data
+                        .game?.view.phase === "bidding",
+            );
+            send("perudo:bid", { quantity: 1, faceValue: 2 }, bidderId);
+            await display.waitForMessage((message) => {
+                const game =
+                    Schema.decodeUnknownSync(displayMessageSchema)(message).data
+                        .game;
+                return (
+                    game?.type === "perudo" &&
+                    game.view.currentBid?.quantity === 1
+                );
+            });
+            send(
+                "perudo:challenge",
+                {},
+                bidderId === "alice" ? "bob" : "alice",
+            );
+            const revealed = Schema.decodeUnknownSync(displayMessageSchema)(
+                await display.waitForMessage(
+                    (message) =>
+                        Schema.decodeUnknownSync(displayMessageSchema)(message)
+                            .data.game?.view.phase === "revealing",
+                ),
+            );
+            expect(
+                revealed.data.game?.type === "perudo" &&
+                    revealed.data.game.view.players.every(
+                        (player) => player.dice !== null,
+                    ),
+            ).toBe(true);
+            const next = Schema.decodeUnknownSync(displayMessageSchema)(
+                await display.waitForMessage(
+                    (message) =>
+                        Schema.decodeUnknownSync(displayMessageSchema)(message)
+                            .data.game?.view.roundNumber === 2,
+                    { timeoutMs: 10000 },
+                ),
+            );
+            expect(
+                next.data.game?.type === "perudo" &&
+                    next.data.game.view.players.every(
+                        (player) => player.dice === null,
+                    ),
+            ).toBe(true);
+        } else if (gameType === "blackjack") {
+            send("blackjack:bet", { amount: 50 });
+            send("blackjack:bet", { amount: 50 }, "bob");
+            const dealt = Schema.decodeUnknownSync(displayMessageSchema)(
+                await display.waitForMessage((message) => {
+                    const game =
+                        Schema.decodeUnknownSync(displayMessageSchema)(message)
+                            .data.game;
+                    return (
+                        game?.type === "blackjack" &&
+                        game.view.dealer.cards.length === 2
+                    );
+                }),
+            );
+            if (dealt.data.game?.type !== "blackjack")
+                throw new Error("Expected blackjack view");
+            if (dealt.data.game.view.phase !== "settled") {
+                expect(dealt.data.game.view.dealer.cards[1]).toBe("hidden");
+                expect(dealt.data.game.view.dealer.value).toBeNull();
+            }
+            expect(
+                dealt.data.game.view.players.every(
+                    (player) => player.hands.length === 1,
+                ),
+            ).toBe(true);
+        }
+        display.close();
+        const reconnected = await connectDisplay(roomId);
+        const snapshot = Schema.decodeUnknownSync(displayMessageSchema)(
+            reconnected.messages[0],
+        );
+        expect(snapshot.data.game?.type).toBe(gameType);
+        expect(snapshot.data.players).toHaveLength(
+            gameType === "flip_7" ? 3 : 2,
+        );
+        send("end");
+        send("return_to_lobby");
+        const ended = Schema.decodeUnknownSync(displayMessageSchema)(
+            await reconnected.waitForMessage(
+                (message) => message.data.phase === "lobby",
+            ),
+        );
+        expect(ended.data.game).toBeNull();
+        expect(
+            reconnected.messages.every(
+                (message) => message.type === "display:state",
+            ),
+        ).toBe(true);
+        reconnected.close();
+        charlie?.close();
+        alice.close();
+        bob.close();
+    },
+);
