@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { Effect } from "effect";
 
 import {
+    createRoomRecovery,
     decodeClientMessage,
     encodeServerMessage,
     messageTypes,
@@ -13,6 +14,7 @@ const pid = (s: string) => s as PlayerId;
 
 function makeRoomState(overrides?: Partial<GameState>): GameState {
     return {
+        recovery: createRoomRecovery(),
         players: [],
         hostId: null,
         answers: {},

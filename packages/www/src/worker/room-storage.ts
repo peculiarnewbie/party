@@ -1,6 +1,12 @@
 import { Effect, Schema } from "effect";
 
-import { gameTypes, gameParticipantSchema, playerSchema } from "~/game";
+import {
+    gameTypes,
+    gameParticipantSchema,
+    playerSchema,
+    roomRecoverySchema,
+    createRoomRecovery,
+} from "~/game";
 import type {
     GameParticipant,
     GameParticipantStatus,
@@ -126,6 +132,7 @@ const roomPhaseSchema = Schema.Literals([
 const participantStatusSchema = Schema.Literals([
     "active",
     "disconnected",
+    "sitting_out",
     "left_game",
 ] as const);
 
@@ -135,6 +142,7 @@ const persistedParticipantRowSchema = Schema.Struct({
 });
 
 const roomStateSchema = Schema.Struct({
+    recovery: Schema.mutableKey(roomRecoverySchema),
     players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
     hostId: Schema.mutableKey(nullablePlayerIdSchema),
     answers: Schema.mutableKey(Schema.Record(Schema.String, Schema.String)),
@@ -148,6 +156,7 @@ const roomStateSchema = Schema.Struct({
 });
 
 const partialRoomStateSchema = Schema.Struct({
+    recovery: Schema.optionalKey(roomRecoverySchema),
     players: Schema.optionalKey(
         Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
     ),
@@ -460,6 +469,7 @@ function deleteAllParticipants(ctx: DurableObjectState) {
 
 export function createDefaultState(): GameState {
     return {
+        recovery: createRoomRecovery(),
         players: [],
         hostId: null,
         answers: {},

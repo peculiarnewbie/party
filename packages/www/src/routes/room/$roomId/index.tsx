@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/solid-router";
 import { createMemo, onSettled, Switch, Match, Show, lazy } from "solid-js";
+import { RoomRecoveryPanel } from "~/components/room-recovery";
 import { RoomLobby } from "~/components/room-lobby";
 import { SampleQuizRoom } from "~/components/sample-quiz-room";
 import { GoFishRoom } from "~/components/go-fish/go-fish-room";
@@ -207,688 +208,718 @@ function PlayerRoom() {
     const canAccessCurrentGame = createMemo(
         () =>
             roomPhase() !== "playing" ||
-            (myGameParticipant() !== null && myGameStatus() !== "left_game") ||
+            (myGameParticipant() !== null &&
+                myGameStatus() !== "left_game" &&
+                myGameStatus() !== "sitting_out") ||
             (isActivePokerGame() &&
                 isJoined() &&
-                myGameStatus() !== "left_game"),
+                myGameStatus() !== "left_game" &&
+                myGameStatus() !== "sitting_out"),
     );
 
     return (
         <>
-            <Switch>
-                <Match when={roomPhase() === "lobby"}>
-                    <RoomLobby
-                        roomId={roomId()}
-                        playerId={playerId()}
-                        name={name()}
-                        setName={setName}
-                        players={players()}
-                        isHost={isHost()}
-                        isJoined={isJoined()}
-                        selectedGameType={selectedGameType()}
-                        onJoin={join}
-                        onLeave={leave}
-                        onSelectGame={selectGame}
-                        onStart={startGame}
-                    />
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        isActivePokerGame() &&
-                        !isJoined()
-                    }
-                >
-                    <RoomLobby
-                        roomId={roomId()}
-                        playerId={playerId()}
-                        name={name()}
-                        setName={setName}
-                        players={players()}
-                        isHost={false}
-                        isJoined={false}
-                        selectedGameType={
-                            (activeGameType() ?? selectedGameType()) as GameType
-                        }
-                        onJoin={join}
-                        onLeave={leave}
-                        onSelectGame={selectGame}
-                        onStart={startGame}
-                    />
-                </Match>
-                <Match when={roomPhase() === "hibernated"}>
-                    <HibernatedRoomState
-                        roomId={roomId()}
-                        canManage={
-                            myGameParticipant() !== null &&
-                            myGameStatus() !== "left_game"
-                        }
-                        onResume={resumeRoom}
-                        onRestart={restartRoom}
-                    />
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "go_fish"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: GoFishConnection = gameConnection(
-                                "go_fish",
-                                {
-                                    stateType: "go_fish:state",
-                                    prefix: "go_fish:",
-                                    envelope,
-                                    playerViewSchema: goFishPlayerViewSchema,
-                                    serverMessageSchema:
-                                        goFishServerMessageSchema,
-                                },
-                            );
-                            return (
-                                <GoFishRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match when={roomPhase() === "playing" && isActivePokerGame()}>
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: PokerConnection = gameConnection(
-                                "poker",
-                                {
-                                    stateType: "poker:state",
-                                    prefix: "poker:",
-                                    envelope,
-                                    playerViewSchema: pokerPlayerViewSchema,
-                                    serverMessageSchema:
-                                        pokerServerMessageSchema,
-                                },
-                            );
-                            return (
-                                <PokerRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    initialLayout={
-                                        search().view === "controller"
-                                            ? "controller"
-                                            : "table"
-                                    }
-                                    visibilityMode={
-                                        activeGameType() === "backwards_poker"
-                                            ? "backwards"
-                                            : "standard"
-                                    }
-                                    title={
-                                        activeGameType() === "backwards_poker"
-                                            ? "Backwards Poker"
-                                            : "Texas Hold'em"
-                                    }
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "blackjack"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: BlackjackConnection =
-                                gameConnection("blackjack", {
-                                    stateType: "blackjack:state",
-                                    prefix: "blackjack:",
-                                    envelope,
-                                    playerViewSchema: blackjackPlayerViewSchema,
-                                    serverMessageSchema:
-                                        blackjackServerMessageSchema,
-                                });
-                            return (
-                                <BlackjackRoom
-                                    initialLayout={
-                                        search().view === "controller"
-                                            ? "controller"
-                                            : "table"
-                                    }
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={returnToLobby}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "yahtzee"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: YahtzeeConnection =
-                                gameConnection("yahtzee", {
-                                    stateType: "yahtzee:state",
-                                    prefix: "yahtzee:",
-                                    envelope,
-                                    playerViewSchema: yahtzeePlayerViewSchema,
-                                    serverMessageSchema:
-                                        yahtzeeServerMessageSchema,
-                                });
-                            return (
-                                <YahtzeeRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    title="Yahtzee"
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "lying_yahtzee"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: YahtzeeConnection =
-                                gameConnection("yahtzee", {
-                                    stateType: "yahtzee:state",
-                                    prefix: "yahtzee:",
-                                    envelope,
-                                    playerViewSchema: yahtzeePlayerViewSchema,
-                                    serverMessageSchema:
-                                        yahtzeeServerMessageSchema,
-                                });
-                            return (
-                                <YahtzeeRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    title="Lying Yahtzee"
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "perudo"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: PerudoConnection = gameConnection(
-                                "perudo",
-                                {
-                                    stateType: "perudo:state",
-                                    prefix: "perudo:",
-                                    envelope,
-                                    playerViewSchema: perudoPlayerViewSchema,
-                                    serverMessageSchema:
-                                        perudoServerMessageSchema,
-                                },
-                            );
-                            return (
-                                <PerudoRoom
-                                    initialLayout={
-                                        search().view === "controller"
-                                            ? "controller"
-                                            : "table"
-                                    }
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" && activeGameType() === "rps"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: RpsConnection =
-                                client().getGameConnection("rps", () =>
-                                    createRpsGameConnection(
-                                        client().transport,
-                                        envelope,
-                                    ),
-                                );
-                            return (
-                                <RpsRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" && activeGameType() === "herd"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: HerdConnection = gameConnection(
-                                "herd",
-                                {
-                                    stateType: "herd:state",
-                                    prefix: "herd:",
-                                    envelope,
-                                    playerViewSchema: herdPlayerViewSchema,
-                                    serverMessageSchema:
-                                        herdServerMessageSchema,
-                                },
-                            );
-                            return (
-                                <HerdRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "fun_facts"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: FunFactsConnection =
-                                gameConnection("fun_facts", {
-                                    stateType: "fun_facts:state",
-                                    prefix: "fun_facts:",
-                                    envelope,
-                                    playerViewSchema: funFactsPlayerViewSchema,
-                                    serverMessageSchema:
-                                        funFactsServerMessageSchema,
-                                });
-                            return (
-                                <FunFactsRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "cheese_thief"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: CheeseThiefConnection =
-                                gameConnection("cheese_thief", {
-                                    stateType: "cheese_thief:state",
-                                    prefix: "cheese_thief:",
-                                    envelope,
-                                    playerViewSchema:
-                                        cheeseThiefPlayerViewSchema,
-                                    serverMessageSchema:
-                                        cheeseThiefServerMessageSchema,
-                                });
-                            return (
-                                <CheeseThiefRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "cockroach_poker"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: CockroachPokerConnection =
-                                gameConnection("cockroach_poker", {
-                                    stateType: "cockroach_poker:state",
-                                    prefix: "cockroach_poker:",
-                                    envelope,
-                                    playerViewSchema:
-                                        cockroachPokerPlayerViewSchema,
-                                    serverMessageSchema:
-                                        cockroachPokerServerMessageSchema,
-                                });
-                            return (
-                                <CockroachPokerRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "flip_7"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: Flip7Connection = gameConnection(
-                                "flip_7",
-                                {
-                                    stateType: "flip_7:state",
-                                    prefix: "flip_7:",
-                                    envelope,
-                                    playerViewSchema: flip7PlayerViewSchema,
-                                    serverMessageSchema:
-                                        flip7ServerMessageSchema,
-                                },
-                            );
-                            return (
-                                <Flip7Room
-                                    initialLayout={
-                                        search().view === "controller"
-                                            ? "controller"
-                                            : "table"
-                                    }
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "skull"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: SkullConnection = gameConnection(
-                                "skull",
-                                {
-                                    stateType: "skull:state",
-                                    prefix: "skull:",
-                                    envelope,
-                                    playerViewSchema: skullPlayerViewSchema,
-                                    serverMessageSchema:
-                                        skullServerMessageSchema,
-                                },
-                            );
-                            return (
-                                <SkullRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" &&
-                        activeGameType() === "spicy"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: SpicyConnection = gameConnection(
-                                "spicy",
-                                {
-                                    stateType: "spicy:state",
-                                    prefix: "spicy:",
-                                    envelope,
-                                    playerViewSchema: spicyPlayerViewSchema,
-                                    serverMessageSchema:
-                                        spicyServerMessageSchema,
-                                },
-                            );
-                            return (
-                                <SpicyRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                    onEndGame={endGame}
-                                    onReturnToLobby={returnToLobby}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-                <Match
-                    when={
-                        roomPhase() === "playing" && activeGameType() === "quiz"
-                    }
-                >
-                    <Show
-                        when={canAccessCurrentGame()}
-                        fallback={
-                            <GameSessionState
-                                roomId={roomId()}
-                                status={myGameStatus()}
-                            />
-                        }
-                    >
-                        {(() => {
-                            const connection: QuizConnection = gameConnection(
-                                "quiz",
-                                {
-                                    stateType: "__quiz_no_state__",
-                                    prefix: "player_answered",
-                                    envelope,
-                                    playerViewSchema: quizPlayerViewSchema,
-                                    serverMessageSchema:
-                                        quizServerMessageSchema,
-                                },
-                            );
-                            return (
-                                <SampleQuizRoom
-                                    roomId={roomId()}
-                                    playerId={playerId()}
-                                    isHost={isHost()}
-                                    connection={connection}
-                                />
-                            );
-                        })()}
-                    </Show>
-                </Match>
-            </Switch>
-            <Show
-                when={
-                    roomPhase() === "playing" &&
-                    myGameParticipant() &&
-                    myGameStatus() !== "left_game"
+            <RoomRecoveryPanel
+                recovery={roomState().recovery}
+                players={players()}
+                status={client().status()}
+                isHost={isHost()}
+                suspended={roomPhase() === "hibernated"}
+                onGraceChange={(seconds) =>
+                    send("set_disconnect_grace", undefined, { seconds })
                 }
+                onManage={(target, action) =>
+                    send("manage_disconnect", undefined, {
+                        playerId: target,
+                        action,
+                    })
+                }
+                onRetry={() => {
+                    client().disconnect();
+                    client().connect();
+                }}
+            />
+            <fieldset
+                disabled={client().status() !== "connected"}
+                class="m-0 min-w-0 border-0 p-0"
             >
-                <button
-                    type="button"
-                    onClick={leaveGame}
-                    class="fixed left-3 bottom-3 z-50 font-bebas text-[.8rem] tracking-[.16em] bg-[#ddd5c4] text-[#c0261a] border-2 border-[#1a1a1a] px-3 pt-1.5 pb-1 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                <Switch>
+                    <Match when={roomPhase() === "lobby"}>
+                        <RoomLobby
+                            roomId={roomId()}
+                            playerId={playerId()}
+                            name={name()}
+                            setName={setName}
+                            players={players()}
+                            recovery={roomState().recovery}
+                            isHost={isHost()}
+                            isJoined={isJoined()}
+                            selectedGameType={selectedGameType()}
+                            onJoin={join}
+                            onLeave={leave}
+                            onSelectGame={selectGame}
+                            onStart={startGame}
+                        />
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            isActivePokerGame() &&
+                            !isJoined()
+                        }
+                    >
+                        <RoomLobby
+                            roomId={roomId()}
+                            playerId={playerId()}
+                            name={name()}
+                            setName={setName}
+                            players={players()}
+                            recovery={roomState().recovery}
+                            isHost={false}
+                            isJoined={false}
+                            selectedGameType={
+                                (activeGameType() ??
+                                    selectedGameType()) as GameType
+                            }
+                            onJoin={join}
+                            onLeave={leave}
+                            onSelectGame={selectGame}
+                            onStart={startGame}
+                        />
+                    </Match>
+                    <Match when={roomPhase() === "hibernated"}>
+                        <HibernatedRoomState
+                            roomId={roomId()}
+                            canManage={
+                                myGameParticipant() !== null &&
+                                myGameStatus() !== "left_game" &&
+                                myGameStatus() !== "sitting_out"
+                            }
+                            onResume={resumeRoom}
+                            onRestart={restartRoom}
+                        />
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "go_fish"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: GoFishConnection =
+                                    gameConnection("go_fish", {
+                                        stateType: "go_fish:state",
+                                        prefix: "go_fish:",
+                                        envelope,
+                                        playerViewSchema:
+                                            goFishPlayerViewSchema,
+                                        serverMessageSchema:
+                                            goFishServerMessageSchema,
+                                    });
+                                return (
+                                    <GoFishRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={roomPhase() === "playing" && isActivePokerGame()}
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: PokerConnection =
+                                    gameConnection("poker", {
+                                        stateType: "poker:state",
+                                        prefix: "poker:",
+                                        envelope,
+                                        playerViewSchema: pokerPlayerViewSchema,
+                                        serverMessageSchema:
+                                            pokerServerMessageSchema,
+                                    });
+                                return (
+                                    <PokerRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        initialLayout={
+                                            search().view === "controller"
+                                                ? "controller"
+                                                : "table"
+                                        }
+                                        visibilityMode={
+                                            activeGameType() ===
+                                            "backwards_poker"
+                                                ? "backwards"
+                                                : "standard"
+                                        }
+                                        title={
+                                            activeGameType() ===
+                                            "backwards_poker"
+                                                ? "Backwards Poker"
+                                                : "Texas Hold'em"
+                                        }
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "blackjack"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: BlackjackConnection =
+                                    gameConnection("blackjack", {
+                                        stateType: "blackjack:state",
+                                        prefix: "blackjack:",
+                                        envelope,
+                                        playerViewSchema:
+                                            blackjackPlayerViewSchema,
+                                        serverMessageSchema:
+                                            blackjackServerMessageSchema,
+                                    });
+                                return (
+                                    <BlackjackRoom
+                                        initialLayout={
+                                            search().view === "controller"
+                                                ? "controller"
+                                                : "table"
+                                        }
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={returnToLobby}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "yahtzee"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: YahtzeeConnection =
+                                    gameConnection("yahtzee", {
+                                        stateType: "yahtzee:state",
+                                        prefix: "yahtzee:",
+                                        envelope,
+                                        playerViewSchema:
+                                            yahtzeePlayerViewSchema,
+                                        serverMessageSchema:
+                                            yahtzeeServerMessageSchema,
+                                    });
+                                return (
+                                    <YahtzeeRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        title="Yahtzee"
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "lying_yahtzee"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: YahtzeeConnection =
+                                    gameConnection("yahtzee", {
+                                        stateType: "yahtzee:state",
+                                        prefix: "yahtzee:",
+                                        envelope,
+                                        playerViewSchema:
+                                            yahtzeePlayerViewSchema,
+                                        serverMessageSchema:
+                                            yahtzeeServerMessageSchema,
+                                    });
+                                return (
+                                    <YahtzeeRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        title="Lying Yahtzee"
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "perudo"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: PerudoConnection =
+                                    gameConnection("perudo", {
+                                        stateType: "perudo:state",
+                                        prefix: "perudo:",
+                                        envelope,
+                                        playerViewSchema:
+                                            perudoPlayerViewSchema,
+                                        serverMessageSchema:
+                                            perudoServerMessageSchema,
+                                    });
+                                return (
+                                    <PerudoRoom
+                                        initialLayout={
+                                            search().view === "controller"
+                                                ? "controller"
+                                                : "table"
+                                        }
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "rps"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: RpsConnection =
+                                    client().getGameConnection("rps", () =>
+                                        createRpsGameConnection(
+                                            client().transport,
+                                            envelope,
+                                        ),
+                                    );
+                                return (
+                                    <RpsRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "herd"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: HerdConnection =
+                                    gameConnection("herd", {
+                                        stateType: "herd:state",
+                                        prefix: "herd:",
+                                        envelope,
+                                        playerViewSchema: herdPlayerViewSchema,
+                                        serverMessageSchema:
+                                            herdServerMessageSchema,
+                                    });
+                                return (
+                                    <HerdRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "fun_facts"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: FunFactsConnection =
+                                    gameConnection("fun_facts", {
+                                        stateType: "fun_facts:state",
+                                        prefix: "fun_facts:",
+                                        envelope,
+                                        playerViewSchema:
+                                            funFactsPlayerViewSchema,
+                                        serverMessageSchema:
+                                            funFactsServerMessageSchema,
+                                    });
+                                return (
+                                    <FunFactsRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "cheese_thief"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: CheeseThiefConnection =
+                                    gameConnection("cheese_thief", {
+                                        stateType: "cheese_thief:state",
+                                        prefix: "cheese_thief:",
+                                        envelope,
+                                        playerViewSchema:
+                                            cheeseThiefPlayerViewSchema,
+                                        serverMessageSchema:
+                                            cheeseThiefServerMessageSchema,
+                                    });
+                                return (
+                                    <CheeseThiefRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "cockroach_poker"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: CockroachPokerConnection =
+                                    gameConnection("cockroach_poker", {
+                                        stateType: "cockroach_poker:state",
+                                        prefix: "cockroach_poker:",
+                                        envelope,
+                                        playerViewSchema:
+                                            cockroachPokerPlayerViewSchema,
+                                        serverMessageSchema:
+                                            cockroachPokerServerMessageSchema,
+                                    });
+                                return (
+                                    <CockroachPokerRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "flip_7"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: Flip7Connection =
+                                    gameConnection("flip_7", {
+                                        stateType: "flip_7:state",
+                                        prefix: "flip_7:",
+                                        envelope,
+                                        playerViewSchema: flip7PlayerViewSchema,
+                                        serverMessageSchema:
+                                            flip7ServerMessageSchema,
+                                    });
+                                return (
+                                    <Flip7Room
+                                        initialLayout={
+                                            search().view === "controller"
+                                                ? "controller"
+                                                : "table"
+                                        }
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "skull"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: SkullConnection =
+                                    gameConnection("skull", {
+                                        stateType: "skull:state",
+                                        prefix: "skull:",
+                                        envelope,
+                                        playerViewSchema: skullPlayerViewSchema,
+                                        serverMessageSchema:
+                                            skullServerMessageSchema,
+                                    });
+                                return (
+                                    <SkullRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "spicy"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: SpicyConnection =
+                                    gameConnection("spicy", {
+                                        stateType: "spicy:state",
+                                        prefix: "spicy:",
+                                        envelope,
+                                        playerViewSchema: spicyPlayerViewSchema,
+                                        serverMessageSchema:
+                                            spicyServerMessageSchema,
+                                    });
+                                return (
+                                    <SpicyRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                        onEndGame={endGame}
+                                        onReturnToLobby={returnToLobby}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "quiz"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: QuizConnection =
+                                    gameConnection("quiz", {
+                                        stateType: "__quiz_no_state__",
+                                        prefix: "player_answered",
+                                        envelope,
+                                        playerViewSchema: quizPlayerViewSchema,
+                                        serverMessageSchema:
+                                            quizServerMessageSchema,
+                                    });
+                                return (
+                                    <SampleQuizRoom
+                                        roomId={roomId()}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        connection={connection}
+                                    />
+                                );
+                            })()}
+                        </Show>
+                    </Match>
+                </Switch>
+                <Show
+                    when={
+                        roomPhase() === "playing" &&
+                        myGameParticipant() &&
+                        myGameStatus() !== "left_game" &&
+                        myGameStatus() !== "sitting_out"
+                    }
                 >
-                    LEAVE GAME
-                </button>
-            </Show>
+                    <button
+                        type="button"
+                        onClick={leaveGame}
+                        class="fixed left-3 bottom-3 z-50 font-bebas text-[.8rem] tracking-[.16em] bg-[#ddd5c4] text-[#c0261a] border-2 border-[#1a1a1a] px-3 pt-1.5 pb-1 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                    >
+                        LEAVE GAME
+                    </button>
+                </Show>
+            </fieldset>
             <Show when={import.meta.env.DEV}>
                 <MultiplayerDevtools pool={pool} />
             </Show>
@@ -967,15 +998,19 @@ function GameSessionState(props: {
     status: GameParticipantStatus | null;
 }) {
     const title = () =>
-        props.status === "left_game"
-            ? "YOU LEFT THIS GAME"
-            : "THIS GAME STARTED WITHOUT YOU";
+        props.status === "sitting_out"
+            ? "YOUR SEAT IS WAITING FOR THE NEXT GAME"
+            : props.status === "left_game"
+              ? "YOU LEFT THIS GAME"
+              : "THIS GAME STARTED WITHOUT YOU";
     const label = () =>
         props.status === "left_game" ? "SESSION CLOSED" : "SESSION IN PROGRESS";
     const message = () =>
-        props.status === "left_game"
-            ? "You cannot rejoin the current session. Stay in the room for the next game or leave the room entirely."
-            : "Wait for the next game to start, or leave the room if you want to join a different one.";
+        props.status === "sitting_out"
+            ? "Your reconnect time expired, so this game continued without you. You are still in the room and can play the next game."
+            : props.status === "left_game"
+              ? "You cannot rejoin the current session. Stay in the room for the next game or leave the room entirely."
+              : "Wait for the next game to start, or leave the room if you want to join a different one.";
 
     return (
         <div class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla flex items-center justify-center px-6">

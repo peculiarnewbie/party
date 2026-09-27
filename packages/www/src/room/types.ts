@@ -1,5 +1,9 @@
 import type { Accessor } from "solid-js";
-import type { GameParticipantStatus, MessageType, RoomStatePayload } from "~/game";
+import type {
+    GameParticipantStatus,
+    MessageType,
+    RoomStatePayload,
+} from "~/game";
 import type { RoomTransport } from "./room-transport";
 
 export type ConnectionStatus =
@@ -7,7 +11,8 @@ export type ConnectionStatus =
     | "connected"
     | "reconnecting"
     | "disconnected"
-    | "error";
+    | "error"
+    | "session_expired";
 
 export type DevPlayerOrigin = "browser" | "simulated";
 

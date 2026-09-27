@@ -46,6 +46,7 @@ export const rpsEngineRegistration: GameAdapterRegistration<RpsClientMessage> =
 
             const adapter: GameAdapter<RpsClientMessage> = {
                 messagePrefix: "rps:",
+                setHost: (playerId) => engine?.setHost(playerId),
                 decodeMessage: (json) =>
                     decodeGameClientMessageOrNull(
                         "rps",

@@ -40,6 +40,7 @@ interface RpsEngineConfig {
 }
 
 export interface RpsEngine extends GameEngine {
+    setHost(playerId: string): void;
     restoreGame(state: RpsState, hostId: string | null): void;
     getPersistedState(): RpsState | null;
 }
@@ -465,6 +466,9 @@ export function createRpsEngine(config: RpsEngineConfig): RpsEngine {
             );
         },
 
+        setHost(playerId) {
+            hostPlayerId = playerId;
+        },
         restoreGame(persistedState, hostId) {
             const state = structuredClone(persistedState);
             const round = getCurrentRound(state);

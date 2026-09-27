@@ -342,3 +342,70 @@ defineLiveGameSmoke({
     playerCount: 2,
     roomTestId: "poker-room",
 });
+
+test("recovers a phone connection with the same poker seat and host-controlled grace", async ({
+    page,
+    browser,
+}) => {
+    const roomId = createRoomId("poker-recovery");
+    await page.goto(`/room/${roomId}?view=controller`);
+    const host = new MultiplayerRoomPage(page);
+    await host.waitForDevtools();
+    await host.joinAsBrowser("Alice");
+    const guestContext = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+    });
+    const guest = await guestContext.newPage();
+    let allowConnection = true;
+    let cutConnection: (() => Promise<void>) | undefined;
+    let connections = 0;
+    await guest.routeWebSocket(`**/api/room/${roomId}`, (route) => {
+        connections++;
+        if (!allowConnection) {
+            void route.close();
+            return;
+        }
+        const remote = route.connectToServer();
+        cutConnection = async () => {
+            await remote.close();
+            await route.close();
+        };
+    });
+    try {
+        await guest.goto(
+            `${new URL(page.url()).origin}/room/${roomId}?view=controller`,
+        );
+        const guestRoom = new MultiplayerRoomPage(guest);
+        await guestRoom.waitForDevtools();
+        const guestId = await guestRoom.joinAsBrowser("Bob");
+        await page.getByText("Disconnected players", { exact: true }).click();
+        await page.getByLabel("Reconnect grace period").selectOption("120");
+        await host.selectGame("poker");
+        await host.startGame();
+        await expect(guest.getByTestId("poker-hero-hand")).toBeVisible();
+        allowConnection = false;
+        if (!cutConnection) throw new Error("Missing live connection");
+        await cutConnection();
+        await expect(guest.getByRole("status")).toContainText("Reconnecting");
+        const offline = page.getByTestId(`offline-${guestId}`);
+        await expect(offline).toContainText("Bob");
+        await offline
+            .getByRole("button", { name: "Wait indefinitely" })
+            .click();
+        await expect(offline).toContainText("waiting for return");
+        await offline.getByRole("button", { name: "Add 30 seconds" }).click();
+        await expect(offline).toContainText(/\d+s to reconnect/);
+        allowConnection = true;
+        await expect(offline).toHaveCount(0, { timeout: 15_000 });
+        await expect(guest.getByTestId("poker-hero-hand")).toBeVisible();
+        await expect(
+            guest.getByText("Reconnecting to your room…", { exact: true }),
+        ).toHaveCount(0);
+        await expect(
+            guest.getByText("THIS GAME STARTED WITHOUT YOU", { exact: true }),
+        ).toHaveCount(0);
+        expect(connections).toBeGreaterThan(1);
+    } finally {
+        await guestContext.close();
+    }
+});

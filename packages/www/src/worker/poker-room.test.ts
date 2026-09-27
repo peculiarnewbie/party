@@ -517,7 +517,7 @@ describe("GameRoom poker sequences", () => {
         }
     });
 
-    it("disconnects the acting player, folds the hand, and schedules the next hand", async () => {
+    it("waits for the acting player before folding on grace expiry", async () => {
         const roomId = nextRoomId();
         const { client: alice } = await connectClient(roomId);
         const { client: bob } = await connectClient(roomId);
@@ -544,6 +544,27 @@ describe("GameRoom poker sequences", () => {
             const observerId = actingPlayerId === "p1" ? "p2" : "p1";
             const observerCursor = observer.cursor();
 
+            await waitForRoomCondition(
+                roomId,
+                (instance) =>
+                    instance.state.recovery.offline.find(
+                        (entry) => entry.playerId === actingPlayerId,
+                    ) ?? null,
+            );
+            await withRoom(roomId, async (_, instance) => {
+                const state = instance.gameStateHolder.current as PokerState;
+                expect(state.street).toBe("preflop");
+                expect(
+                    state.players.find((player) => player.id === actingPlayerId)
+                        ?.status,
+                ).toBe("active");
+                instance.state.recovery.offline =
+                    instance.state.recovery.offline.map((entry) => ({
+                        ...entry,
+                        deadline: Date.now() - 1,
+                    }));
+                await instance.alarm();
+            });
             const updatedState = await waitForPokerState(
                 observer,
                 observerId,
@@ -957,6 +978,10 @@ describe("GameRoom poker sequences", () => {
                     : null;
             });
 
+            await withRoom(roomId, (_, instance) => {
+                instance.state.recovery.cleanupAt = Date.now() - 1;
+                instance.persistRoomState();
+            });
             const ranResetAlarm = await runDurableObjectAlarm(stub);
             expect(ranResetAlarm).toBe(true);
 

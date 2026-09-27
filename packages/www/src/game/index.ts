@@ -33,7 +33,11 @@ export const gameTypes = [
     "spicy",
 ] as const;
 export type GameType = (typeof gameTypes)[number];
-export type GameParticipantStatus = "active" | "disconnected" | "left_game";
+export type GameParticipantStatus =
+    | "active"
+    | "disconnected"
+    | "sitting_out"
+    | "left_game";
 
 export const roomPhaseSchema = Schema.Literals([
     "lobby",
@@ -157,6 +161,8 @@ export function isGameWireMessageType(type: string): boolean {
 export type RoomPhase = SchemaType<typeof roomPhaseSchema>;
 
 export const messageTypes = [
+    "set_disconnect_grace",
+    "manage_disconnect",
     "identify",
     "join",
     "leave",
@@ -189,11 +195,43 @@ export const playerSchema = Schema.Struct({
 export const gameParticipantSchema = Schema.Struct({
     playerId: Schema.mutableKey(playerIdSchema),
     status: Schema.mutableKey(
-        Schema.Literals(["active", "disconnected", "left_game"] as const),
+        Schema.Literals([
+            "active",
+            "disconnected",
+            "sitting_out",
+            "left_game",
+        ] as const),
     ),
 });
 
+export const disconnectGraceSchema = Schema.NullOr(
+    Schema.Literals([30, 60, 120]),
+);
+export const roomRecoverySchema = Schema.Struct({
+    graceSeconds: Schema.mutableKey(disconnectGraceSchema),
+    offline: Schema.mutableKey(
+        Schema.mutable(
+            Schema.Array(
+                Schema.Struct({
+                    playerId: playerIdSchema,
+                    since: Schema.Number,
+                    deadline: Schema.NullOr(Schema.Number),
+                    status: Schema.Literals(["waiting", "expired"]),
+                }),
+            ),
+        ),
+    ),
+    cleanupAt: Schema.mutableKey(Schema.NullOr(Schema.Number)),
+});
+export type RoomRecovery = typeof roomRecoverySchema.Type;
+export const createRoomRecovery = (): RoomRecovery => ({
+    graceSeconds: 60,
+    offline: [],
+    cleanupAt: null,
+});
+
 export const gameStateSchema = Schema.Struct({
+    recovery: Schema.mutableKey(roomRecoverySchema),
     players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
     hostId: Schema.mutableKey(nullablePlayerIdSchema),
     answers: Schema.mutableKey(Schema.Record(Schema.String, Schema.String)),
@@ -207,6 +245,7 @@ export const gameStateSchema = Schema.Struct({
 });
 
 export const roomStatePayloadSchema = Schema.Struct({
+    recovery: Schema.optionalKey(roomRecoverySchema),
     players: Schema.mutableKey(Schema.mutable(Schema.Array(playerSchema))),
     hostId: Schema.mutableKey(nullablePlayerIdSchema),
     phase: Schema.mutableKey(roomPhaseSchema),
@@ -246,6 +285,21 @@ const answerClientDataSchema = Schema.Struct({
 });
 
 export const clientMessageSchema = Schema.Union([
+    Schema.Struct({
+        playerId: playerIdSchema,
+        playerName: playerNameSchema,
+        type: Schema.Literal("set_disconnect_grace"),
+        data: Schema.Struct({ seconds: disconnectGraceSchema }),
+    }),
+    Schema.Struct({
+        playerId: playerIdSchema,
+        playerName: playerNameSchema,
+        type: Schema.Literal("manage_disconnect"),
+        data: Schema.Struct({
+            playerId: playerIdSchema,
+            action: Schema.Literals(["extend", "wait", "continue"]),
+        }),
+    }),
     Schema.Struct({
         playerId: Schema.mutableKey(playerIdSchema),
         playerName: Schema.mutableKey(playerNameSchema),
@@ -329,6 +383,10 @@ const playerAnsweredPayloadSchema = Schema.Struct({
 
 export const serverMessageSchema = Schema.Union([
     Schema.Struct({
+        type: Schema.Literal("room_ready"),
+        data: Schema.Struct({ authenticated: Schema.Boolean }),
+    }),
+    Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("room_session")),
         data: Schema.mutableKey(
             Schema.Struct({
@@ -392,6 +450,7 @@ function buildRoomStatePayload(state: GameState): RoomStatePayload {
     return {
         players: state.players,
         hostId: state.hostId,
+        recovery: state.recovery,
         phase: state.phase,
         selectedGameType: state.selectedGameType,
         activeGameType: state.activeGameType,
@@ -482,9 +541,21 @@ export const server = (state: GameState) => {
                 return { kind: "none" };
             }
 
+            if (
+                state.recovery.offline.some(
+                    (entry) => entry.status === "waiting",
+                )
+            ) {
+                return { kind: "none" };
+            }
             const validation = canStartGame(
                 state.selectedGameType,
-                state.players.length,
+                state.players.filter(
+                    (player) =>
+                        !state.recovery.offline.some(
+                            (entry) => entry.playerId === player.id,
+                        ),
+                ).length,
             );
             if (!validation.ok) {
                 return { kind: "none" };

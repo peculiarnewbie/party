@@ -50,6 +50,18 @@ export function createWebSocketRoomTransport(
 ): RoomTransport {
     let ws: WebSocket | null = null;
     let disposed = false;
+    let stopped = false;
+    let ready = false;
+    let attempts = 0;
+    let lastReceived = Date.now();
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    const clearTimers = () => {
+        clearTimeout(retry);
+        clearTimeout(watchdog);
+        clearInterval(heartbeat);
+    };
     let sessionToken = options.sessionToken ?? null;
     let messageId = 0;
     let gameSessionId: string | null = null;
@@ -113,8 +125,22 @@ export function createWebSocketRoomTransport(
         return `${protocol}//${window.location.host}/api/room/${options.roomId}`;
     };
 
+    const reconnect = (socket: WebSocket) => {
+        if (ws !== socket) return;
+        ws = null;
+        ready = false;
+        clearTimers();
+        if (!disposed && !stopped) {
+            setStatus("reconnecting");
+            const delay = Math.min(1000 * 2 ** attempts++, 10_000);
+            retry = setTimeout(connect, delay + Math.random() * 300);
+        }
+        socket.close();
+    };
+
     const connect = () => {
         if (disposed) return;
+        stopped = false;
         if (
             ws &&
             (ws.readyState === WebSocket.OPEN ||
@@ -123,11 +149,25 @@ export function createWebSocketRoomTransport(
             return;
         }
 
-        setStatus("connecting");
-        ws = new WebSocket(buildWsUrl());
+        clearTimers();
+        ready = false;
+        setStatus(attempts > 0 ? "reconnecting" : "connecting");
+        const socket = new WebSocket(buildWsUrl());
+        ws = socket;
+        watchdog = setTimeout(() => {
+            if (ws === socket && !ready) reconnect(socket);
+        }, 10_000);
 
-        ws.onopen = () => {
-            setStatus("connected");
+        socket.onopen = () => {
+            if (ws !== socket || stopped || disposed) return;
+            lastReceived = Date.now();
+            socket.send('{"type":"room_ping"}');
+            heartbeat = setInterval(() => {
+                if (ws !== socket || socket.readyState !== WebSocket.OPEN)
+                    return;
+                if (Date.now() - lastReceived > 60_000) reconnect(socket);
+                else socket.send('{"type":"room_ping"}');
+            }, 30_000);
             const identify = {
                 playerId: options.playerId,
                 playerName: options.playerName,
@@ -136,7 +176,7 @@ export function createWebSocketRoomTransport(
                 data: {},
             };
             const payload = JSON.stringify(identify);
-            ws?.send(payload);
+            socket.send(payload);
             if (import.meta.env.DEV) {
                 appendLog({
                     direction: "out",
@@ -148,7 +188,9 @@ export function createWebSocketRoomTransport(
             }
         };
 
-        ws.onmessage = (event) => {
+        socket.onmessage = (event) => {
+            if (ws !== socket || stopped || disposed) return;
+            lastReceived = Date.now();
             const raw = typeof event.data === "string" ? event.data : "";
             const message = parseMessage(raw);
             if (!message) {
@@ -165,6 +207,20 @@ export function createWebSocketRoomTransport(
                 return;
             }
 
+            if (message.type === "room_pong") return;
+            if (message.type === "room_ready") {
+                ready = true;
+                attempts = 0;
+                clearTimeout(watchdog);
+                setStatus("connected");
+            }
+            if (message.type === "room_auth_error") {
+                ready = false;
+                stopped = true;
+                clearTimers();
+                setStatus("session_expired");
+                socket.close();
+            }
             if (import.meta.env.DEV) {
                 appendLog({
                     direction: "in",
@@ -177,30 +233,40 @@ export function createWebSocketRoomTransport(
             publish(message);
         };
 
-        ws.onerror = () => {
-            setStatus("error");
+        socket.onerror = () => {
+            if (ws !== socket || stopped || disposed) return;
+            reconnect(socket);
         };
 
-        ws.onclose = () => {
-            ws = null;
-            if (!disposed) {
-                setStatus("disconnected");
-            }
-        };
+        socket.onclose = () => reconnect(socket);
     };
 
     const disconnect = () => {
-        if (!ws) {
-            setStatus("disconnected");
-            return;
-        }
-        ws.close();
+        stopped = true;
+        ready = false;
+        clearTimers();
+        const socket = ws;
         ws = null;
+        socket?.close();
         setStatus("disconnected");
     };
 
+    const wake = () => {
+        if (disposed || stopped || document.visibilityState === "hidden")
+            return;
+        if (!ws || ws.readyState === WebSocket.CLOSED) connect();
+        else if (ws.readyState === WebSocket.OPEN) {
+            if (Date.now() - lastReceived > 60_000) reconnect(ws);
+            else ws.send('{"type":"room_ping"}');
+        }
+    };
+    if (typeof window !== "undefined") {
+        window.addEventListener("online", wake);
+        document.addEventListener("visibilitychange", wake);
+    }
+
     const send = (message: unknown) => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (!ready || !ws || ws.readyState !== WebSocket.OPEN) return;
         const authenticatedMessage = withSessionToken(message);
         const payload = JSON.stringify(authenticatedMessage);
         ws.send(payload);
@@ -227,6 +293,10 @@ export function createWebSocketRoomTransport(
 
     const dispose = () => {
         disposed = true;
+        if (typeof window !== "undefined") {
+            window.removeEventListener("online", wake);
+            document.removeEventListener("visibilitychange", wake);
+        }
         subscribers.clear();
         latestByType.clear();
         disconnect();

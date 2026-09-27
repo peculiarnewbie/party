@@ -5,6 +5,7 @@ import { getBlackjackTableView, blackjackTableViewSchema } from "./table-view";
 
 it("keeps the dealer hole card and shoe private until the dealer reveals", () => {
     const state = initGame([{ id: "a", name: "Alice" }]);
+    state.cutCardPosition = 0;
     state.shoe = [
         { suit: "heart", rank: 10 },
         { suit: "club", rank: 7 },

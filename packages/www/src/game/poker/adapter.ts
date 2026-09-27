@@ -60,6 +60,12 @@ export const pokerRegistration: GameAdapterRegistration<PokerClientMessage> = {
             sendStateToPlayer: () => {},
             initGame: (players, _hostId, broadcast, sendTo) =>
                 pokerServer(ref, opts).initGame(players, broadcast, sendTo),
+            expireDisconnect: (playerId, broadcast, sendTo) =>
+                pokerServer(ref, opts).expireDisconnect(
+                    playerId,
+                    broadcast,
+                    sendTo,
+                ),
             removePlayer: (playerId, broadcast, sendTo) =>
                 pokerServer(ref, opts).disconnectPlayer(
                     playerId,

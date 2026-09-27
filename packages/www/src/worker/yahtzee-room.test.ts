@@ -993,6 +993,10 @@ describe("GameRoom yahtzee sequences", () => {
                 );
             });
 
+            await withRoom(roomId, (_, instance) => {
+                instance.state.recovery.cleanupAt = Date.now() - 1;
+                instance.persistRoomState();
+            });
             const ranResetAlarm = await runDurableObjectAlarm(stub);
             expect(ranResetAlarm).toBe(true);
 

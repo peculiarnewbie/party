@@ -136,7 +136,7 @@ describe("GameRoom player authority", () => {
         }
     });
 
-    it("prunes disconnected lobby players before the next room action", async () => {
+    it("preserves disconnected lobby players through the next room action", async () => {
         const roomId = "room-auth-lobby-prune";
         const { client: host } = await connectClient(roomId);
         const { client: guest } = await connectClient(roomId);
@@ -159,7 +159,7 @@ describe("GameRoom player authority", () => {
                 (message) =>
                     isRoomState(message) &&
                     Array.isArray(message.data.players) &&
-                    !message.data.players.some(
+                    message.data.players.some(
                         (player: { id: string }) => player.id === "guest-1",
                     ),
                 { since: cursor },
@@ -170,7 +170,12 @@ describe("GameRoom player authority", () => {
             );
             expect(state.players.map((player) => player.id)).toEqual([
                 "host-1",
+                "guest-1",
             ]);
+            expect(state.recovery.offline[0]).toMatchObject({
+                playerId: "guest-1",
+                status: "waiting",
+            });
         } finally {
             host.close();
         }

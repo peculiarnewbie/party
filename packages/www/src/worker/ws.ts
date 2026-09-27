@@ -62,6 +62,7 @@ type RoomSession = {
     id: string;
     playerId: string | null;
     authenticated: boolean;
+    lastSeen?: number;
 };
 
 function isRoomSession(value: unknown): value is RoomSession {
@@ -136,7 +137,27 @@ export class GameRoom extends DurableObject {
             if (exit._tag === "Failure") {
                 this.state = createDefaultState();
                 this.gameStateHolder.current = null;
+                return;
             }
+            if (
+                this.state.phase === "hibernated" &&
+                this.state.recovery.cleanupAt === null
+            ) {
+                this.state.recovery.cleanupAt =
+                    (await this.ctx.storage.getAlarm()) ??
+                    Date.now() + HIBERNATION_TIMEOUT_MS;
+            }
+            for (const player of this.state.players) {
+                if (!this.playerSockets.has(player.id))
+                    this.markPlayerOffline(player.id);
+            }
+            if (
+                this.state.phase === "playing" &&
+                !this.hasConnectedParticipants()
+            )
+                await this.hibernateRoom();
+            this.persistAllState();
+            await this.scheduleAlarm();
         });
     }
 
@@ -290,6 +311,7 @@ export class GameRoom extends DurableObject {
         }
         const data: DisplayState = {
             game,
+            recovery: this.state.recovery,
             phase: this.state.phase,
             selectedGameType: this.state.selectedGameType,
             activeGameType: this.state.activeGameType,
@@ -327,11 +349,15 @@ export class GameRoom extends DurableObject {
     }
 
     async scheduleHibernationCleanup() {
-        await this.ctx.storage.setAlarm(Date.now() + HIBERNATION_TIMEOUT_MS);
+        this.state.recovery.cleanupAt = Date.now() + HIBERNATION_TIMEOUT_MS;
+        this.persistRoomState();
+        await this.scheduleAlarm();
     }
 
     async clearHibernationCleanup() {
-        await this.ctx.storage.deleteAlarm();
+        this.state.recovery.cleanupAt = null;
+        this.persistRoomState();
+        await this.scheduleAlarm();
     }
 
     resetRoom() {
@@ -345,8 +371,7 @@ export class GameRoom extends DurableObject {
             return;
         }
 
-        this.clearGameTimer?.();
-        this.clearGameTimer = null;
+        this.clearCachedAdapter();
         this.state.phase = "hibernated";
         this.persistAllState();
         await this.scheduleHibernationCleanup();
@@ -422,12 +447,26 @@ export class GameRoom extends DurableObject {
         return session;
     }
 
+    private sendSocket(ws: WebSocket, message: string) {
+        try {
+            ws.send(message);
+        } catch {
+            const work = this.messageQueue.then(() =>
+                this.handleSocketDisconnect(ws),
+            );
+            this.messageQueue = work.catch(() => undefined);
+            this.ctx.waitUntil(work);
+        }
+    }
+
     broadcast(msg: string) {
-        this.sessions.forEach((_, ws) => ws.send(msg));
+        this.sessions.forEach((_, ws) => this.sendSocket(ws, msg));
     }
 
     sendTo(playerId: string, msg: string) {
-        this.playerSockets.get(playerId)?.forEach((ws) => ws.send(msg));
+        this.playerSockets
+            .get(playerId)
+            ?.forEach((ws) => this.sendSocket(ws, msg));
     }
 
     createSocketOperations() {
@@ -454,7 +493,11 @@ export class GameRoom extends DurableObject {
                 }
 
                 const participant = this.getGameParticipant(session.playerId);
-                if (!participant || participant.status === "left_game") {
+                if (
+                    !participant ||
+                    participant.status === "left_game" ||
+                    participant.status === "sitting_out"
+                ) {
                     return;
                 }
 
@@ -520,30 +563,146 @@ export class GameRoom extends DurableObject {
         };
     }
 
+    async scheduleAlarm() {
+        const deadlines =
+            this.state.phase === "hibernated"
+                ? [this.state.recovery.cleanupAt]
+                : this.state.recovery.offline
+                      .filter((entry) => entry.status === "waiting")
+                      .map((entry) => entry.deadline);
+        for (const session of this.sessions.values()) {
+            if (session.lastSeen !== undefined)
+                deadlines.push(session.lastSeen + 90_000);
+        }
+        const times = deadlines.filter((time): time is number => time !== null);
+        const next = times.length ? Math.min(...times) : null;
+        if (next === null) await this.ctx.storage.deleteAlarm();
+        else if ((await this.ctx.storage.getAlarm()) !== next)
+            await this.ctx.storage.setAlarm(next);
+    }
+
+    hasConnectedParticipants() {
+        return this.state.gameParticipants.some(
+            (participant) =>
+                participant.status !== "left_game" &&
+                participant.status !== "sitting_out" &&
+                this.playerSockets.has(participant.playerId),
+        );
+    }
+
+    transferOfflineHost() {
+        const hostOffline = this.state.recovery.offline.find(
+            (entry) => entry.playerId === this.state.hostId,
+        );
+        const hostExists = this.state.players.some(
+            (player) => player.id === this.state.hostId,
+        );
+        if (hostExists && hostOffline?.status !== "expired") return;
+        const connected = this.state.players.filter((player) =>
+            this.playerSockets.has(player.id),
+        );
+        const next =
+            connected.find(
+                (player) =>
+                    this.getGameParticipant(player.id)?.status === "active",
+            ) ?? connected[0];
+        if (!next) return;
+        this.state.hostId = next.id;
+        const snapshot = this.getCurrentGameSnapshot();
+        if (snapshot && "hostId" in snapshot.state)
+            snapshot.state.hostId = next.id;
+        const { adapterCtx, sendTo } = this.createSocketOperations();
+        const adapter = this.activeAdapter(adapterCtx);
+        adapter?.setHost?.(next.id);
+        for (const playerId of this.playerSockets.keys())
+            adapter?.sendStateToPlayer(playerId, sendTo);
+    }
+
+    expireDisconnectedPlayer(playerId: string) {
+        const entry = this.state.recovery.offline.find(
+            (entry) => entry.playerId === playerId,
+        );
+        if (
+            !entry ||
+            entry.status !== "waiting" ||
+            this.playerSockets.has(playerId)
+        )
+            return;
+        const participant = this.getGameParticipant(playerId);
+        if (
+            this.state.phase === "playing" &&
+            participant?.status === "disconnected"
+        ) {
+            const { broadcast, sendTo, getAdapter } =
+                this.createSocketOperations();
+            const adapter = getAdapter();
+            if (isPokerGameType(this.state.activeGameType)) {
+                adapter?.expireDisconnect?.(playerId, broadcast, sendTo);
+            } else {
+                adapter?.removePlayer(playerId, broadcast, sendTo);
+                participant.status = "sitting_out";
+            }
+        }
+        this.state.recovery.offline = this.state.recovery.offline.map(
+            (current) =>
+                current.playerId === playerId
+                    ? { ...current, status: "expired", deadline: null }
+                    : current,
+        );
+        this.transferOfflineHost();
+    }
+
     async alarm() {
         await this.ready;
+        const work = this.messageQueue.then(() => this.processAlarm());
+        this.messageQueue = work.catch(() => undefined);
+        await work;
+    }
 
-        if (this.state.phase !== "hibernated") {
-            return;
+    private async processAlarm() {
+        const now = Date.now();
+        for (const [socket, session] of this.sessions) {
+            if (
+                session.lastSeen !== undefined &&
+                session.lastSeen + 90_000 <= now
+            ) {
+                await this.handleSocketDisconnect(socket);
+                socket.close(4000, "Connection timed out");
+            }
         }
-
-        if (this.sessions.size > 0) {
-            await this.scheduleHibernationCleanup();
-            return;
+        if (this.state.phase === "hibernated") {
+            if (
+                this.state.recovery.cleanupAt !== null &&
+                this.state.recovery.cleanupAt <= now
+            ) {
+                if (this.playerSockets.size > 0) {
+                    await this.scheduleHibernationCleanup();
+                } else {
+                    this.resetRoom();
+                    await this.ctx.storage.deleteAll();
+                    runObservedSync(
+                        ensureSchema(this.ctx),
+                        "game-room.snapshot.persist",
+                        this.roomLogContext(),
+                    );
+                    this.persistAllState();
+                    this.broadcast(this.roomStateMessage());
+                }
+            }
+        } else {
+            for (const entry of this.state.recovery.offline) {
+                if (
+                    entry.status === "waiting" &&
+                    entry.deadline !== null &&
+                    entry.deadline <= now
+                ) {
+                    this.expireDisconnectedPlayer(entry.playerId);
+                }
+            }
+            this.persistAllState();
+            this.broadcast(this.roomStateMessage());
         }
-
-        this.resetRoom();
-        await this.ctx.storage.deleteAll();
-        runObservedSync(
-            ensureSchema(this.ctx),
-            "game-room.snapshot.persist",
-            this.roomLogContext({
-                component: "room-storage",
-                operation: "game-room.snapshot.persist",
-                result: "alarm-reset",
-            }),
-        );
-        this.broadcastDisplayState();
+        await this.scheduleAlarm();
     }
 
     roomStateMessage() {
@@ -796,6 +955,16 @@ export class GameRoom extends DurableObject {
             return;
         }
 
+        if (message === '{"type":"room_ping"}') {
+            const session = this.sessions.get(serverWs);
+            if (session) {
+                session.lastSeen = Date.now();
+                serverWs.serializeAttachment(session);
+                serverWs.send('{"type":"room_pong","data":{}}');
+                await this.scheduleAlarm();
+            }
+            return;
+        }
         const raw = message;
         if (
             new TextEncoder().encode(raw).byteLength >
@@ -934,6 +1103,12 @@ export class GameRoom extends DurableObject {
                     if (sharedMessage.type === "identify") {
                         if (!existingPlayer && storedCapabilityHash === null) {
                             sendRoomStateToSocket(serverWs);
+                            serverWs.send(
+                                encodeServerMessage({
+                                    type: "room_ready",
+                                    data: { authenticated: false },
+                                }),
+                            );
                             return;
                         }
 
@@ -1034,35 +1209,62 @@ export class GameRoom extends DurableObject {
                     }
                 }
 
-                if (this.state.phase === "lobby") {
-                    const disconnectedPlayerIds = this.state.players
-                        .filter((player) => !this.playerSockets.has(player.id))
-                        .map((player) => player.id);
-                    if (disconnectedPlayerIds.length > 0) {
-                        const disconnectedIds = new Set<string>(
-                            disconnectedPlayerIds,
+                if (
+                    isIdentityMessage &&
+                    sharedMessage &&
+                    session.authenticated
+                ) {
+                    this.state.recovery.offline =
+                        this.state.recovery.offline.filter(
+                            (entry) =>
+                                entry.playerId !== sharedMessage.playerId,
                         );
-                        this.state.players = this.state.players.filter(
-                            (player) => !disconnectedIds.has(player.id),
-                        );
-                        this.state.answers = Object.fromEntries(
-                            Object.entries(this.state.answers).filter(
-                                ([playerId]) => !disconnectedIds.has(playerId),
-                            ),
-                        );
-                        for (const playerId of disconnectedPlayerIds) {
-                            yield* deletePlayerCapability(this.ctx, playerId);
-                        }
+                    this.transferOfflineHost();
+                    this.persistAllState();
+                    broadcastRoomState();
+                    yield* Effect.promise(() => this.scheduleAlarm());
+                }
+
+                if (
+                    sharedMessage?.type === "set_disconnect_grace" ||
+                    sharedMessage?.type === "manage_disconnect"
+                ) {
+                    if (this.state.hostId !== sharedMessage.playerId) return;
+                    if (sharedMessage.type === "set_disconnect_grace") {
+                        this.state.recovery.graceSeconds =
+                            sharedMessage.data.seconds;
+                    } else {
+                        const target = sharedMessage.data.playerId;
+                        const action = sharedMessage.data.action;
                         if (
-                            this.state.hostId &&
-                            disconnectedIds.has(this.state.hostId)
+                            action === "continue" &&
+                            this.state.phase !== "hibernated"
                         ) {
-                            this.state.hostId =
-                                this.state.players[0]?.id ?? null;
+                            this.expireDisconnectedPlayer(target);
+                        } else if (action !== "continue") {
+                            this.state.recovery.offline =
+                                this.state.recovery.offline.map((entry) =>
+                                    entry.playerId === target &&
+                                    entry.status === "waiting"
+                                        ? {
+                                              ...entry,
+                                              deadline:
+                                                  action === "wait"
+                                                      ? null
+                                                      : Math.max(
+                                                            Date.now(),
+                                                            entry.deadline ??
+                                                                Date.now(),
+                                                        ) + 30_000,
+                                          }
+                                        : entry,
+                                );
                         }
-                        this.persistRoomState();
-                        broadcastRoomState();
                     }
+                    this.persistAllState();
+                    broadcastRoomState();
+                    yield* Effect.promise(() => this.scheduleAlarm());
+                    return;
                 }
 
                 if (sharedMessage?.type === "identify") {
@@ -1085,6 +1287,12 @@ export class GameRoom extends DurableObject {
                     sendRoomStateToSocket(serverWs);
 
                     if (this.state.phase === "hibernated") {
+                        serverWs.send(
+                            encodeServerMessage({
+                                type: "room_ready",
+                                data: { authenticated: true },
+                            }),
+                        );
                         yield* Effect.logInfo(
                             "game-room.message.processed",
                         ).pipe(
@@ -1106,6 +1314,12 @@ export class GameRoom extends DurableObject {
                         adapterCtx,
                     );
                     this.persistGameSnapshot();
+                    serverWs.send(
+                        encodeServerMessage({
+                            type: "room_ready",
+                            data: { authenticated: true },
+                        }),
+                    );
                     yield* Effect.logInfo("game-room.message.processed").pipe(
                         Effect.annotateLogs({
                             component: "game-room",
@@ -1127,10 +1341,24 @@ export class GameRoom extends DurableObject {
                             this.clearHibernationCleanup(),
                         );
                         this.state.phase = "playing";
+                        this.state.recovery.offline =
+                            this.state.recovery.offline.map((entry) => ({
+                                ...entry,
+                                deadline:
+                                    entry.status === "waiting" &&
+                                    entry.deadline !== null
+                                        ? Date.now() +
+                                          (this.state.recovery.graceSeconds ??
+                                              60) *
+                                              1000
+                                        : entry.deadline,
+                            }));
+                        yield* Effect.promise(() => this.scheduleAlarm());
                         activateConnectedParticipants();
                         this.persistRoomState();
                         broadcastRoomState();
                         rehydrateConnectedParticipants();
+                        getAdapter();
                         this.persistGameSnapshot();
                         yield* Effect.logInfo(
                             "game-room.message.processed",
@@ -1175,6 +1403,14 @@ export class GameRoom extends DurableObject {
                     typeof messageType === "string" &&
                     messageType.startsWith(adapter.messagePrefix)
                 ) {
+                    const participant = session.playerId
+                        ? this.getGameParticipant(session.playerId)
+                        : null;
+                    if (
+                        participant?.status === "left_game" ||
+                        participant?.status === "sitting_out"
+                    )
+                        return;
                     const parsed = yield* adapter.decodeMessage(json);
                     if (!parsed) return;
 
@@ -1207,6 +1443,16 @@ export class GameRoom extends DurableObject {
                             player.id === sharedMessage.playerId,
                     );
 
+                if (sharedMessage.type === "answer") {
+                    const participant = this.getGameParticipant(
+                        sharedMessage.playerId,
+                    );
+                    if (
+                        participant?.status === "left_game" ||
+                        participant?.status === "sitting_out"
+                    )
+                        return;
+                }
                 const processResult = yield* Effect.promise(() =>
                     server(this.state).processClientMessage(
                         sharedMessage,
@@ -1214,17 +1460,26 @@ export class GameRoom extends DurableObject {
                         {
                             createGameSession: () => ({
                                 gameSessionId: crypto.randomUUID(),
-                                participants: this.state.players.map(
-                                    (player) => ({
+                                participants: this.state.players
+                                    .filter((player) =>
+                                        this.playerSockets.has(player.id),
+                                    )
+                                    .map((player) => ({
                                         playerId: player.id,
                                         status: "active",
-                                    }),
-                                ),
+                                    })),
                             }),
                         },
                     ),
                 );
 
+                if (
+                    sharedMessage.type === "join" ||
+                    sharedMessage.type === "leave"
+                ) {
+                    this.transferOfflineHost();
+                    broadcastRoomState();
+                }
                 if (
                     sharedMessage.type === "join" &&
                     this.state.phase === "playing"
@@ -1243,6 +1498,13 @@ export class GameRoom extends DurableObject {
                     const joinAdapter = getAdapter();
                     const isReconnect = !!participant || wasSeatedPokerPlayer;
 
+                    if (
+                        participant?.status === "left_game" ||
+                        participant?.status === "sitting_out"
+                    ) {
+                        this.persistAllState();
+                        return;
+                    }
                     if (joinAdapter?.onPlayerJoin) {
                         joinAdapter.onPlayerJoin(
                             sharedMessage.playerId,
@@ -1271,10 +1533,14 @@ export class GameRoom extends DurableObject {
                     const gameAdapter = this.activeAdapter(adapterCtx);
 
                     if (gameAdapter) {
-                        const players = this.state.players.map((player) => ({
-                            id: player.id,
-                            name: player.name,
-                        }));
+                        const players = this.state.players
+                            .filter((player) =>
+                                this.playerSockets.has(player.id),
+                            )
+                            .map((player) => ({
+                                id: player.id,
+                                name: player.name,
+                            }));
                         gameAdapter.initGame(
                             players,
                             this.state.hostId,
@@ -1351,6 +1617,26 @@ export class GameRoom extends DurableObject {
                 }
 
                 if (sharedMessage.type === "leave") {
+                    const participant = this.getGameParticipant(
+                        sharedMessage.playerId,
+                    );
+                    if (
+                        participant &&
+                        participant.status !== "left_game" &&
+                        participant.status !== "sitting_out"
+                    ) {
+                        participant.status = "left_game";
+                        getAdapter()?.removePlayer(
+                            sharedMessage.playerId,
+                            broadcast,
+                            sendTo,
+                        );
+                    }
+                    this.state.recovery.offline =
+                        this.state.recovery.offline.filter(
+                            (entry) =>
+                                entry.playerId !== sharedMessage.playerId,
+                        );
                     yield* deletePlayerCapability(
                         this.ctx,
                         sharedMessage.playerId,
@@ -1359,9 +1645,13 @@ export class GameRoom extends DurableObject {
                 }
 
                 this.persistRoomState();
-                if (sharedMessage.type === "join") {
+                if (
+                    sharedMessage.type === "join" ||
+                    sharedMessage.type === "leave"
+                ) {
                     this.persistGameSnapshot();
                 }
+                yield* Effect.promise(() => this.scheduleAlarm());
                 yield* Effect.logInfo("game-room.message.processed").pipe(
                     Effect.annotateLogs({
                         component: "game-room",
@@ -1402,40 +1692,47 @@ export class GameRoom extends DurableObject {
 
     async handleSocketDisconnect(serverWs: WebSocket) {
         if (this.displaySockets.delete(serverWs)) return;
-        const { broadcast, broadcastRoomState, getAdapter, sendTo } =
-            this.createSocketOperations();
+        const { broadcastRoomState } = this.createSocketOperations();
         const session = this.removeSession(serverWs);
         const closedPlayerId = session?.playerId ?? null;
 
-        let didChange = false;
-        if (closedPlayerId) {
-            const stillConnected = this.playerSockets.has(closedPlayerId);
-            if (!stillConnected) {
-                didChange = this.setGameParticipantStatus(
-                    closedPlayerId,
-                    "disconnected",
-                );
-
-                if (didChange && isPokerGameType(this.state.activeGameType)) {
-                    const adapter = getAdapter();
-                    if (adapter) {
-                        adapter.removePlayer(closedPlayerId, broadcast, sendTo);
-                    }
-                }
-            }
-        }
-
-        if (this.sessions.size === 0 && this.state.phase === "playing") {
+        if (!closedPlayerId || this.playerSockets.has(closedPlayerId)) return;
+        this.markPlayerOffline(closedPlayerId);
+        if (
+            !this.hasConnectedParticipants() &&
+            this.state.phase === "playing"
+        ) {
             await this.hibernateRoom();
-            return;
         }
-
-        if (!didChange) {
-            return;
-        }
-
         this.persistAllState();
         broadcastRoomState();
+        await this.scheduleAlarm();
+    }
+
+    private markPlayerOffline(playerId: string) {
+        const player = this.state.players.find(
+            (entry) => entry.id === playerId,
+        );
+        if (!player) return;
+        const participant = this.getGameParticipant(playerId);
+        if (participant?.status === "active")
+            participant.status = "disconnected";
+        if (
+            !this.state.recovery.offline.some(
+                (entry) => entry.playerId === playerId,
+            )
+        ) {
+            const now = Date.now();
+            this.state.recovery.offline.push({
+                playerId: player.id,
+                since: now,
+                deadline:
+                    this.state.recovery.graceSeconds === null
+                        ? null
+                        : now + this.state.recovery.graceSeconds * 1000,
+                status: "waiting",
+            });
+        }
     }
 
     private rehydratePlayerGameState(
@@ -1450,7 +1747,10 @@ export class GameRoom extends DurableObject {
             (player) => player.id === playerId,
         );
 
-        if (participant?.status === "left_game") {
+        if (
+            participant?.status === "left_game" ||
+            participant?.status === "sitting_out"
+        ) {
             return;
         }
 

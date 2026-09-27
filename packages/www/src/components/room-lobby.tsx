@@ -5,6 +5,7 @@ import {
     getGameStartValidation,
     type GameType,
     type Player,
+    type RoomRecovery,
 } from "~/game";
 
 export const RoomLobby: Component<{
@@ -13,6 +14,7 @@ export const RoomLobby: Component<{
     name: string;
     setName: (name: string) => void;
     players: Player[];
+    recovery?: RoomRecovery;
     isHost: boolean;
     isJoined: boolean;
     selectedGameType: GameType;
@@ -24,8 +26,21 @@ export const RoomLobby: Component<{
     const [isEditing, setIsEditing] = createSignal(false);
     let inputRef: HTMLInputElement | undefined;
 
-    const startValidation = () =>
-        getGameStartValidation(props.selectedGameType, props.players.length);
+    const startValidation = () => {
+        const offline = props.recovery?.offline ?? [];
+        if (offline.some((entry) => entry.status === "waiting"))
+            return {
+                canStart: false,
+                reason: "Waiting for disconnected players. Extend their time or continue without them.",
+            };
+        return getGameStartValidation(
+            props.selectedGameType,
+            props.players.filter(
+                (player) =>
+                    !offline.some((entry) => entry.playerId === player.id),
+            ).length,
+        );
+    };
     const gameOptions = Object.entries(GAME_RULES) as [
         GameType,
         (typeof GAME_RULES)[GameType],

@@ -1,3 +1,4 @@
+import { RoomRecoveryPanel } from "~/components/room-recovery";
 import { PartyGameDisplay } from "./party-game-display";
 import { createSignal, For, Show } from "solid-js";
 import { GAME_RULES } from "~/game";
@@ -60,6 +61,12 @@ export function PartyDisplay(props: { roomId: string }) {
                     </button>
                 </div>
             </header>
+            <RoomRecoveryPanel
+                recovery={client.state()?.recovery}
+                players={client.state()?.players ?? []}
+                status="connected"
+                suspended={client.state()?.phase === "hibernated"}
+            />
             <Show when={fullscreenError()}>
                 <p role="status" class="px-6 py-2">
                     {fullscreenError()}
@@ -141,7 +148,9 @@ export function PartyDisplay(props: { roomId: string }) {
                                                         >
                                                             <PlayerAvatar
                                                                 id={player.id}
-                                                                name={player.name}
+                                                                name={
+                                                                    player.name
+                                                                }
                                                                 index={index()}
                                                                 class="w-10 h-10 text-xl"
                                                             />
@@ -169,7 +178,8 @@ export function PartyDisplay(props: { roomId: string }) {
                                                 <span class="font-bebas text-3xl tracking-wider bg-[#1a3a6e] text-[#ddd5c4] px-3 pt-1">
                                                     {
                                                         GAME_RULES[
-                                                            state().selectedGameType
+                                                            state()
+                                                                .selectedGameType
                                                         ].label
                                                     }
                                                 </span>
@@ -229,9 +239,7 @@ export function PartyDisplay(props: { roomId: string }) {
                                                     size={30}
                                                 />
                                             </div>
-                                            <div
-                                                class="relative flex flex-col items-center gap-4 border-[3px] border-[#1a1a1a] bg-[#ddd5c4] p-6 shadow-[10px_10px_0_#1a1a1a] animate-stamp-in [--stamp-rot:1.5deg]"
-                                            >
+                                            <div class="relative flex flex-col items-center gap-4 border-[3px] border-[#1a1a1a] bg-[#ddd5c4] p-6 shadow-[10px_10px_0_#1a1a1a] animate-stamp-in [--stamp-rot:1.5deg]">
                                                 <div class="border-2 border-[#1a1a1a] bg-white p-2 w-full flex justify-center">
                                                     <JoinQr url={joinUrl()} />
                                                 </div>

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+    advanceDisconnectedPlayers,
+    expireDisconnect,
     POKER_BIG_BLIND,
     POKER_SMALL_BLIND,
     endGameByHost,
@@ -502,5 +504,51 @@ describe("poker showdown, views, and end game", () => {
         expect(state.players[0].status).toBe("busted");
         expect(state.players[1].holeCards).toHaveLength(2);
         expect(state.players[2].holeCards).toHaveLength(2);
+    });
+});
+
+describe("poker disconnect grace expiry", () => {
+    it("checks for free and folds only when facing a bet", () => {
+        const state = makeState({ currentBet: 0 });
+        expireDisconnect(state, "a");
+        expect(state.players[0].status).toBe("active");
+        expect(state.players[0].hasActedThisStreet).toBe(true);
+        expect(state.actingPlayerIndex).toBe(1);
+        expect(
+            processAction(state, "b", { type: "bet", amount: 20 }).type,
+        ).toBe("ok");
+        expect(processAction(state, "c", { type: "call" }).type).toBe("ok");
+        advanceDisconnectedPlayers(state);
+        expect(state.players[0].status).toBe("folded");
+    });
+
+    it("does not advance another player's turn or fold an all-in hand", () => {
+        const state = makeState();
+        state.players[2].status = "all_in";
+        state.players[2].stack = 0;
+        state.players[2].committedThisHand = 1000;
+        expireDisconnect(state, "b");
+        expireDisconnect(state, "c");
+        expect(state.actingPlayerIndex).toBe(0);
+        expect(state.players[1].status).toBe("active");
+        expect(state.players[2].status).toBe("all_in");
+        expect(state.players[2].committedThisHand).toBe(1000);
+    });
+
+    it("preserves chips while sitting out future hands and waits for two connected players", () => {
+        const state = makeState({
+            street: "hand_over",
+            actingPlayerIndex: null,
+        });
+        state.players[0].connected = false;
+        expect(startNextHand(state, noShuffle)).toBe(true);
+        expect(state.players[0].stack).toBe(1000);
+        expect(state.players[0].holeCards).toEqual([]);
+        expect([state.smallBlindIndex, state.bigBlindIndex]).not.toContain(0);
+        state.street = "hand_over";
+        state.players[1].connected = false;
+        const before = structuredClone(state);
+        expect(startNextHand(state, noShuffle)).toBe(false);
+        expect(state).toEqual(before);
     });
 });

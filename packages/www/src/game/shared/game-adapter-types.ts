@@ -28,6 +28,12 @@ export interface GameAdapter<TMessage = unknown> {
         sendTo: SendToFn,
     ): void;
     endGame(broadcast: BroadcastFn, sendTo: SendToFn): void;
+    setHost?(playerId: string): void;
+    expireDisconnect?(
+        playerId: string,
+        broadcast: BroadcastFn,
+        sendTo: SendToFn,
+    ): void;
     resumeGame?(broadcast: BroadcastFn, sendTo: SendToFn): void;
     onPlayerJoin?(
         playerId: string,

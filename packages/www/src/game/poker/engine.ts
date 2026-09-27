@@ -50,7 +50,7 @@ function pushEvent(state: PokerState, event: PokerEventInput) {
 }
 
 function seatHasChips(player: PokerPlayer): boolean {
-    return player.stack > 0;
+    return player.stack > 0 && player.connected;
 }
 
 function isContestantStatus(status: PokerPlayerStatus): boolean {
@@ -184,7 +184,10 @@ function buildPots(players: PokerPlayer[]): PokerPot[] {
         const amount = players.reduce(
             (sum, player) =>
                 sum +
-                Math.max(0, Math.min(player.committedThisHand, level) - previous),
+                Math.max(
+                    0,
+                    Math.min(player.committedThisHand, level) - previous,
+                ),
             0,
         );
         const eligiblePlayerIds = players
@@ -649,8 +652,7 @@ function resolveShowdown(state: PokerState) {
             winnerIds: winnerIndexes.map((index) => state.players[index].id),
             handLabel: bestValue.label,
             winningCards: winnerIndexes.flatMap(
-                (index) =>
-                    handValues.get(state.players[index].id)?.cards ?? [],
+                (index) => handValues.get(state.players[index].id)?.cards ?? [],
             ),
         });
     }
@@ -842,6 +844,8 @@ export function startNextHand(
         return false;
     }
 
+    if (state.players.filter(seatHasChips).length < 2) return false;
+
     state.handNumber += 1;
     state.board = [];
     state.deck = shuffle(createDeck());
@@ -972,6 +976,37 @@ export function reconnectPlayer(
         street: state.street,
         message: `${player.name} reconnected`,
     });
+}
+
+export function advanceDisconnectedPlayers(state: PokerState) {
+    while (
+        state.actingPlayerIndex !== null &&
+        state.street !== "hand_over" &&
+        state.street !== "tournament_over"
+    ) {
+        const player = state.players[state.actingPlayerIndex];
+        if (player.connected || player.status !== "active") return;
+        const action = getLegalActions(state, player.id).legalActions.includes(
+            "check",
+        )
+            ? "check"
+            : "fold";
+        const result = processAction(state, player.id, { type: action });
+        if (result.type === "error") return;
+    }
+}
+
+export function expireDisconnect(state: PokerState, playerId: string) {
+    const player = state.players.find((entry) => entry.id === playerId);
+    if (!player) return;
+    player.connected = false;
+    pushEvent(state, {
+        type: "player_disconnected",
+        playerId,
+        street: state.street,
+        message: `${player.name}'s reconnect time expired; checking or folding automatically`,
+    });
+    advanceDisconnectedPlayers(state);
 }
 
 export function disconnectPlayer(state: PokerState, playerId: string) {

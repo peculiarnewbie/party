@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { roomPhaseSchema, gameTypeSchema } from "~/game";
+import { roomPhaseSchema, gameTypeSchema, roomRecoverySchema } from "~/game";
 import { pokerTableViewSchema } from "~/game/poker/table-view";
 
 import { flip7TableViewSchema } from "~/game/flip-7/table-view";
@@ -22,6 +22,7 @@ export const partyGameSchema = Schema.Union([
 ]);
 
 export const displayStateSchema = Schema.Struct({
+    recovery: Schema.optionalKey(roomRecoverySchema),
     phase: roomPhaseSchema,
     selectedGameType: gameTypeSchema,
     activeGameType: Schema.NullOr(gameTypeSchema),

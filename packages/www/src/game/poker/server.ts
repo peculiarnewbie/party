@@ -5,6 +5,8 @@ import {
 } from "./messages";
 import {
     addSpectator,
+    advanceDisconnectedPlayers,
+    expireDisconnect,
     disconnectPlayer,
     endGameByHost,
     initGame,
@@ -113,12 +115,37 @@ export const pokerServer = (
         const state = stateRef.current;
         if (!state) return;
         reconnectPlayer(state, player.id, player.name);
+        if (
+            state.street === "hand_over" &&
+            state.players.filter((entry) => entry.connected && entry.stack > 0)
+                .length >= 2
+        ) {
+            opts?.scheduleNextHand?.(broadcast, sendTo);
+        }
         broadcastState(
             state,
             broadcast,
             sendTo,
             opts?.visibilityMode ?? "standard",
         );
+    },
+
+    expireDisconnect(
+        playerId: string,
+        broadcast: (msg: string) => void,
+        sendTo: (playerId: string, msg: string) => void,
+    ) {
+        const state = stateRef.current;
+        if (!state) return;
+        expireDisconnect(state, playerId);
+        broadcastState(
+            state,
+            broadcast,
+            sendTo,
+            opts?.visibilityMode ?? "standard",
+        );
+        if (state.street === "hand_over")
+            opts?.scheduleNextHand?.(broadcast, sendTo);
     },
 
     disconnectPlayer(
@@ -160,6 +187,7 @@ export const pokerServer = (
             return;
         }
 
+        advanceDisconnectedPlayers(state);
         broadcastState(
             state,
             broadcast,
