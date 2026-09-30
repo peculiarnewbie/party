@@ -169,6 +169,7 @@ async function startDevServer(): Promise<ChildProcess> {
         ]),
         {
             stdio: ["ignore", "pipe", "pipe"],
+            detached: process.platform !== "win32",
             shell: pnpmNeedsShell,
             env: {
                 ...process.env,
@@ -194,11 +195,12 @@ async function startDevServer(): Promise<ChildProcess> {
 }
 
 async function stopDevServer(child: ChildProcess): Promise<void> {
-    if (child.exitCode !== null || child.signalCode !== null) return;
-
-    const exited = new Promise<void>((resolve) => {
-        child.once("exit", () => resolve());
-    });
+    const exited =
+        child.exitCode !== null || child.signalCode !== null
+            ? Promise.resolve()
+            : new Promise<void>((resolve) => {
+                  child.once("exit", () => resolve());
+              });
 
     if (process.platform === "win32" && child.pid !== undefined) {
         spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
@@ -212,20 +214,25 @@ async function stopDevServer(child: ChildProcess): Promise<void> {
         return;
     }
 
-    child.kill("SIGTERM");
+    const signalGroup = (signal: NodeJS.Signals) => {
+        if (child.pid === undefined) return;
+        try {
+            process.kill(-child.pid, signal);
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+    };
+
+    signalGroup("SIGTERM");
 
     await Promise.race([
         exited,
         new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
     ]);
 
-    if (child.exitCode === null && child.signalCode === null) {
-        child.kill("SIGKILL");
-        await Promise.race([
-            exited,
-            new Promise<void>((resolve) => setTimeout(resolve, 2_000)),
-        ]);
-    }
+    signalGroup("SIGKILL");
+    child.stdout?.destroy();
+    child.stderr?.destroy();
 }
 
 const args = process.argv.slice(2);
@@ -312,16 +319,18 @@ if (browserMode) {
         playwrightArgs.push("--update-snapshots");
     }
 
-    const result = spawnSync(pnpmExecutable, pnpmArgs(playwrightArgs), {
-        stdio: "inherit",
-        shell: pnpmNeedsShell,
-    });
-
-    if (server) {
-        await stopDevServer(server);
+    try {
+        process.exitCode = await new Promise<number>((resolve, reject) => {
+            const child = spawn(pnpmExecutable, pnpmArgs(playwrightArgs), {
+                stdio: "inherit",
+                shell: pnpmNeedsShell,
+            });
+            child.once("error", reject);
+            child.once("exit", (code) => resolve(code ?? 1));
+        });
+    } finally {
+        if (server) await stopDevServer(server);
     }
-
-    process.exitCode = result.status ?? 1;
 } else {
     const workerFiles = unique(
         selectedGames.flatMap((game) => E2E_SUITES[game].workerFiles),
