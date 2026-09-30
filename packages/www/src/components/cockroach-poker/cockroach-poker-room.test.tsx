@@ -59,7 +59,7 @@ describe("CockroachPokerRoom", () => {
         });
         const { getByText } = renderRoom({ view });
 
-        expect(getByText(/is choosing a card to offer/i)).toBeInTheDocument();
+        expect(getByText("TO OFFER")).toBeInTheDocument();
     });
 
     it("sends cockroach_poker:offer_card with selected card, target, and claim", () => {
@@ -158,19 +158,33 @@ describe("CockroachPokerRoom", () => {
                 mustAccept: false,
             }),
         });
-        const { getByRole, connection } = renderRoom({
+        const { getByRole, queryByRole, connection } = renderRoom({
             view,
             playerId: "p2",
         });
 
+        expect(queryByRole("button", { name: /^carol$/i })).toBeNull();
+        fireEvent.click(getByRole("button", { name: /peek & pass/i }));
+        flush();
+        connection.setView({
+            ...view,
+            offerChain: makeOfferChain({
+                peekedCard: "bat",
+                seenByPlayerIds: ["p1", "p2"],
+            }),
+        });
+        flush();
+        expect(queryByRole("button", { name: /^true$/i })).toBeNull();
+        expect(queryByRole("button", { name: /^false$/i })).toBeNull();
         fireEvent.click(getByRole("button", { name: /^carol$/i }));
         flush();
         fireEvent.click(getByRole("button", { name: /^spider$/i }));
         flush();
-        fireEvent.click(getByRole("button", { name: /peek & pass/i }));
+        fireEvent.click(getByRole("button", { name: /^pass card$/i }));
         flush();
 
         expect(connection.sentMessages).toEqual([
+            { type: "cockroach_poker:peek_card", data: {} },
             {
                 type: "cockroach_poker:peek_and_pass",
                 data: { targetId: "p3", newClaim: "spider" },
@@ -226,5 +240,56 @@ describe("CockroachPokerRoom", () => {
         flush();
 
         expect(getByText("RESPONDING")).toBeInTheDocument();
+    });
+
+    it("restores the forced pass controls after reconnecting with a private peek", () => {
+        const { getByTestId, getByRole, queryByRole } = renderRoom({
+            playerId: "p2",
+            view: makeView({
+                myId: "p2",
+                phase: "awaiting_response",
+                activePlayerId: "p2",
+                validPassTargets: ["p3"],
+                offerChain: makeOfferChain({
+                    peekedCard: "toad",
+                    seenByPlayerIds: ["p1", "p2"],
+                }),
+            }),
+        });
+        expect(getByTestId("cockroach-poker-private-peek")).toHaveTextContent(
+            "Toad",
+        );
+        expect(getByRole("button", { name: /^pass card$/i })).toBeDisabled();
+        expect(queryByRole("button", { name: /^true$/i })).toBeNull();
+    });
+
+    it("requires the final receiver to call and surfaces rejected commands", () => {
+        const { queryByRole, getByRole, connection } = renderRoom({
+            view: makeView({
+                phase: "awaiting_response",
+                offerChain: makeOfferChain({ mustAccept: true }),
+            }),
+        });
+        expect(queryByRole("button", { name: /peek & pass/i })).toBeNull();
+        connection.emit({
+            type: "cockroach_poker:error",
+            data: { message: "Not your turn" },
+        });
+        flush();
+        expect(getByRole("alert")).toHaveTextContent("Not your turn");
+    });
+
+    it("clears old choices when a different turn arrives", () => {
+        const { getByRole, getAllByRole, connection } = renderRoom();
+        fireEvent.click(getAllByRole("button", { name: /^bat$/i })[0]!);
+        fireEvent.click(getByRole("button", { name: /^bob$/i }));
+        fireEvent.click(getByRole("button", { name: /^rat$/i }));
+        flush();
+        expect(getByRole("button", { name: /offer card/i })).toBeEnabled();
+        connection.setView(makeView({ activePlayerId: "p2", isMyTurn: false }));
+        flush();
+        connection.setView(makeView());
+        flush();
+        expect(getByRole("button", { name: /offer card/i })).toBeDisabled();
     });
 });

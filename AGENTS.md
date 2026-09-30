@@ -27,6 +27,7 @@ This is a casual multiplayer party game app built with Solid 2 and TanStack Rout
 - 6 nimmt! displays rows, scores, readiness, and revealed plays; hands and locked choices stay private until everyone has selected
 - Herd Mentality displays questions, readiness, original answers within reversible combined groups, provisional scores, and the Pink Cow; answers stay on phones until revealed, and scores finalize only when the host advances the round
 - Fun Facts displays questions, readiness, ordered arrows, public number reveals, and team scores; numbers stay private until the round reveal, and phones provide answer and placement controls
+- Cockroach Poker displays claims, turns, face-up collections, and call results; hands and private peeks stay on phones, and peeking commits the receiver to passing
 - Cheese Thief keeps roles, dice, clues, and vote choices on phones until the host reveals; the Party display shows simple phase prompts, then the outcome, roles, votes, and scores at the end
 - Other games currently show room information on the display; add game-specific public views and phone controls when extending Party mode
 - Card tables (poker, blackjack) share `src/components/casino`: `TableCard` deal/flip animations, chip stacks, animated numbers, confetti, and synthesized sound effects with a mute toggle

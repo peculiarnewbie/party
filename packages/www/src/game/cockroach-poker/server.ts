@@ -85,6 +85,11 @@ export const cockroachPokerServer = (stateRef: {
                 type: "call_false" as const,
                 playerId: message.playerId,
             };
+        } else if (message.type === "cockroach_poker:peek_card") {
+            action = {
+                type: "peek_card" as const,
+                playerId: message.playerId,
+            };
         } else if (message.type === "cockroach_poker:peek_and_pass") {
             action = {
                 type: "peek_and_pass" as const,

@@ -28,6 +28,7 @@ export type CockroachPokerAction =
       }
     | { type: "call_true"; playerId: string }
     | { type: "call_false"; playerId: string }
+    | { type: "peek_card"; playerId: string }
     | {
           type: "peek_and_pass";
           playerId: string;

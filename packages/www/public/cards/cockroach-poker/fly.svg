@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <title>Fly</title>
+  <g stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M45 65 26 59 14 67M44 77 26 80 20 93M47 90 36 100 37 109M75 65 94 59 106 67M76 77 94 80 100 93M73 90 84 100 83 109"/>
+    <ellipse cx="60" cy="77" rx="19" ry="27" fill="#0f766e"/>
+    <path d="M46 76Q60 84 74 76M45 87Q60 95 75 87"/>
+    <path d="M52 58Q20 11 12 33Q9 51 50 72ZM68 58Q100 11 108 33Q111 51 70 72Z" fill="#f7f2de"/>
+    <path d="m22 36 27 29m49-29L71 65"/>
+    <path d="m51 24-6-12m24 12 6-12"/>
+    <circle cx="60" cy="39" r="20" fill="#0f766e"/>
+    <ellipse cx="47" cy="36" rx="12" ry="15" fill="#f5c542"/><ellipse cx="73" cy="36" rx="12" ry="15" fill="#f5c542"/>
+    <path d="m55 54 5 6 5-6"/>
+  </g>
+  <circle cx="50" cy="37" r="3" fill="#1a1a1a"/><circle cx="70" cy="37" r="3" fill="#1a1a1a"/>
+</svg>

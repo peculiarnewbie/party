@@ -38,14 +38,14 @@ describe("initGame", () => {
     it("handles remainder cards for 3 players", () => {
         const players = testPlayers.slice(0, 3);
         const state = initGame(players, noShuffle);
-        for (const player of state.players) {
-            expect(player.hand).toHaveLength(21);
-        }
+        expect(state.players.map((player) => player.hand.length)).toEqual([
+            22, 21, 21,
+        ]);
         const totalCards = state.players.reduce(
             (sum, p) => sum + p.hand.length,
             0,
         );
-        expect(totalCards).toBe(63);
+        expect(totalCards).toBe(64);
     });
 
     it("sets initial phase and active player", () => {
@@ -431,11 +431,7 @@ describe("multi-step offer chain", () => {
             newClaim: "fly",
         });
 
-        expect(state.offerChain!.seenByPlayerIds).toEqual([
-            "p1",
-            "p2",
-            "p3",
-        ]);
+        expect(state.offerChain!.seenByPlayerIds).toEqual(["p1", "p2", "p3"]);
         expect(state.activePlayerId).toBe("p4");
 
         const result = processAction(state, {

@@ -829,6 +829,7 @@ function PlayerRoom() {
                                     });
                                 return (
                                     <CockroachPokerRoom
+                                        initialLayout={search().view === "controller" ? "controller" : "table"}
                                         roomId={roomId()}
                                         playerId={playerId()}
                                         isHost={isHost()}
@@ -1004,13 +1005,15 @@ function PlayerRoom() {
                         myGameStatus() !== "sitting_out"
                     }
                 >
-                    <button
-                        type="button"
-                        onClick={leaveGame}
-                        class="fixed left-3 bottom-3 z-50 font-bebas text-[.8rem] tracking-[.16em] bg-[#ddd5c4] text-[#c0261a] border-2 border-[#1a1a1a] px-3 pt-1.5 pb-1 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
-                    >
-                        LEAVE GAME
-                    </button>
+                    <div class={activeGameType() === "cockroach_poker" ? "paper min-h-[52px] px-3 pb-3" : ""}>
+                        <button
+                            type="button"
+                            onClick={leaveGame}
+                            class={`${activeGameType() === "cockroach_poker" ? "" : "fixed left-3 bottom-3 z-50"} font-bebas text-[.8rem] tracking-[.16em] bg-paper text-tomato border-2 border-ink px-3 pt-1.5 pb-1 shadow-ink-sm transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-ink`}
+                        >
+                            LEAVE GAME
+                        </button>
+                    </div>
                 </Show>
             </fieldset>
             <Show when={import.meta.env.DEV}>

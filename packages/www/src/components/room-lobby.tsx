@@ -111,6 +111,7 @@ export const RoomLobby: Component<{
                                 "herd",
                                 "fun_facts",
                                 "cheese_thief",
+                                "cockroach_poker",
                             ].includes(props.selectedGameType)
                         }
                     >
