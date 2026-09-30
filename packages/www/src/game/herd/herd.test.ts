@@ -48,13 +48,6 @@ function mergeGroups(state: HerdState, groupId1: string, groupId2: string) {
     });
 }
 
-function confirmScoring(state: HerdState) {
-    return processAction(state, {
-        type: "confirm_scoring",
-        hostId: state.hostId,
-    });
-}
-
 function nextRound(state: HerdState) {
     return processAction(state, {
         type: "next_round",
@@ -76,8 +69,8 @@ describe("buildAnswerGroups", () => {
         const { groups } = buildAnswerGroups(answers, 0);
         expect(groups).toHaveLength(2);
 
-        const dogGroup = groups.find((g) =>
-            g.canonicalAnswer.toLowerCase() === "dog",
+        const dogGroup = groups.find(
+            (g) => g.canonicalAnswer.toLowerCase() === "dog",
         );
         expect(dogGroup).toBeDefined();
         expect(dogGroup!.playerIds).toHaveLength(2);
@@ -203,9 +196,9 @@ describe("game flow", () => {
         expect(state.phase).toBe("reveal");
         expect(state.answerGroups).toHaveLength(2);
 
-        const confirmed = confirmScoring(state);
-        expect(confirmed.type).toBe("scoring_confirmed");
-        expect(state.phase).toBe("scored");
+        const confirmed = nextRound(state);
+        expect(confirmed.type).toBe("round_advanced");
+        expect(state.phase).toBe("waiting");
 
         const blueGroup = state.answerGroups.find(
             (g) => g.canonicalAnswer.toLowerCase() === "blue",
@@ -218,7 +211,7 @@ describe("game flow", () => {
         expect(state.players.find((p) => p.id === "p3")!.score).toBe(0);
 
         const nr = nextRound(state);
-        expect(nr.type).toBe("round_advanced");
+        expect(nr.type).toBe("error");
         expect(state.phase).toBe("waiting");
     });
 
@@ -273,9 +266,7 @@ describe("merge groups", () => {
         expect(result.type).toBe("groups_merged");
         expect(state.answerGroups).toHaveLength(2);
 
-        const merged = state.answerGroups.find(
-            (g) => g.id === dogGroup!.id,
-        );
+        const merged = state.answerGroups.find((g) => g.id === dogGroup!.id);
         expect(merged!.playerIds).toHaveLength(3);
         expect(merged!.playerIds).toContain("p1");
         expect(merged!.playerIds).toContain("p2");
@@ -314,7 +305,7 @@ describe("scoring", () => {
         submitAnswer(state, "p3", "B");
         submitAnswer(state, "p4", "B");
         closeAnswers(state);
-        confirmScoring(state);
+        nextRound(state);
 
         expect(state.lastRoundResult!.majorityGroupId).toBeNull();
         expect(state.lastRoundResult!.scoringPlayerIds).toHaveLength(0);
@@ -330,7 +321,7 @@ describe("scoring", () => {
         submitAnswer(state, "p2", "same");
         submitAnswer(state, "p3", "SAME");
         closeAnswers(state);
-        confirmScoring(state);
+        nextRound(state);
 
         expect(state.lastRoundResult!.majorityGroupId).toBeTruthy();
         expect(state.lastRoundResult!.scoringPlayerIds).toHaveLength(3);
@@ -346,7 +337,7 @@ describe("scoring", () => {
         submitAnswer(state, "p2", "X");
         submitAnswer(state, "p3", "X");
         closeAnswers(state);
-        confirmScoring(state);
+        nextRound(state);
 
         expect(state.players.find((p) => p.id === "p4")!.score).toBe(0);
         expect(state.lastRoundResult!.scoringPlayerIds).not.toContain("p4");
@@ -364,12 +355,10 @@ describe("pink cow", () => {
         submitAnswer(state, "p3", "A");
         submitAnswer(state, "p4", "B");
         closeAnswers(state);
-        confirmScoring(state);
+        nextRound(state);
 
         expect(state.pinkCowHolder).toBe("p4");
-        expect(state.players.find((p) => p.id === "p4")!.hasPinkCow).toBe(
-            true,
-        );
+        expect(state.players.find((p) => p.id === "p4")!.hasPinkCow).toBe(true);
     });
 
     it("does not assign cow when multiple outliers", () => {
@@ -383,7 +372,7 @@ describe("pink cow", () => {
         submitAnswer(state, "p4", "B");
         submitAnswer(state, "p5", "C");
         closeAnswers(state);
-        confirmScoring(state);
+        nextRound(state);
 
         expect(state.lastRoundResult!.pinkCowPlayerId).toBeNull();
     });
@@ -399,22 +388,19 @@ describe("pink cow", () => {
         submitAnswer(state, "p3", "A");
         submitAnswer(state, "p4", "B");
         closeAnswers(state);
-        confirmScoring(state);
+        nextRound(state);
         expect(state.pinkCowHolder).toBe("p4");
 
-        nextRound(state);
         startRound(state, "Round 2");
         submitAnswer(state, "p1", "X");
         submitAnswer(state, "p2", "Y");
         submitAnswer(state, "p3", "Y");
         submitAnswer(state, "p4", "Y");
         closeAnswers(state);
-        confirmScoring(state);
+        nextRound(state);
 
         expect(state.pinkCowHolder).toBe("p1");
-        expect(state.players.find((p) => p.id === "p1")!.hasPinkCow).toBe(
-            true,
-        );
+        expect(state.players.find((p) => p.id === "p1")!.hasPinkCow).toBe(true);
         expect(state.players.find((p) => p.id === "p4")!.hasPinkCow).toBe(
             false,
         );
@@ -431,16 +417,15 @@ describe("pink cow", () => {
         submitAnswer(state, "p2", "A");
         submitAnswer(state, "p3", "B");
         closeAnswers(state);
-        confirmScoring(state);
+        nextRound(state);
         expect(state.pinkCowHolder).toBe("p3");
 
-        nextRound(state);
         startRound(state, "R2");
         submitAnswer(state, "p1", "A");
         submitAnswer(state, "p2", "A");
         submitAnswer(state, "p3", "B");
         closeAnswers(state);
-        const result = confirmScoring(state);
+        const result = nextRound(state);
 
         expect(state.players.find((p) => p.id === "p1")!.score).toBe(2);
         expect(state.players.find((p) => p.id === "p2")!.score).toBe(2);
@@ -460,7 +445,7 @@ describe("pink cow", () => {
         submitAnswer(state, "p3", "A");
         submitAnswer(state, "p4", "B");
         closeAnswers(state);
-        confirmScoring(state);
+        nextRound(state);
 
         expect(state.pinkCowHolder).toBeNull();
         expect(state.players.find((p) => p.id === "p4")!.hasPinkCow).toBe(
@@ -479,7 +464,7 @@ describe("win condition", () => {
         submitAnswer(state, "p3", "B");
         closeAnswers(state);
 
-        const result = confirmScoring(state);
+        const result = nextRound(state);
         expect(result.type).toBe("game_over");
         expect(state.phase).toBe("game_over");
         expect(state.winnerId).toBeTruthy();

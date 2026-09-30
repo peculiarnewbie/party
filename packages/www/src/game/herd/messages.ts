@@ -55,6 +55,17 @@ export const herdClientMessageSchema = Schema.Union([
         ),
     }),
     Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("herd:separate_answer")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(
+            Schema.Struct({
+                groupId: Schema.mutableKey(Schema.String),
+                answer: Schema.mutableKey(shortTextSchema),
+            }),
+        ),
+    }),
+    Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("herd:confirm_scoring")),
         playerId: Schema.mutableKey(Schema.String),
         playerName: Schema.mutableKey(Schema.String),

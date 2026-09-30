@@ -128,7 +128,7 @@ describe("HerdRoom", () => {
         ]);
     });
 
-    it("sends herd:confirm_scoring when host clicks CONFIRM SCORING in reveal", () => {
+    it("finalizes the discussion only when the host moves to the next round", () => {
         const view = makeView({
             phase: "reveal",
             isHost: true,
@@ -145,12 +145,12 @@ describe("HerdRoom", () => {
         });
         const { getByRole, connection } = renderRoom({ view, isHost: true });
 
-        fireEvent.click(getByRole("button", { name: /confirm scoring/i }));
+        fireEvent.click(getByRole("button", { name: /next round/i }));
         flush();
 
         expect(connection.sentMessages).toEqual([
             {
-                type: "herd:confirm_scoring",
+                type: "herd:next_round",
                 data: {},
             },
         ]);
@@ -239,6 +239,81 @@ it("shows a controller guest the shared-screen reveal prompt without host action
         view: makeView({ phase: "reveal", isHost: false }),
         initialLayout: "controller",
     });
-    expect(getByText("The answers are on the big screen")).toBeInTheDocument();
+    expect(getByText("Discuss the answers")).toBeInTheDocument();
     expect(queryByRole("button", { name: /confirm scoring/i })).toBeNull();
+});
+
+it("combines on the second tap, preserves both answer labels, and can separate them during discussion", () => {
+    const groups = [
+        makeAnswerGroup({ id: "g1", canonicalAnswer: "secret dog", count: 15 }),
+        makeAnswerGroup({ id: "g2", canonicalAnswer: "dog spy", count: 14 }),
+    ];
+    const view = makeView({
+        phase: "reveal",
+        isHost: true,
+        answerGroups: groups,
+    });
+    const { getByRole, getByText, queryByRole, connection } = renderRoom({
+        view,
+        isHost: true,
+        initialLayout: "controller",
+    });
+    fireEvent.click(getByRole("button", { name: "secret dog: 15 answers" }));
+    flush();
+    expect(connection.sentMessages).toHaveLength(0);
+    fireEvent.click(getByRole("button", { name: "dog spy: 14 answers" }));
+    flush();
+    expect(connection.sentMessages).toEqual([
+        { type: "herd:merge_groups", data: { groupId1: "g1", groupId2: "g2" } },
+    ]);
+    connection.setView({
+        ...view,
+        answerGroups: [
+            {
+                ...groups[0],
+                count: 29,
+                answers: [...groups[0].answers, ...groups[1].answers],
+            },
+        ],
+    });
+    flush();
+    expect(getByText("secret dog")).toBeInTheDocument();
+    expect(getByText("dog spy")).toBeInTheDocument();
+    expect(getByText("Combined · 29 answers")).toBeInTheDocument();
+    expect(
+        queryByRole("button", { name: /merge selected|confirm scoring/i }),
+    ).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Separate dog spy" }));
+    flush();
+    expect(connection.sentMessages.at(-1)).toEqual({
+        type: "herd:separate_answer",
+        data: { groupId: "g1", answer: "dog spy" },
+    });
+});
+
+it("keeps the selected group while searching a large answer list", () => {
+    const groups = Array.from({ length: 39 }, (_, index) =>
+        makeAnswerGroup({
+            id: `g${index}`,
+            canonicalAnswer: `Agent ${index + 1}`,
+        }),
+    );
+    const { getByRole, connection } = renderRoom({
+        view: makeView({ phase: "reveal", isHost: true, answerGroups: groups }),
+        isHost: true,
+    });
+    fireEvent.click(getByRole("button", { name: "Agent 1: 1 answers" }));
+    flush();
+    fireEvent.input(getByRole("searchbox", { name: "Search answers" }), {
+        target: { value: "Agent 39" },
+    });
+    flush();
+    fireEvent.click(getByRole("button", { name: "Agent 39: 1 answers" }));
+    flush();
+    expect(connection.sentMessages).toEqual([
+        {
+            type: "herd:merge_groups",
+            data: { groupId1: "g0", groupId2: "g38" },
+        },
+    ]);
 });

@@ -25,7 +25,10 @@ export function buildAnswerGroups(
     answers: Record<string, string>,
     startGroupId: number,
 ): { groups: AnswerGroup[]; nextGroupId: number } {
-    const grouped = new Map<string, { playerIds: string[]; originals: Record<string, string> }>();
+    const grouped = new Map<
+        string,
+        { playerIds: string[]; originals: Record<string, string> }
+    >();
 
     for (const [playerId, answer] of Object.entries(answers)) {
         const normalized = normalizeAnswer(answer);
@@ -101,10 +104,16 @@ export function processAction(
 ): HerdResult {
     if (action.type === "toggle_pink_cow") {
         if (action.hostId !== state.hostId) {
-            return { type: "error", message: "Only the host can toggle pink cow" };
+            return {
+                type: "error",
+                message: "Only the host can toggle pink cow",
+            };
         }
         if (state.phase !== "waiting") {
-            return { type: "error", message: "Can only toggle pink cow between rounds" };
+            return {
+                type: "error",
+                message: "Can only toggle pink cow between rounds",
+            };
         }
         state.pinkCowEnabled = action.enabled;
         if (!action.enabled) {
@@ -118,7 +127,10 @@ export function processAction(
 
     if (action.type === "next_question") {
         if (action.hostId !== state.hostId) {
-            return { type: "error", message: "Only the host can advance questions" };
+            return {
+                type: "error",
+                message: "Only the host can advance questions",
+            };
         }
         if (state.phase !== "waiting") {
             return { type: "error", message: "Not in waiting phase" };
@@ -181,7 +193,10 @@ export function processAction(
 
     if (action.type === "close_answers") {
         if (action.hostId !== state.hostId) {
-            return { type: "error", message: "Only the host can close answers" };
+            return {
+                type: "error",
+                message: "Only the host can close answers",
+            };
         }
         if (state.phase !== "answering") {
             return { type: "error", message: "Not in answering phase" };
@@ -206,18 +221,17 @@ export function processAction(
             return { type: "error", message: "Not in reveal phase" };
         }
 
-        const group1 = state.answerGroups.find(
-            (g) => g.id === action.groupId1,
-        );
-        const group2 = state.answerGroups.find(
-            (g) => g.id === action.groupId2,
-        );
+        const group1 = state.answerGroups.find((g) => g.id === action.groupId1);
+        const group2 = state.answerGroups.find((g) => g.id === action.groupId2);
 
         if (!group1 || !group2) {
             return { type: "error", message: "Group not found" };
         }
         if (group1.id === group2.id) {
-            return { type: "error", message: "Cannot merge a group with itself" };
+            return {
+                type: "error",
+                message: "Cannot merge a group with itself",
+            };
         }
 
         group1.playerIds.push(...group2.playerIds);
@@ -236,9 +250,78 @@ export function processAction(
         return { type: "groups_merged", groups: state.answerGroups };
     }
 
+    if (action.type === "separate_answer") {
+        if (action.hostId !== state.hostId) {
+            return {
+                type: "error",
+                message: "Only the host can separate answers",
+            };
+        }
+        if (state.phase !== "reveal") {
+            return {
+                type: "error",
+                message: "Answers can only be separated during discussion",
+            };
+        }
+        const group = state.answerGroups.find((g) => g.id === action.groupId);
+        if (!group) return { type: "error", message: "Group not found" };
+        const answer = normalizeAnswer(action.answer);
+        const separatedIds = group.playerIds.filter(
+            (id) => normalizeAnswer(group.originalAnswers[id] ?? "") === answer,
+        );
+        if (
+            separatedIds.length === 0 ||
+            separatedIds.length === group.playerIds.length
+        ) {
+            return {
+                type: "error",
+                message: "Choose an answer from a combined group",
+            };
+        }
+        const separated = new Set(separatedIds);
+        const originals = { ...group.originalAnswers };
+        group.playerIds = group.playerIds.filter((id) => !separated.has(id));
+        group.originalAnswers = Object.fromEntries(
+            group.playerIds.map((id) => [id, originals[id]]),
+        );
+        group.canonicalAnswer = group.originalAnswers[group.playerIds[0]];
+        state.answerGroups.push({
+            id: `g${state.nextGroupId++}`,
+            canonicalAnswer: originals[separatedIds[0]],
+            playerIds: separatedIds,
+            originalAnswers: Object.fromEntries(
+                separatedIds.map((id) => [id, originals[id]]),
+            ),
+        });
+        state.answerGroups.sort(
+            (a, b) => b.playerIds.length - a.playerIds.length,
+        );
+        return { type: "answer_separated", groups: state.answerGroups };
+    }
+
     if (action.type === "confirm_scoring") {
         if (action.hostId !== state.hostId) {
-            return { type: "error", message: "Only the host can confirm scoring" };
+            return {
+                type: "error",
+                message: "Only the host can confirm scoring",
+            };
+        }
+        return {
+            type: "error",
+            message: "Scores are finalized when moving to the next round",
+        };
+    }
+
+    if (action.type === "next_round") {
+        if (action.hostId !== state.hostId) {
+            return {
+                type: "error",
+                message: "Only the host can advance rounds",
+            };
+        }
+        if (state.phase === "scored") {
+            state.phase = "waiting";
+            return { type: "round_advanced" };
         }
         if (state.phase !== "reveal") {
             return { type: "error", message: "Not in reveal phase" };
@@ -278,18 +361,6 @@ export function processAction(
             return { type: "game_over", winnerId: winner.id };
         }
 
-        state.phase = "scored";
-        return { type: "scoring_confirmed", result };
-    }
-
-    if (action.type === "next_round") {
-        if (action.hostId !== state.hostId) {
-            return { type: "error", message: "Only the host can advance rounds" };
-        }
-        if (state.phase !== "scored") {
-            return { type: "error", message: "Not in scored phase" };
-        }
-
         state.phase = "waiting";
         return { type: "round_advanced" };
     }
@@ -297,8 +368,12 @@ export function processAction(
     return { type: "error", message: "Unknown action" };
 }
 
-function calculateScoring(state: HerdState): RoundResult {
-    const groups = state.answerGroups;
+export function calculateScoring(state: HerdState): RoundResult {
+    const groups = state.answerGroups.map((group) => ({
+        ...group,
+        playerIds: [...group.playerIds],
+        originalAnswers: { ...group.originalAnswers },
+    }));
     const question = state.currentQuestion ?? "";
 
     if (groups.length === 0) {
@@ -368,10 +443,12 @@ export function removePlayer(
         const { [playerId]: _removedOriginal, ...remainingOriginals } =
             group.originalAnswers;
         group.originalAnswers = remainingOriginals;
+        if (group.playerIds.length > 0)
+            group.canonicalAnswer = group.originalAnswers[group.playerIds[0]];
     }
-    state.answerGroups = state.answerGroups.filter(
-        (g) => g.playerIds.length > 0,
-    );
+    state.answerGroups = state.answerGroups
+        .filter((g) => g.playerIds.length > 0)
+        .sort((a, b) => b.playerIds.length - a.playerIds.length);
 
     if (state.players.length <= 1) {
         state.phase = "game_over";
@@ -392,7 +469,8 @@ export function endGameByHost(state: HerdState): HerdResult {
         .filter((p) => !state.pinkCowEnabled || !p.hasPinkCow)
         .sort((a, b) => b.score - a.score);
 
-    const winner = eligible[0] ?? state.players.sort((a, b) => b.score - a.score)[0];
+    const winner =
+        eligible[0] ?? state.players.sort((a, b) => b.score - a.score)[0];
 
     state.winnerId = winner?.id ?? null;
     return { type: "game_over", winnerId: state.winnerId ?? "" };

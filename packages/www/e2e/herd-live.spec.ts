@@ -83,12 +83,12 @@ test("herd groups private answers, scores the majority, and assigns the pink cow
     ]);
 
     await room.sendGameMessage({
-        type: "herd:confirm_scoring",
+        type: "herd:next_round",
         data: {},
     } satisfies PlayerGameMessage<HerdClientMessage>);
     await expect
         .poll(async () => (await room.gameView<HerdPlayerView>()).phase)
-        .toBe("scored");
+        .toBe("waiting");
     const scored = await room.gameView<HerdPlayerView>();
     expect(scored.lastRoundResult).toMatchObject({
         majorityCount: 2,
@@ -101,12 +101,4 @@ test("herd groups private answers, scores the majority, and assigns the pink cow
             .filter((player) => answererIds.slice(0, 2).includes(player.id))
             .every((player) => player.score === 1),
     ).toBe(true);
-
-    await room.sendGameMessage({
-        type: "herd:next_round",
-        data: {},
-    } satisfies PlayerGameMessage<HerdClientMessage>);
-    await expect
-        .poll(async () => (await room.gameView<HerdPlayerView>()).phase)
-        .toBe("waiting");
 });

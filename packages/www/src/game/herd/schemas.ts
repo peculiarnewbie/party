@@ -40,21 +40,29 @@ const roundResultSchema = Schema.Struct({
     groups: Schema.mutableKey(Schema.mutable(Schema.Array(answerGroupSchema))),
     majorityGroupId: Schema.mutableKey(Schema.NullOr(Schema.String)),
     majorityCount: Schema.mutableKey(Schema.Number),
-    scoringPlayerIds: Schema.mutableKey(Schema.mutable(Schema.Array(Schema.String))),
+    scoringPlayerIds: Schema.mutableKey(
+        Schema.mutable(Schema.Array(Schema.String)),
+    ),
     pinkCowPlayerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
     pinkCowPreviousHolder: Schema.mutableKey(Schema.NullOr(Schema.String)),
 });
 
 export const herdStateSchema = Schema.Struct({
-    players: Schema.mutableKey(Schema.mutable(Schema.Array(herdPlayerStateSchema))),
+    players: Schema.mutableKey(
+        Schema.mutable(Schema.Array(herdPlayerStateSchema)),
+    ),
     hostId: Schema.mutableKey(Schema.String),
     phase: Schema.mutableKey(herdPhaseSchema),
     roundNumber: Schema.mutableKey(Schema.Number),
     currentQuestion: Schema.mutableKey(Schema.NullOr(Schema.String)),
     questionIndex: Schema.mutableKey(Schema.Number),
-    shuffledQuestions: Schema.mutableKey(Schema.mutable(Schema.Array(Schema.String))),
+    shuffledQuestions: Schema.mutableKey(
+        Schema.mutable(Schema.Array(Schema.String)),
+    ),
     answers: Schema.mutableKey(stringAnswersSchema),
-    answerGroups: Schema.mutableKey(Schema.mutable(Schema.Array(answerGroupSchema))),
+    answerGroups: Schema.mutableKey(
+        Schema.mutable(Schema.Array(answerGroupSchema)),
+    ),
     nextGroupId: Schema.mutableKey(Schema.Number),
     lastRoundResult: Schema.mutableKey(Schema.NullOr(roundResultSchema)),
     pinkCowEnabled: Schema.mutableKey(Schema.Boolean),
@@ -76,6 +84,16 @@ const answerGroupViewSchema = Schema.Struct({
     count: Schema.mutableKey(Schema.Number),
     playerNames: Schema.mutableKey(Schema.mutable(Schema.Array(Schema.String))),
     playerIds: Schema.mutableKey(Schema.mutable(Schema.Array(Schema.String))),
+    answers: Schema.mutableKey(
+        Schema.mutable(
+            Schema.Array(
+                Schema.Struct({
+                    answer: Schema.mutableKey(Schema.String),
+                    count: Schema.mutableKey(Schema.Number),
+                }),
+            ),
+        ),
+    ),
 });
 
 export const herdPlayerViewSchema = Schema.Struct({
@@ -84,7 +102,9 @@ export const herdPlayerViewSchema = Schema.Struct({
     phase: Schema.mutableKey(herdPhaseSchema),
     roundNumber: Schema.mutableKey(Schema.Number),
     currentQuestion: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    players: Schema.mutableKey(Schema.mutable(Schema.Array(herdPlayerInfoSchema))),
+    players: Schema.mutableKey(
+        Schema.mutable(Schema.Array(herdPlayerInfoSchema)),
+    ),
     pinkCowEnabled: Schema.mutableKey(Schema.Boolean),
     pinkCowHolderId: Schema.mutableKey(Schema.NullOr(Schema.String)),
     winnerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
@@ -93,9 +113,14 @@ export const herdPlayerViewSchema = Schema.Struct({
     hasAnswered: Schema.mutableKey(Schema.Boolean),
     answeredCount: Schema.mutableKey(Schema.Number),
     totalPlayers: Schema.mutableKey(Schema.Number),
-    answerGroups: Schema.mutableKey(Schema.mutable(Schema.Array(answerGroupViewSchema))),
+    answerGroups: Schema.mutableKey(
+        Schema.mutable(Schema.Array(answerGroupViewSchema)),
+    ),
     lastRoundResult: Schema.mutableKey(Schema.NullOr(roundResultSchema)),
-    leaderboard: Schema.mutableKey(Schema.mutable(Schema.Array(herdPlayerInfoSchema))),
+    previewRoundResult: Schema.mutableKey(Schema.NullOr(roundResultSchema)),
+    leaderboard: Schema.mutableKey(
+        Schema.mutable(Schema.Array(herdPlayerInfoSchema)),
+    ),
 });
 
 export const herdResultSchema = Schema.Union([
@@ -120,11 +145,21 @@ export const herdResultSchema = Schema.Union([
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("answers_closed")),
-        groups: Schema.mutableKey(Schema.mutable(Schema.Array(answerGroupSchema))),
+        groups: Schema.mutableKey(
+            Schema.mutable(Schema.Array(answerGroupSchema)),
+        ),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("groups_merged")),
-        groups: Schema.mutableKey(Schema.mutable(Schema.Array(answerGroupSchema))),
+        groups: Schema.mutableKey(
+            Schema.mutable(Schema.Array(answerGroupSchema)),
+        ),
+    }),
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("answer_separated")),
+        groups: Schema.mutableKey(
+            Schema.mutable(Schema.Array(answerGroupSchema)),
+        ),
     }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("scoring_confirmed")),
@@ -167,7 +202,8 @@ export type HerdSideMessage = Exclude<
     { type: "herd:state" }
 >;
 
-export const decodeHerdPlayerView = createPlayerViewDecoder(herdPlayerViewSchema);
+export const decodeHerdPlayerView =
+    createPlayerViewDecoder(herdPlayerViewSchema);
 export const decodeHerdSideMessage = createServerMessageDecoder(
     "herd:state",
     herdServerMessageSchema,

@@ -12,6 +12,7 @@ export function PartyQuestionBoard(props: {
     question: string | null;
     children: JSX.Element;
     sidebar: JSX.Element;
+    compact?: boolean;
 }) {
     return (
         <section
@@ -39,18 +40,26 @@ export function PartyQuestionBoard(props: {
             </header>
             <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_380px]">
                 <div class="min-w-0 space-y-6">
-                    <div class="border-[3px] border-ink bg-cream p-6 lg:p-8 shadow-ink-lg">
+                    <div
+                        class={`border-[3px] border-ink bg-cream shadow-ink-lg ${props.compact ? "p-4 lg:p-5" : "p-6 lg:p-8"}`}
+                    >
                         <p class="font-bebas text-xl tracking-[.16em] text-tomato mb-3">
                             {props.question
                                 ? "The question"
                                 : "Bring everyone together"}
                         </p>
-                        <h2 class="font-bebas text-[clamp(2.5rem,4.3vw,5rem)] leading-[1.05] break-words">
+                        <h2
+                            class={`font-bebas leading-[1.05] break-words ${props.compact ? "text-[clamp(2rem,3vw,3.5rem)]" : "text-[clamp(2.5rem,4.3vw,5rem)]"}`}
+                        >
                             {props.question ?? "Ready for the next question?"}
                         </h2>
                         <p
                             role="status"
-                            class="mt-5 text-xl lg:text-2xl text-navy"
+                            class={
+                                props.compact
+                                    ? "mt-3 text-lg text-navy"
+                                    : "mt-5 text-xl lg:text-2xl text-navy"
+                            }
                         >
                             {props.status}
                         </p>

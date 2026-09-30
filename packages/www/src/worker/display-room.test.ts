@@ -40,6 +40,7 @@ describe("Party mode display connections", () => {
         "perudo:bid",
         "herd:next_question",
         "herd:submit_answer",
+        "herd:separate_answer",
         "fun_facts:place_arrow",
         "fun_facts:submit_answer",
     ])(
@@ -218,17 +219,21 @@ it.each(["herd", "fun_facts"] as const)(
         >;
         const waitView = async (
             predicate: (game: SocialGame) => boolean,
+            since = 0,
         ): Promise<SocialGame> => {
-            const message = await display.waitForMessage((message) => {
-                const game =
-                    Schema.decodeUnknownSync(displayMessageSchema)(message).data
-                        .game;
-                return (
-                    (game?.type === "herd" || game?.type === "fun_facts") &&
-                    game.type === gameType &&
-                    predicate(game)
-                );
-            });
+            const message = await display.waitForMessage(
+                (message) => {
+                    const game =
+                        Schema.decodeUnknownSync(displayMessageSchema)(message)
+                            .data.game;
+                    return (
+                        (game?.type === "herd" || game?.type === "fun_facts") &&
+                        game.type === gameType &&
+                        predicate(game)
+                    );
+                },
+                { since },
+            );
             const game =
                 Schema.decodeUnknownSync(displayMessageSchema)(message).data
                     .game;
@@ -295,22 +300,54 @@ it.each(["herd", "fun_facts"] as const)(
                 groupId1: dogs[0].id,
                 groupId2: dogs[1].id,
             });
-            await waitView(
+            const combined = await waitView(
                 (game) =>
                     game.type === "herd" && game.view.answerGroups.length === 2,
             );
-            send("herd:confirm_scoring");
-            const scored = await waitView(
-                (game) => game.view.phase === "scored",
-            );
+            const scored = combined;
             if (scored.type !== "herd")
                 throw new Error("Expected Herd display");
             expect(scored.view.roundResult?.scoringPlayerIds).toEqual([
                 "bob",
                 "charlie",
             ]);
-            expect(scored.view.pinkCowHolderId).toBe("dave");
+            expect(
+                scored.view.players.every((player) => player.score === 0),
+            ).toBe(true);
+            expect(scored.view.answerGroups[0].answers).toHaveLength(2);
             expect(JSON.stringify(scored)).not.toContain("originalAnswers");
+            const separateCursor = display.cursor();
+            send("herd:separate_answer", {
+                groupId: dogs[0].id,
+                answer: dogs[1].canonicalAnswer,
+            });
+            const separated = await waitView(
+                (game) =>
+                    game.type === "herd" && game.view.answerGroups.length === 3,
+                separateCursor,
+            );
+            if (separated.type !== "herd")
+                throw new Error("Expected Herd display");
+            expect(separated.view.roundResult?.scoringPlayerIds).toEqual([]);
+            display.close();
+            display = await connectDisplay(roomId);
+            const restored = Schema.decodeUnknownSync(displayMessageSchema)(
+                display.messages[0],
+            ).data.game;
+            expect(restored).toEqual(separated);
+            const secondDog = separated.view.answerGroups.find(
+                (group) => group.canonicalAnswer === dogs[1].canonicalAnswer,
+            )!;
+            const combineCursor = display.cursor();
+            send("herd:merge_groups", {
+                groupId1: dogs[0].id,
+                groupId2: secondDog.id,
+            });
+            await waitView(
+                (game) =>
+                    game.type === "herd" && game.view.answerGroups.length === 2,
+                combineCursor,
+            );
         } else {
             let placing = await waitView(
                 (game) => game.view.phase === "placing",
@@ -353,8 +390,13 @@ it.each(["herd", "fun_facts"] as const)(
                 game.view.phase === "waiting" && game.view.roundNumber === 1,
         );
         expect(cleared.view.currentQuestion).toBeNull();
-        if (cleared.type === "herd")
+        if (cleared.type === "herd") {
             expect(cleared.view.answerGroups).toEqual([]);
+            expect(cleared.view.pinkCowHolderId).toBe("dave");
+            expect(
+                cleared.view.players.filter((player) => player.score === 1),
+            ).toHaveLength(2);
+        }
         if (cleared.type === "fun_facts")
             expect(cleared.view.placedArrows).toEqual([]);
         send("end");

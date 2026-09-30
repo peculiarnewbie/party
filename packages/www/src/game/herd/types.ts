@@ -18,5 +18,11 @@ export type HerdAction =
           groupId1: string;
           groupId2: string;
       }
+    | {
+          type: "separate_answer";
+          hostId: string;
+          groupId: string;
+          answer: string;
+      }
     | { type: "confirm_scoring"; hostId: string }
     | { type: "next_round"; hostId: string };

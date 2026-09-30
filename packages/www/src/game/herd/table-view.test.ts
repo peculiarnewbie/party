@@ -52,11 +52,20 @@ describe("Herd Party snapshots", () => {
         expect(JSON.stringify(getHerdTableView(state))).not.toContain(
             "originalAnswers",
         );
-        processAction(state, { type: "confirm_scoring", hostId: "host" });
         const scored = getHerdTableView(state);
         expect(scored.roundResult?.scoringPlayerIds).toEqual(["a", "b"]);
-        expect(scored.pinkCowHolderId).toBe("c");
+        expect(scored.players.every((player) => player.score === 0)).toBe(true);
+        expect(scored.answerGroups[0].answers).toEqual([
+            { answer: "Dog", count: 1 },
+            { answer: "Dogs", count: 1 },
+        ]);
         processAction(state, { type: "next_round", hostId: "host" });
+        expect(getHerdTableView(state).pinkCowHolderId).toBe("c");
+        expect(
+            getHerdTableView(state).players.filter(
+                (player) => player.score === 1,
+            ),
+        ).toHaveLength(2);
         expect(getHerdTableView(state)).toMatchObject({
             currentQuestion: null,
             answerGroups: [],

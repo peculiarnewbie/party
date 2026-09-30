@@ -36,9 +36,11 @@ export type HerdTableView = typeof herdTableViewSchema.Type;
 export function getHerdTableView(state: HerdState): HerdTableView {
     const view = getPlayerView(state, state.hostId);
     const result =
-        state.phase === "scored" || state.phase === "game_over"
-            ? state.lastRoundResult
-            : null;
+        state.phase === "reveal"
+            ? view.previewRoundResult
+            : state.phase === "scored" || state.phase === "game_over"
+              ? state.lastRoundResult
+              : null;
     return {
         phase: view.phase,
         roundNumber: view.roundNumber,

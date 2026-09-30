@@ -35,6 +35,10 @@ export function definePartyQuestionGame(gameType: "herd" | "fun_facts") {
                 });
                 await room.waitForDevtools();
                 const id = await room.joinAsBrowser(name);
+                await page.addStyleTag({
+                    content:
+                        '[data-testid="multiplayer-devtools"] { display: none !important; }',
+                });
                 players.push({ page, room, id });
             }
             const host = players[0];
@@ -107,24 +111,67 @@ export function definePartyQuestionGame(gameType: "herd" | "fun_facts") {
                     board.getByTestId("herd-display-answer-group"),
                 ).toHaveCount(3);
                 await host.page
-                    .getByText('"Secret Dog"', { exact: true })
+                    .getByRole("button", {
+                        name: "Secret Dog: 1 answers",
+                        exact: true,
+                    })
                     .click();
                 await host.page
-                    .getByText('"Secret Dogs"', { exact: true })
-                    .click();
-                await host.page
-                    .getByRole("button", { name: "MERGE SELECTED" })
+                    .getByRole("button", {
+                        name: "Secret Dogs: 1 answers",
+                        exact: true,
+                    })
                     .click();
                 await expect(
                     board.getByTestId("herd-display-answer-group"),
                 ).toHaveCount(2);
+                await expect(
+                    board.getByText("Secret Dogs", { exact: true }),
+                ).toBeVisible();
+                await expect(
+                    board.getByText("+1 pending", { exact: true }),
+                ).toHaveCount(3);
+                expect(
+                    (await host.room.gameView<HerdPlayerView>()).players.every(
+                        (player) => player.score === 0,
+                    ),
+                ).toBe(true);
                 await host.page
-                    .getByRole("button", { name: "CONFIRM SCORING" })
+                    .getByRole("button", {
+                        name: "Separate Secret Dogs",
+                        exact: true,
+                    })
                     .click();
                 await expect(
-                    board.getByText("The majority · +1 point"),
+                    board.getByTestId("herd-display-answer-group"),
+                ).toHaveCount(3);
+                await host.page
+                    .getByRole("button", {
+                        name: "Secret Dog: 1 answers",
+                        exact: true,
+                    })
+                    .click();
+                await host.page
+                    .getByRole("button", {
+                        name: "Secret Dogs: 1 answers",
+                        exact: true,
+                    })
+                    .click();
+                await expect(
+                    board.getByTestId("herd-display-answer-group"),
+                ).toHaveCount(2);
+                await display.reload({ waitUntil: "domcontentloaded" });
+                await expect(
+                    board.getByText("Secret Dogs", { exact: true }),
                 ).toBeVisible();
-                await expect(board.getByText("+1 this round")).toHaveCount(2);
+                await expect(
+                    board.getByText("+1 pending", { exact: true }),
+                ).toHaveCount(3);
+                await expect(
+                    host.page.getByRole("button", {
+                        name: /CONFIRM SCORING|MERGE SELECTED/,
+                    }),
+                ).toHaveCount(0);
             } else {
                 await expect
                     .poll(
@@ -206,6 +253,13 @@ export function definePartyQuestionGame(gameType: "herd" | "fun_facts") {
                         ).phase,
                 )
                 .toBe("waiting");
+            if (gameType === "herd") {
+                expect(
+                    (await host.room.gameView<HerdPlayerView>()).players.filter(
+                        (player) => player.score === 1,
+                    ),
+                ).toHaveLength(2);
+            }
             await expect(
                 board.getByText("Ready for the next question?"),
             ).toBeVisible();

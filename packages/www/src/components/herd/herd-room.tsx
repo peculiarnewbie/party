@@ -1,7 +1,8 @@
-import { TableButton, TablePanel } from "~/components/casino";
 import { createSignal, For, Show, Switch, Match, onCleanup } from "solid-js";
+import { TableButton, TablePanel } from "~/components/casino";
+import { HerdDiscussion } from "./herd-discussion";
 import type { Component } from "solid-js";
-import type { HerdPlayerView, AnswerGroupView } from "~/game/herd/views";
+import type { HerdPlayerView } from "~/game/herd/views";
 import type { HerdConnection } from "~/game/herd/connection";
 
 import type { PartyLayout } from "~/components/party-layout-controls";
@@ -21,7 +22,6 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
     const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
     const [answerInput, setAnswerInput] = createSignal("");
     const [customQuestionInput, setCustomQuestionInput] = createSignal("");
-    const [selectedGroups, setSelectedGroups] = createSignal<string[]>([]);
     const [editingAnswer, setEditingAnswer] = createSignal(false);
 
     onCleanup(
@@ -38,34 +38,10 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                 ) {
                     setAnswerInput("");
                     setEditingAnswer(false);
-                    setSelectedGroups([]);
                 }
             }
         }),
     );
-
-    const toggleGroupSelection = (groupId: string) => {
-        setSelectedGroups((prev) => {
-            if (prev.includes(groupId)) {
-                return prev.filter((id) => id !== groupId);
-            }
-            if (prev.length >= 2) {
-                return [prev[1], groupId];
-            }
-            return [...prev, groupId];
-        });
-    };
-
-    const handleMerge = () => {
-        const sel = selectedGroups();
-        if (sel.length === 2) {
-            props.connection.send({
-                type: "herd:merge_groups",
-                data: { groupId1: sel[0]!, groupId2: sel[1]! },
-            });
-            setSelectedGroups([]);
-        }
-    };
 
     const handleSubmitAnswer = () => {
         const answer = answerInput().trim();
@@ -96,13 +72,6 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
     const handleCloseAnswers = () => {
         props.connection.send({
             type: "herd:close_answers",
-            data: {},
-        });
-    };
-
-    const handleConfirmScoring = () => {
-        props.connection.send({
-            type: "herd:confirm_scoring",
             data: {},
         });
     };
@@ -226,15 +195,38 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                                     "controller" && !v().isHost
                                             }
                                             fallback={
-                                                <RevealPhase
+                                                <HerdDiscussion
                                                     view={v()}
-                                                    selectedGroups={selectedGroups()}
-                                                    onToggleGroup={
-                                                        toggleGroupSelection
+                                                    compact={
+                                                        props.initialLayout ===
+                                                        "controller"
                                                     }
-                                                    onMerge={handleMerge}
-                                                    onConfirmScoring={
-                                                        handleConfirmScoring
+                                                    onCombine={(
+                                                        groupId1,
+                                                        groupId2,
+                                                    ) =>
+                                                        props.connection.send({
+                                                            type: "herd:merge_groups",
+                                                            data: {
+                                                                groupId1,
+                                                                groupId2,
+                                                            },
+                                                        })
+                                                    }
+                                                    onSeparate={(
+                                                        groupId,
+                                                        answer,
+                                                    ) =>
+                                                        props.connection.send({
+                                                            type: "herd:separate_answer",
+                                                            data: {
+                                                                groupId,
+                                                                answer,
+                                                            },
+                                                        })
+                                                    }
+                                                    onNextRound={
+                                                        handleNextRound
                                                     }
                                                 />
                                             }
@@ -244,13 +236,23 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                                 class="text-center"
                                             >
                                                 <h2 class="font-bebas text-3xl text-navy">
-                                                    The answers are on the big
-                                                    screen
+                                                    Discuss the answers
                                                 </h2>
                                                 <p class="mt-3 text-muted">
-                                                    Compare answers while the
-                                                    host groups matching ideas
-                                                    and confirms the scores.
+                                                    Your answer: {v().myAnswer}
+                                                </p>
+                                                <p
+                                                    class="mt-2 text-muted"
+                                                    role="status"
+                                                >
+                                                    {v().previewRoundResult?.scoringPlayerIds.includes(
+                                                        v().myId,
+                                                    )
+                                                        ? "+1 point pending"
+                                                        : "No point yet"}
+                                                    . Scores settle when the
+                                                    host moves to the next
+                                                    round.
                                                 </p>
                                             </TablePanel>
                                         </Show>
@@ -495,156 +497,6 @@ const AnsweringPhase: Component<{
                     >
                         CLOSE ANSWERS
                     </TableButton>
-                </div>
-            </Show>
-        </div>
-    );
-};
-
-const RevealPhase: Component<{
-    view: HerdPlayerView;
-    selectedGroups: string[];
-    onToggleGroup: (groupId: string) => void;
-    onMerge: () => void;
-    onConfirmScoring: () => void;
-}> = (props) => {
-    return (
-        <div>
-            <div class="border-2 border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] p-4 shadow-[4px_4px_0_#1a1a1a] mb-4">
-                <div class="font-bebas text-[.7rem] tracking-[.24em] text-[#b8ae9e] mb-1">
-                    QUESTION
-                </div>
-                <h2 class="font-bebas text-[1.3rem] tracking-[.04em] leading-tight">
-                    {props.view.currentQuestion}
-                </h2>
-            </div>
-
-            <Show when={props.view.isHost}>
-                <div class="border-2 border-[#1a1a1a] bg-[#c0261a] text-[#ddd5c4] px-4 py-3 shadow-[3px_3px_0_#1a1a1a] mb-4">
-                    <div class="font-bebas text-[.8rem] tracking-[.16em]">
-                        SELECT TWO GROUPS TO MERGE SYNONYMS / TYPOS, THEN
-                        CONFIRM SCORING
-                    </div>
-                </div>
-            </Show>
-
-            <div class="space-y-3 mb-4">
-                <For each={props.view.answerGroups}>
-                    {(group) => (
-                        <AnswerGroupCard
-                            group={group}
-                            isHost={props.view.isHost}
-                            isSelected={props.selectedGroups.includes(group.id)}
-                            onToggle={() => props.onToggleGroup(group.id)}
-                        />
-                    )}
-                </For>
-            </div>
-
-            <Show when={props.view.answerGroups.length === 0}>
-                <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] p-6 shadow-[4px_4px_0_#1a1a1a] text-center mb-4">
-                    <p class="text-[.9rem] text-[#5a5040]">
-                        No answers were submitted this round.
-                    </p>
-                </div>
-            </Show>
-
-            <Show
-                when={props.view.isHost}
-                fallback={
-                    <div class="text-center py-4">
-                        <p class="font-bebas text-[.85rem] tracking-[.16em] text-[#9a9080]">
-                            WAITING FOR HOST TO CONFIRM SCORING...
-                        </p>
-                    </div>
-                }
-            >
-                <div class="flex gap-3">
-                    <Show when={props.selectedGroups.length === 2}>
-                        <TableButton
-                            onClick={props.onMerge}
-                            tone="tomato"
-                            class="flex-1"
-                        >
-                            MERGE SELECTED
-                        </TableButton>
-                    </Show>
-                    <TableButton
-                        onClick={props.onConfirmScoring}
-                        tone="navy"
-                        class="flex-1"
-                    >
-                        CONFIRM SCORING
-                    </TableButton>
-                </div>
-            </Show>
-        </div>
-    );
-};
-
-const AnswerGroupCard: Component<{
-    group: AnswerGroupView;
-    isHost: boolean;
-    isSelected: boolean;
-    onToggle: () => void;
-}> = (props) => {
-    const borderColor = () =>
-        props.isSelected ? "border-[#c0261a]" : "border-[#1a1a1a]";
-    const bgColor = () => (props.isSelected ? "bg-[#e8d8c8]" : "bg-[#c9c0b0]");
-
-    return (
-        <div
-            role={props.isHost ? "button" : undefined}
-            tabindex={props.isHost ? 0 : undefined}
-            aria-pressed={
-                props.isHost ? (props.isSelected ? "true" : "false") : undefined
-            }
-            aria-label={
-                props.isHost
-                    ? `${props.group.canonicalAnswer}: ${props.group.count} answers`
-                    : undefined
-            }
-            class={`border-2 ${borderColor()} ${bgColor()} p-4 shadow-[3px_3px_0_#1a1a1a] ${
-                props.isHost ? "cursor-pointer" : ""
-            } transition-all duration-100`}
-            onClick={() => {
-                if (props.isHost) props.onToggle();
-            }}
-            onKeyDown={(event) => {
-                if (
-                    props.isHost &&
-                    (event.key === "Enter" || event.key === " ")
-                ) {
-                    event.preventDefault();
-                    props.onToggle();
-                }
-            }}
-        >
-            <div class="flex items-start justify-between mb-2">
-                <div class="font-bebas text-[1.3rem] tracking-[.04em] leading-tight">
-                    "{props.group.canonicalAnswer}"
-                </div>
-                <div class="font-bebas text-[1.6rem] tracking-[.04em] text-[#1a3a6e] leading-none ml-4">
-                    {props.group.count}
-                </div>
-            </div>
-            <div class="text-[.8rem] text-[#5a5040]">
-                <For each={props.group.playerNames}>
-                    {(name, i) => (
-                        <span>
-                            {name}
-                            <Show
-                                when={i() < props.group.playerNames.length - 1}
-                            >
-                                ,{" "}
-                            </Show>
-                        </span>
-                    )}
-                </For>
-            </div>
-            <Show when={props.isHost && props.isSelected}>
-                <div class="mt-2 font-bebas text-[.7rem] tracking-[.2em] text-[#c0261a]">
-                    SELECTED FOR MERGE
                 </div>
             </Show>
         </div>

@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
 import { AnimatedNumber, Confetti } from "~/components/casino";
+import { HerdAnswerGroups } from "./herd-answer-groups";
 import {
     PartyAnswerProgress,
     PartyQuestionBoard,
@@ -7,11 +8,10 @@ import {
 import type { HerdTableView } from "~/game/herd/table-view";
 
 export function HerdTableDisplay(props: { view: HerdTableView }) {
-    const scored = () =>
-        props.view.phase === "scored" || props.view.phase === "game_over";
     const result = () => props.view.roundResult;
     const name = (id: string | null) =>
         props.view.players.find((player) => player.id === id)?.name ?? "Player";
+    const leaderboardLimit = () => (props.view.players.length > 20 ? 8 : 10);
     const status = () => {
         if (props.view.phase === "game_over")
             return props.view.winnerId
@@ -24,7 +24,7 @@ export function HerdTableDisplay(props: { view: HerdTableView }) {
                 ? "Everyone is ready. Time for the host to reveal!"
                 : "What will everyone else say? Answer on your phone.";
         if (props.view.phase === "reveal")
-            return "Compare your answers. The host can merge matching ideas before scoring.";
+            return "Discuss and combine answers. Points stay provisional until the next round.";
         return result()?.majorityGroupId
             ? "The herd has spoken! Matching the majority earns a point."
             : "A tie at the top. No majority, no points this round.";
@@ -41,6 +41,7 @@ export function HerdTableDisplay(props: { view: HerdTableView }) {
     return (
         <PartyQuestionBoard
             game="herd"
+            compact
             title="Herd Mentality"
             round={props.view.roundNumber}
             phase={phase()}
@@ -61,57 +62,67 @@ export function HerdTableDisplay(props: { view: HerdTableView }) {
                         <p class="text-lg text-muted mb-5">
                             First to {props.view.winScore} points wins.
                         </p>
-                        <ol class="space-y-3">
+                        <ol class="space-y-2">
                             <For
-                                each={props.view.leaderboard.slice(0, 10)}
+                                each={props.view.leaderboard.slice(
+                                    0,
+                                    leaderboardLimit(),
+                                )}
                                 keyed={false}
                             >
                                 {(player, index) => (
                                     <li
-                                        class={`flex items-center gap-3 border-2 border-ink p-3 ${player().hasPinkCow ? "bg-[#f0c6d6]" : "bg-paper"}`}
+                                        class={`flex items-center gap-3 border-2 border-ink px-3 py-2 ${player().hasPinkCow ? "bg-plum/15" : "bg-paper"}`}
                                     >
                                         <span class="font-bebas text-2xl text-muted">
                                             {index + 1}
                                         </span>
-                                        <div class="min-w-0 flex-1">
-                                            <span class="block text-xl font-bold break-words">
+                                        <div class="min-w-0 flex-1 flex items-center flex-wrap gap-x-2">
+                                            <span class="text-xl font-bold truncate">
                                                 {player().name}
                                             </span>
                                             <Show when={player().hasPinkCow}>
-                                                <span class="font-bebas text-lg text-plum">
+                                                <span class="font-bebas text-sm text-plum whitespace-nowrap">
                                                     Pink Cow
                                                 </span>
                                             </Show>
                                             <Show
-                                                when={
-                                                    scored() &&
-                                                    result()?.scoringPlayerIds.includes(
-                                                        player().id,
-                                                    )
-                                                }
+                                                when={result()?.scoringPlayerIds.includes(
+                                                    player().id,
+                                                )}
                                             >
-                                                <span class="font-bebas text-lg text-teal">
-                                                    +1 this round
+                                                <span class="font-bebas text-sm text-teal whitespace-nowrap">
+                                                    {props.view.phase ===
+                                                    "reveal"
+                                                        ? "+1 pending"
+                                                        : "+1 this round"}
                                                 </span>
                                             </Show>
                                         </div>
                                         <AnimatedNumber
                                             value={player().score}
-                                            class="font-bebas text-4xl text-navy"
+                                            class="font-bebas text-3xl text-navy"
                                         />
                                     </li>
                                 )}
                             </For>
                         </ol>
-                        <Show when={props.view.leaderboard.length > 10}>
+                        <Show
+                            when={
+                                props.view.leaderboard.length >
+                                leaderboardLimit()
+                            }
+                        >
                             <p class="mt-4 text-muted">
-                                + {props.view.leaderboard.length - 10} more
-                                players
+                                +{" "}
+                                {props.view.leaderboard.length -
+                                    leaderboardLimit()}{" "}
+                                more players
                             </p>
                         </Show>
                     </div>
                     <Show when={props.view.pinkCowEnabled}>
-                        <div class="border-[3px] border-ink bg-[#f0c6d6] p-5 shadow-ink">
+                        <div class="border-[3px] border-ink bg-plum/15 p-5 shadow-ink">
                             <h3 class="font-bebas text-3xl">The Pink Cow</h3>
                             <p class="text-xl mt-2">
                                 {props.view.pinkCowHolderId
@@ -150,39 +161,19 @@ export function HerdTableDisplay(props: { view: HerdTableView }) {
                     </p>
                 </div>
             </Show>
-            <Show when={props.view.phase === "reveal" || scored()}>
-                <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-5">
-                    <For each={props.view.answerGroups} keyed={false}>
-                        {(group) => (
-                            <div
-                                data-testid="herd-display-answer-group"
-                                class={`border-[3px] border-ink p-5 shadow-ink animate-rise-in motion-reduce:animate-none ${scored() && result()?.majorityGroupId === group().id ? "bg-teal text-cream" : "bg-cream"}`}
-                            >
-                                <div class="flex justify-between items-start gap-4 mb-3">
-                                    <h3 class="font-bebas text-4xl break-words min-w-0">
-                                        {group().canonicalAnswer}
-                                    </h3>
-                                    <span class="font-bebas text-4xl shrink-0">
-                                        ×{group().count}
-                                    </span>
-                                </div>
-                                <p class="text-xl break-words">
-                                    {group().playerNames.join(", ")}
-                                </p>
-                                <Show
-                                    when={
-                                        scored() &&
-                                        result()?.majorityGroupId === group().id
-                                    }
-                                >
-                                    <p class="font-bebas text-2xl mt-4 tracking-wider">
-                                        The majority · +1 point
-                                    </p>
-                                </Show>
-                            </div>
-                        )}
-                    </For>
-                </div>
+            <Show
+                when={
+                    props.view.phase === "reveal" ||
+                    props.view.phase === "scored" ||
+                    props.view.phase === "game_over"
+                }
+            >
+                <HerdAnswerGroups
+                    groups={props.view.answerGroups}
+                    majorityGroupId={result()?.majorityGroupId}
+                    pending={props.view.phase === "reveal"}
+                    display
+                />
                 <Show when={props.view.answerGroups.length === 0}>
                     <p class="text-2xl text-muted">
                         No answers were revealed this round.
