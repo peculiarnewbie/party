@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <title>Scorpion</title>
+  <g stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M68 89Q102 83 99 45Q98 23 83 19L80 31Q89 35 87 49Q88 73 65 76Z" fill="#c0261a"/>
+    <path d="m85 20-9-13-7 22 11 2" fill="#f5c542"/>
+    <path d="m88 36 10-5m-10 19 11 2m-15 12 9 7m-18 1 6 10"/>
+    <path d="m44 75-17 9-8 13m26-13-10 13 3 10m30-27 13 16-3 11M70 75l22 9 12 10"/>
+    <ellipse cx="57" cy="75" rx="22" ry="19" fill="#c0261a"/>
+    <path d="M43 68Q55 74 73 68M42 81Q54 86 73 81"/>
+    <path d="M44 60 30 48m36 12 9-17" stroke-width="6"/>
+    <path d="M31 49Q9 51 11 31l12 10 1-20Q41 26 31 49ZM74 45Q61 34 72 20l3 15 14-14Q96 40 74 45Z" fill="#f5c542"/>
+    <ellipse cx="50" cy="59" rx="6" ry="8" fill="#f7f2de"/><ellipse cx="64" cy="59" rx="6" ry="8" fill="#f7f2de"/>
+  </g>
+  <circle cx="51" cy="61" r="2.5" fill="#1a1a1a"/><circle cx="63" cy="61" r="2.5" fill="#1a1a1a"/>
+</svg>

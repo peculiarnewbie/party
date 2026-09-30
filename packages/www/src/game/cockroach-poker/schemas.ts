@@ -20,7 +20,11 @@ export const CREATURE_TYPES = [
 ] as const;
 
 const creatureTypeSchema = Schema.Literals(CREATURE_TYPES);
-const cockroachPokerPhases = ["offering", "awaiting_response", "game_over"] as const;
+const cockroachPokerPhases = [
+    "offering",
+    "awaiting_response",
+    "game_over",
+] as const;
 const loseReasons = ["four_of_a_kind", "empty_hand"] as const;
 
 const cockroachPokerPhaseSchema = Schema.Literals(cockroachPokerPhases);
@@ -47,6 +51,10 @@ const offerChainSchema = Schema.Struct({
 });
 
 export const cockroachPokerResultSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("card_peeked")),
+        playerId: Schema.mutableKey(Schema.String),
+    }),
     Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("error")),
         message: Schema.mutableKey(Schema.String),
@@ -153,7 +161,9 @@ export type OfferChainView = SchemaType<typeof offerChainViewSchema>;
 export type CockroachPokerPlayerView = SchemaType<
     typeof cockroachPokerPlayerViewSchema
 >;
-export type CockroachPokerResult = SchemaType<typeof cockroachPokerResultSchema>;
+export type CockroachPokerResult = SchemaType<
+    typeof cockroachPokerResultSchema
+>;
 export type CockroachPokerServerMessage = SchemaType<
     typeof cockroachPokerServerMessageSchema
 >;

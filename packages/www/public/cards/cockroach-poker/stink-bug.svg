@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <title>Stink Bug</title>
+  <g stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m40 48-15-7-10 5m24 19-20 4-6 12m28 1-10 18 3 11m46-62 15-7 10 5M81 65l20 4 6 12M79 82l10 18-3 11"/>
+    <path d="m51 26-9-12-13-3m40 15 9-12 13-3"/>
+    <path d="M39 39 28 58Q27 84 60 107Q93 84 92 58L81 39Z" fill="#0f766e"/>
+    <path d="m35 51 25 31 25-31M60 82v20"/>
+    <path d="m43 49 17 21 17-21Z" fill="#f5c542"/>
+    <path d="M43 40V30Q60 17 77 30v10Q60 48 43 40Z" fill="#0f766e"/>
+    <ellipse cx="51" cy="33" rx="5" ry="6" fill="#f7f2de"/><ellipse cx="69" cy="33" rx="5" ry="6" fill="#f7f2de"/>
+    <path d="m39 72 4 4m4 8 4 4m30-16-4 4m-4 8-4 4" stroke="#f5c542" stroke-width="5"/>
+  </g>
+  <circle cx="52" cy="34" r="2" fill="#1a1a1a"/><circle cx="68" cy="34" r="2" fill="#1a1a1a"/>
+</svg>

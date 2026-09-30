@@ -12,6 +12,12 @@ const creatureTypeSchema = Schema.Literals(CREATURE_TYPES);
 
 export const cockroachPokerClientMessageSchema = Schema.Union([
     Schema.Struct({
+        type: Schema.mutableKey(Schema.Literal("cockroach_poker:peek_card")),
+        playerId: Schema.mutableKey(Schema.String),
+        playerName: Schema.mutableKey(Schema.String),
+        data: Schema.mutableKey(emptyDataSchema),
+    }),
+    Schema.Struct({
         type: Schema.mutableKey(Schema.Literal("cockroach_poker:offer_card")),
         playerId: Schema.mutableKey(Schema.String),
         playerName: Schema.mutableKey(Schema.String),
@@ -36,7 +42,9 @@ export const cockroachPokerClientMessageSchema = Schema.Union([
         data: Schema.mutableKey(emptyDataSchema),
     }),
     Schema.Struct({
-        type: Schema.mutableKey(Schema.Literal("cockroach_poker:peek_and_pass")),
+        type: Schema.mutableKey(
+            Schema.Literal("cockroach_poker:peek_and_pass"),
+        ),
         playerId: Schema.mutableKey(Schema.String),
         playerName: Schema.mutableKey(Schema.String),
         data: Schema.mutableKey(

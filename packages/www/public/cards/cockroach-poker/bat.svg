@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <title>Bat</title>
+  <g stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M51 47 30 25 9 18 13 48 7 71Q24 61 31 82Q40 69 51 83M69 47 90 25 111 18 107 48 113 71Q96 61 89 82Q80 69 69 83" fill="#6b3a78"/>
+    <path d="M49 56 15 24M47 65 14 48M71 56 105 24M73 65 106 48"/>
+    <path d="m47 39 1-17 12 11 12-11 1 17" fill="#6b3a78"/>
+    <path d="M44 48Q42 31 60 32Q78 31 76 48L79 75Q78 95 60 101Q42 95 41 75Z" fill="#6b3a78"/>
+    <ellipse cx="51" cy="49" rx="8" ry="10" fill="#f7f2de"/><ellipse cx="69" cy="49" rx="8" ry="10" fill="#f7f2de"/>
+    <path d="m48 66 6 8 6-6 6 6 6-8" fill="#f7f2de"/>
+    <path d="m52 97-3 8m19-8 3 8"/>
+  </g>
+  <circle cx="54" cy="51" r="3" fill="#1a1a1a"/><circle cx="66" cy="51" r="3" fill="#1a1a1a"/>
+</svg>

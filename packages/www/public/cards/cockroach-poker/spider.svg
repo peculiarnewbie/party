@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <title>Spider</title>
+  <g stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M43 42 30 22 14 17M38 53 19 38 7 46M38 66 15 66 7 85M44 80 25 94 29 110M77 42 90 22 106 17M82 53 101 38 113 46M82 66 105 66 113 85M76 80 95 94 91 110" stroke-width="5"/>
+    <ellipse cx="60" cy="50" rx="25" ry="28" fill="#6b3a78"/>
+    <path d="M51 32Q41 47 47 57" stroke="#f7f2de"/>
+    <ellipse cx="60" cy="80" rx="22" ry="22" fill="#6b3a78"/>
+    <ellipse cx="50" cy="78" rx="9" ry="11" fill="#f7f2de"/><ellipse cx="70" cy="78" rx="9" ry="11" fill="#f7f2de"/>
+    <path d="m51 98 4 8 5-5 5 5 4-8" fill="#f7f2de"/>
+  </g>
+  <circle cx="53" cy="80" r="3" fill="#1a1a1a"/><circle cx="67" cy="80" r="3" fill="#1a1a1a"/>
+  <circle cx="51" cy="64" r="3" fill="#f5c542"/><circle cx="69" cy="64" r="3" fill="#f5c542"/>
+</svg>

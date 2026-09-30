@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <title>Cockroach</title>
+  <g stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M43 51 29 40 19 44M40 67 23 63 13 71M44 84 29 93 27 105M77 51 91 40 101 44M80 67 97 63 107 71M76 84 91 93 93 105"/>
+    <path d="m54 29-9-17Q34 3 25 12m41 17 9-17Q86 3 95 12"/>
+    <ellipse cx="60" cy="66" rx="24" ry="37" fill="#d4a017"/>
+    <path d="M40 52Q48 62 59 93M80 52Q72 62 61 93M60 43v54M43 73l14 6m20-6-14 6M48 86l9 4m15-4-9 4"/>
+    <path d="M42 42Q39 24 60 23Q81 24 78 42Q60 52 42 42Z" fill="#f5c542"/>
+    <ellipse cx="51" cy="33" rx="5" ry="6" fill="#f7f2de"/><ellipse cx="69" cy="33" rx="5" ry="6" fill="#f7f2de"/>
+    <path d="m53 100-3 9m17-9 3 9"/>
+  </g>
+  <circle cx="52" cy="34" r="2" fill="#1a1a1a"/><circle cx="68" cy="34" r="2" fill="#1a1a1a"/>
+</svg>

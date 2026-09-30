@@ -63,6 +63,10 @@ export function initGame(
         faceUpCards: [] as CreatureType[],
     }));
 
+    for (const [index, card] of deck.slice(n * cardsPerPlayer).entries()) {
+        players[index].hand.push(card);
+    }
+
     return {
         players,
         phase: "offering",
@@ -203,6 +207,13 @@ export function processAction(
             return { type: "error", message: "No active offer" };
         }
 
+        if (state.offerChain.seenByPlayerIds.includes(action.playerId)) {
+            return {
+                type: "error",
+                message: "You peeked and must pass the card",
+            };
+        }
+
         return resolveCall(state, true);
     }
 
@@ -217,7 +228,46 @@ export function processAction(
             return { type: "error", message: "No active offer" };
         }
 
+        if (state.offerChain.seenByPlayerIds.includes(action.playerId)) {
+            return {
+                type: "error",
+                message: "You peeked and must pass the card",
+            };
+        }
+
         return resolveCall(state, false);
+    }
+
+    if (action.type === "peek_card") {
+        if (state.phase !== "awaiting_response") {
+            return { type: "error", message: "Not in response phase" };
+        }
+        if (action.playerId !== state.activePlayerId) {
+            return { type: "error", message: "Not your turn" };
+        }
+        const chain = state.offerChain;
+        if (!chain) return { type: "error", message: "No active offer" };
+        if (
+            !state.players.some(
+                (player) =>
+                    player.id !== action.playerId &&
+                    !chain.seenByPlayerIds.includes(player.id),
+            )
+        ) {
+            return {
+                type: "error",
+                message: "You are the last player and must accept",
+            };
+        }
+        if (!chain.seenByPlayerIds.includes(action.playerId)) {
+            chain.seenByPlayerIds.push(action.playerId);
+        }
+        const result: CockroachPokerResult = {
+            type: "card_peeked",
+            playerId: action.playerId,
+        };
+        state.lastResult = result;
+        return result;
     }
 
     if (action.type === "peek_and_pass") {
@@ -262,7 +312,9 @@ export function processAction(
             return { type: "error", message: "Target not found" };
         }
 
-        chain.seenByPlayerIds.push(action.playerId);
+        if (!chain.seenByPlayerIds.includes(action.playerId)) {
+            chain.seenByPlayerIds.push(action.playerId);
+        }
         chain.currentOffererId = action.playerId;
         chain.currentReceiverId = action.targetId;
         chain.currentClaim = action.newClaim;
@@ -322,6 +374,22 @@ export function removePlayer(
             chain.seenByPlayerIds = chain.seenByPlayerIds.filter(
                 (id) => id !== playerId,
             );
+            if (
+                chain.seenByPlayerIds.includes(chain.currentReceiverId) &&
+                !state.players.some(
+                    (player) =>
+                        player.id !== chain.currentReceiverId &&
+                        !chain.seenByPlayerIds.includes(player.id),
+                )
+            ) {
+                state.players
+                    .find((player) => player.id === chain.originalOffererId)!
+                    .hand.push(chain.cardValue);
+                state.offerChain = null;
+                state.phase = "offering";
+                state.activePlayerId = chain.originalOffererId;
+                state.lastResult = null;
+            }
         }
     } else if (state.activePlayerId === playerId) {
         const nextId = state.players[0].id;
@@ -340,7 +408,9 @@ export function removePlayer(
     return null;
 }
 
-export function endGameByHost(state: CockroachPokerState): CockroachPokerResult {
+export function endGameByHost(
+    state: CockroachPokerState,
+): CockroachPokerResult {
     state.phase = "game_over";
     state.offerChain = null;
     const result: CockroachPokerResult = {
