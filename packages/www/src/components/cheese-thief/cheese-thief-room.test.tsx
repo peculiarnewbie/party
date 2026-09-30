@@ -13,12 +13,14 @@ import {
     makeVoteResult,
 } from "~/game/cheese-thief/test-helpers";
 import type { CheeseThiefPlayerView } from "~/game/cheese-thief/views";
+import type { PartyLayout } from "~/components/party-layout-controls";
 
 function renderRoom(
     options: {
         view?: CheeseThiefPlayerView;
         playerId?: string | null;
         isHost?: boolean;
+        initialLayout?: PartyLayout;
     } = {},
 ) {
     const { view = makeView(), playerId = "p1", isHost = false } = options;
@@ -38,6 +40,7 @@ function renderRoom(
             playerId={playerId}
             isHost={isHost}
             connection={connection}
+            initialLayout={options.initialLayout}
             onEndGame={onEndGame}
             onReturnToLobby={onReturnToLobby}
         />
@@ -179,4 +182,102 @@ describe("CheeseThiefRoom", () => {
         flush();
         expect(getAllByText(/ROUND 7/i).length).toBeGreaterThan(0);
     });
+});
+
+it("shows private clues only on request and hides them again when the phase or round changes", () => {
+    const view = makeView({
+        myRole: "thief",
+        observedPlayerNames: ["Secret Witness"],
+    });
+    const { getByRole, getByText, queryByText, connection } = renderRoom({
+        view,
+    });
+    expect(queryByText(/Secret Witness/)).toBeNull();
+    fireEvent.click(getByRole("button", { name: /show my role/i }));
+    flush();
+    expect(getByText(/Secret Witness/)).toBeInTheDocument();
+    fireEvent.click(getByRole("button", { name: /hide my role/i }));
+    flush();
+    expect(queryByText(/Secret Witness/)).toBeNull();
+    fireEvent.click(getByRole("button", { name: /show my role/i }));
+    flush();
+    connection.setView({ ...view, phase: "day" });
+    flush();
+    expect(queryByText(/Secret Witness/)).toBeNull();
+    fireEvent.click(getByRole("button", { name: /show my role/i }));
+    flush();
+    connection.setView({ ...view, phase: "day", round: 2 });
+    flush();
+    expect(queryByText(/Secret Witness/)).toBeNull();
+});
+
+it("can change a submitted vote without revealing anyone else's choice", () => {
+    const { getByRole, connection } = renderRoom({
+        view: makeView({
+            phase: "voting",
+            myVote: "p2",
+            hasVoted: true,
+            votedCount: 2,
+        }),
+    });
+    expect(getByRole("button", { name: "Bob" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+    );
+    expect(getByRole("button", { name: "CHANGE VOTE" })).toBeDisabled();
+    fireEvent.click(getByRole("button", { name: "Carol" }));
+    flush();
+    fireEvent.click(getByRole("button", { name: "CHANGE VOTE" }));
+    flush();
+    expect(connection.sentMessages).toEqual([
+        { type: "cheese_thief:cast_vote", data: { targetId: "p3" } },
+    ]);
+});
+
+it("shows server errors and prevents revealing before a vote is cast", () => {
+    const { getByRole, connection } = renderRoom({
+        view: makeView({ phase: "voting", isHost: true }),
+    });
+    expect(getByRole("button", { name: "REVEAL VOTES" })).toBeDisabled();
+    connection.emit({
+        type: "cheese_thief:error",
+        data: { message: "Voting is not open" },
+    });
+    flush();
+    expect(getByRole("alert")).toHaveTextContent("Voting is not open");
+});
+
+it("keeps Party phone results compact and leaves all votes on the shared screen", () => {
+    const { getByText, queryByTestId, getByRole } = renderRoom({
+        view: makeView({
+            phase: "reveal",
+            voteResult: makeVoteResult(),
+            isHost: true,
+        }),
+        initialLayout: "controller",
+    });
+    expect(
+        getByText("Votes and roles are on the big screen."),
+    ).toBeInTheDocument();
+    expect(queryByTestId("cheese-thief-result-player")).toBeNull();
+    expect(getByRole("button", { name: "PLAY AGAIN" })).toBeInTheDocument();
+});
+
+it("shows revealed roles and votes without sorting the connection's player array in place", () => {
+    const players = [
+        makePlayerInfo({ id: "p1", name: "Alice" }),
+        makePlayerInfo({ id: "p2", name: "Bob" }),
+        makePlayerInfo({ id: "p3", name: "Carol" }),
+    ];
+    const { getAllByTestId } = renderRoom({
+        view: makeView({
+            phase: "reveal",
+            players,
+            voteResult: makeVoteResult(),
+        }),
+    });
+    expect(getAllByTestId("cheese-thief-result-player")[0]).toHaveTextContent(
+        "Bob",
+    );
+    expect(players.map((player) => player.id)).toEqual(["p1", "p2", "p3"]);
 });

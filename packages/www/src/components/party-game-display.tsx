@@ -5,11 +5,19 @@ import { BlackjackTableDisplay } from "./blackjack/blackjack-table-display";
 import { PerudoTableDisplay } from "./perudo/perudo-table-display";
 import { HerdTableDisplay } from "./herd/herd-table-display";
 import { FunFactsTableDisplay } from "./fun-facts/fun-facts-table-display";
+import { CheeseThiefTableDisplay } from "./cheese-thief/cheese-thief-table-display";
 import type { PartyGame } from "~/room/display-protocol";
 
 export function PartyGameDisplay(props: { game: PartyGame }) {
     return (
         <Switch>
+            <Match
+                when={
+                    props.game.type === "cheese_thief" ? props.game.view : null
+                }
+            >
+                {(view) => <CheeseThiefTableDisplay view={view()} />}
+            </Match>
             <Match when={props.game.type === "herd" ? props.game.view : null}>
                 {(view) => <HerdTableDisplay view={view()} />}
             </Match>

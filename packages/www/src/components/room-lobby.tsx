@@ -110,6 +110,7 @@ export const RoomLobby: Component<{
                                 "six_nimmt",
                                 "herd",
                                 "fun_facts",
+                                "cheese_thief",
                             ].includes(props.selectedGameType)
                         }
                     >

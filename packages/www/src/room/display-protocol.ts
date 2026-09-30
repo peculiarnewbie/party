@@ -8,8 +8,13 @@ import { blackjackTableViewSchema } from "~/game/blackjack/table-view";
 import { perudoTableViewSchema } from "~/game/perudo/table-view";
 import { herdTableViewSchema } from "~/game/herd/table-view";
 import { funFactsTableViewSchema } from "~/game/fun-facts/table-view";
+import { cheeseThiefTableViewSchema } from "~/game/cheese-thief/table-view";
 
 export const partyGameSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.Literal("cheese_thief"),
+        view: cheeseThiefTableViewSchema,
+    }),
     Schema.Struct({ type: Schema.Literal("herd"), view: herdTableViewSchema }),
     Schema.Struct({
         type: Schema.Literal("fun_facts"),

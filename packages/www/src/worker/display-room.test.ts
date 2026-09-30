@@ -43,6 +43,8 @@ describe("Party mode display connections", () => {
         "herd:separate_answer",
         "fun_facts:place_arrow",
         "fun_facts:submit_answer",
+        "cheese_thief:cast_vote",
+        "cheese_thief:reveal_votes",
     ])(
         "does not take a seat or become host, and rejects %s commands",
         async (type) => {

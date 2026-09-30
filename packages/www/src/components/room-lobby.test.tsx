@@ -25,7 +25,7 @@ function makeProps(overrides: Partial<Parameters<typeof RoomLobby>[0]> = {}) {
 }
 
 describe("RoomLobby", () => {
-    it.each(["poker", "herd", "fun_facts"] as const)(
+    it.each(["poker", "herd", "fun_facts", "cheese_thief"] as const)(
         "sets the device layout and disconnect grace for %s in the lobby",
         (selectedGameType) => {
             const onLayoutChange = vi.fn();

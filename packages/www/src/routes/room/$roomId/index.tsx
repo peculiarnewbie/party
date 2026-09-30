@@ -789,6 +789,7 @@ function PlayerRoom() {
                                     });
                                 return (
                                     <CheeseThiefRoom
+                                        initialLayout={search().view === "controller" ? "controller" : "table"}
                                         roomId={roomId()}
                                         playerId={playerId()}
                                         isHost={isHost()}
