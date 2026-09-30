@@ -241,11 +241,12 @@ it.each(["flip_7", "blackjack", "perudo"] as const)(
             ).toBe(true);
             const bidderId = start.data.game.view.currentPlayerId;
             send("perudo:start_round");
-            await display.waitForMessage(
-                (message) =>
+            await display.waitForMessage((message) => {
+                const game =
                     Schema.decodeUnknownSync(displayMessageSchema)(message).data
-                        .game?.view.phase === "bidding",
-            );
+                        .game;
+                return game?.type === "perudo" && game.view.phase === "bidding";
+            });
             send("perudo:bid", { quantity: 1, faceValue: 2 }, bidderId);
             await display.waitForMessage((message) => {
                 const game =
@@ -262,11 +263,15 @@ it.each(["flip_7", "blackjack", "perudo"] as const)(
                 bidderId === "alice" ? "bob" : "alice",
             );
             const revealed = Schema.decodeUnknownSync(displayMessageSchema)(
-                await display.waitForMessage(
-                    (message) =>
+                await display.waitForMessage((message) => {
+                    const game =
                         Schema.decodeUnknownSync(displayMessageSchema)(message)
-                            .data.game?.view.phase === "revealing",
-                ),
+                            .data.game;
+                    return (
+                        game?.type === "perudo" &&
+                        game.view.phase === "revealing"
+                    );
+                }),
             );
             expect(
                 revealed.data.game?.type === "perudo" &&
@@ -276,9 +281,16 @@ it.each(["flip_7", "blackjack", "perudo"] as const)(
             ).toBe(true);
             const next = Schema.decodeUnknownSync(displayMessageSchema)(
                 await display.waitForMessage(
-                    (message) =>
-                        Schema.decodeUnknownSync(displayMessageSchema)(message)
-                            .data.game?.view.roundNumber === 2,
+                    (message) => {
+                        const game =
+                            Schema.decodeUnknownSync(displayMessageSchema)(
+                                message,
+                            ).data.game;
+                        return (
+                            game?.type === "perudo" &&
+                            game.view.roundNumber === 2
+                        );
+                    },
                     { timeoutMs: 10000 },
                 ),
             );

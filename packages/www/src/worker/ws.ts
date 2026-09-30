@@ -1,3 +1,4 @@
+import { getTableView as getSixNimmtTableView } from "~/game/six-nimmt/views";
 import { DurableObject } from "cloudflare:workers";
 import { Effect, Schema } from "effect";
 import {
@@ -289,6 +290,9 @@ export class GameRoom extends DurableObject {
         let game: DisplayState["game"] = null;
         if (this.state.phase === "playing") {
             switch (snapshot?.gameType) {
+                case "six_nimmt":
+                    game = { type: "six_nimmt", view: getSixNimmtTableView(snapshot.state) };
+                    break;
                 case "flip_7":
                     game = {
                         type: "flip_7",

@@ -1,3 +1,4 @@
+import { sixNimmtRegistration } from "~/game/six-nimmt/adapter";
 import { goFishRegistration } from "~/game/go-fish/adapter";
 import { pokerRegistration } from "~/game/poker/adapter";
 import { blackjackRegistration } from "~/game/blackjack/adapter";
@@ -34,6 +35,7 @@ const REGISTRATIONS = [
     flip7Registration,
     skullRegistration,
     spicyRegistration,
+    sixNimmtRegistration,
 ] as const;
 
 const REGISTRY: Record<

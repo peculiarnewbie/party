@@ -19,11 +19,16 @@ export default defineConfig({
         headless: true,
         trace: "on",
         screenshot: "on",
-        video: "retain-on-failure",
+        video: "off",
         actionTimeout: 10_000,
         navigationTimeout: 15_000,
     },
     projects: [
+        {
+            name: "six-nimmt-live",
+            testMatch: "six-nimmt-live.spec.ts",
+            use: { viewport: { width: 390, height: 844 } },
+        },
         {
             name: "quiz-manager-admin",
             testMatch: "quiz-manager-admin.spec.ts",

@@ -1,3 +1,9 @@
+import { SixNimmtRoom } from "~/components/six-nimmt/six-nimmt-room";
+import {
+    sixNimmtPlayerViewSchema,
+    sixNimmtServerMessageSchema,
+} from "~/game/six-nimmt/schemas";
+import type { SixNimmtConnection } from "~/game/six-nimmt/connection";
 import { createFileRoute } from "@tanstack/solid-router";
 import { createMemo, onSettled, Switch, Match, Show, lazy } from "solid-js";
 import { RoomRecoveryPanel } from "~/components/room-recovery";
@@ -340,6 +346,48 @@ function PlayerRoom() {
                             onResume={resumeRoom}
                             onRestart={restartRoom}
                         />
+                    </Match>
+                    <Match
+                        when={
+                            roomPhase() === "playing" &&
+                            activeGameType() === "six_nimmt"
+                        }
+                    >
+                        <Show
+                            when={canAccessCurrentGame()}
+                            fallback={
+                                <GameSessionState
+                                    roomId={roomId()}
+                                    status={myGameStatus()}
+                                />
+                            }
+                        >
+                            {(() => {
+                                const connection: SixNimmtConnection =
+                                    gameConnection("six_nimmt", {
+                                        stateType: "six_nimmt:state",
+                                        prefix: "six_nimmt:",
+                                        envelope,
+                                        playerViewSchema:
+                                            sixNimmtPlayerViewSchema,
+                                        serverMessageSchema:
+                                            sixNimmtServerMessageSchema,
+                                    });
+                                return (
+                                    <SixNimmtRoom
+                                        onReturnToLobby={returnToLobby}
+                                        connection={connection}
+                                        playerId={playerId()}
+                                        isHost={isHost()}
+                                        layout={
+                                            search().view === "controller"
+                                                ? "controller"
+                                                : "table"
+                                        }
+                                    />
+                                );
+                            })()}
+                        </Show>
                     </Match>
                     <Match
                         when={

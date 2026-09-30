@@ -98,7 +98,7 @@ Options:
   -p, --players <n>     How many browser windows (default: 2, max: 10)
   -g, --game <id>       Pre-select a game (yahtzee, poker, backwards_poker, go_fish,
                         blackjack, perudo, rps, herd, fun_facts, cheese_thief,
-                        cockroach_poker, flip_7, skull, spicy, quiz)
+                        cockroach_poker, flip_7, skull, spicy, six_nimmt, quiz)
   -s, --start           Auto-start the game once everyone has joined
   -r, --room <code>     Use a specific room code (default: random 6-char)
       --url <url>       Point at a running server (default: http://localhost:3000).

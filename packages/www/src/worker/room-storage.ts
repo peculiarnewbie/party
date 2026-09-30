@@ -1,3 +1,7 @@
+import {
+    sixNimmtStateSchema,
+    type SixNimmtState,
+} from "~/game/six-nimmt/schemas";
 import { Effect, Schema } from "effect";
 
 import {
@@ -70,6 +74,7 @@ type PersistedPlayerCapabilityRow = {
 };
 
 export type PersistedGameSnapshot =
+    | { gameType: "six_nimmt"; state: SixNimmtState }
     | {
           gameType: "go_fish";
           state: GoFishState;
@@ -188,6 +193,7 @@ function createTypedSnapshotSchema(
 }
 
 const persistedGameSnapshotSchema = Schema.Union([
+    createTypedSnapshotSchema("six_nimmt", sixNimmtStateSchema),
     createTypedSnapshotSchema("go_fish", goFishStateSchema),
     createTypedSnapshotSchema("poker", pokerStateSchema),
     createTypedSnapshotSchema("backwards_poker", pokerStateSchema),
@@ -210,6 +216,7 @@ const persistedGameSnapshotJsonSchema = Schema.fromJsonString(
 );
 
 const gameStateSchemaMap: Record<string, Schema.Top> = {
+    six_nimmt: sixNimmtStateSchema,
     go_fish: goFishStateSchema,
     poker: pokerStateSchema,
     backwards_poker: pokerStateSchema,

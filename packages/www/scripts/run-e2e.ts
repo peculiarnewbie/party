@@ -48,6 +48,12 @@ const E2E_SUITES: Record<string, E2eSuite> = {
         workerFiles: ["src/worker/blackjack-room.test.ts"],
         browserProjects: ["blackjack-seeded", "blackjack-live"],
     },
+    "six-nimmt": {
+        description:
+            "6 nimmt simultaneous choices, public display, reconnects, and complete hands",
+        workerFiles: ["src/worker/six-nimmt-room.test.ts"],
+        browserProjects: ["six-nimmt-live"],
+    },
     "go-fish": {
         description: "Live browser and workerd room-start coverage for Go Fish",
         workerFiles: ["src/worker/go-fish-room.test.ts"],

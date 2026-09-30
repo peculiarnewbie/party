@@ -1,3 +1,4 @@
+import { sixNimmtTableViewSchema } from "~/game/six-nimmt/schemas";
 import { Schema } from "effect";
 import { roomPhaseSchema, gameTypeSchema, roomRecoverySchema } from "~/game";
 import { pokerTableViewSchema } from "~/game/poker/table-view";
@@ -7,6 +8,10 @@ import { blackjackTableViewSchema } from "~/game/blackjack/table-view";
 import { perudoTableViewSchema } from "~/game/perudo/table-view";
 
 export const partyGameSchema = Schema.Union([
+    Schema.Struct({
+        type: Schema.Literal("six_nimmt"),
+        view: sixNimmtTableViewSchema,
+    }),
     Schema.Struct({
         type: Schema.Literal("flip_7"),
         view: flip7TableViewSchema,

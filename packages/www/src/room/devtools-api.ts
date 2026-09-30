@@ -386,6 +386,7 @@ export function createPartyDevtoolsApi(pool: RoomClientPool): PartyDevtoolsApi {
                 flip_7: "flip_7:state",
                 skull: "skull:state",
                 spicy: "spicy:state",
+                six_nimmt: "six_nimmt:state",
             };
             const type = prefixMap[activeGame];
             if (!type) return null;

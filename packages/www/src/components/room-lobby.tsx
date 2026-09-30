@@ -107,6 +107,7 @@ export const RoomLobby: Component<{
                                 "blackjack",
                                 "flip_7",
                                 "perudo",
+                                "six_nimmt",
                             ].includes(props.selectedGameType)
                         }
                     >

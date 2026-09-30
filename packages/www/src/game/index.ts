@@ -31,6 +31,7 @@ export const gameTypes = [
     "flip_7",
     "skull",
     "spicy",
+    "six_nimmt",
 ] as const;
 export type GameType = (typeof gameTypes)[number];
 export type GameParticipantStatus =
@@ -125,6 +126,7 @@ export const GAME_RULES: Record<
         minPlayers: 3,
         maxPlayers: 6,
     },
+    six_nimmt: { label: "6 nimmt!", minPlayers: 2, maxPlayers: 10 },
     spicy: {
         label: "Spicy",
         minPlayers: 3,
@@ -152,6 +154,7 @@ export const gameWirePrefixes = [
     "flip_7:",
     "skull:",
     "spicy:",
+    "six_nimmt:",
 ] as const;
 
 export function isGameWireMessageType(type: string): boolean {
