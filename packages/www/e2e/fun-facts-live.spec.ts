@@ -6,6 +6,9 @@ import type {
 } from "../src/game/fun-facts";
 import { defineLiveGameSmoke, startLiveGame } from "./helpers/live-game-smoke";
 import type { PlayerGameMessage } from "./helpers/multiplayer-room-page";
+import { definePartyQuestionGame } from "./helpers/party-question-game";
+
+definePartyQuestionGame("fun_facts");
 
 defineLiveGameSmoke({
     gameType: "fun_facts",

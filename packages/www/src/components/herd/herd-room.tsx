@@ -1,9 +1,14 @@
 import { createSignal, For, Show, Switch, Match, onCleanup } from "solid-js";
+import { TableButton, TablePanel } from "~/components/casino";
+import { HerdDiscussion } from "./herd-discussion";
 import type { Component } from "solid-js";
-import type { HerdPlayerView, AnswerGroupView } from "~/game/herd/views";
+import type { HerdPlayerView } from "~/game/herd/views";
 import type { HerdConnection } from "~/game/herd/connection";
 
+import type { PartyLayout } from "~/components/party-layout-controls";
+
 interface HerdRoomProps {
+    initialLayout?: PartyLayout;
     roomId: string;
     playerId: string | null;
     isHost: boolean;
@@ -14,14 +19,18 @@ interface HerdRoomProps {
 
 export const HerdRoom: Component<HerdRoomProps> = (props) => {
     const view = () => props.connection.view();
+    const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
     const [answerInput, setAnswerInput] = createSignal("");
     const [customQuestionInput, setCustomQuestionInput] = createSignal("");
-    const [selectedGroups, setSelectedGroups] = createSignal<string[]>([]);
     const [editingAnswer, setEditingAnswer] = createSignal(false);
 
     onCleanup(
         props.connection.subscribe((event) => {
+            if (event.type === "herd:error") {
+                setErrorMessage(event.data.message);
+            }
             if (event.type === "herd:action") {
+                setErrorMessage(null);
                 const action = event.data as { type?: string };
                 if (
                     action.type === "question_started" ||
@@ -29,34 +38,10 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                 ) {
                     setAnswerInput("");
                     setEditingAnswer(false);
-                    setSelectedGroups([]);
                 }
             }
         }),
     );
-
-    const toggleGroupSelection = (groupId: string) => {
-        setSelectedGroups((prev) => {
-            if (prev.includes(groupId)) {
-                return prev.filter((id) => id !== groupId);
-            }
-            if (prev.length >= 2) {
-                return [prev[1], groupId];
-            }
-            return [...prev, groupId];
-        });
-    };
-
-    const handleMerge = () => {
-        const sel = selectedGroups();
-        if (sel.length === 2) {
-            props.connection.send({
-                type: "herd:merge_groups",
-                data: { groupId1: sel[0]!, groupId2: sel[1]! },
-            });
-            setSelectedGroups([]);
-        }
-    };
 
     const handleSubmitAnswer = () => {
         const answer = answerInput().trim();
@@ -91,13 +76,6 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
         });
     };
 
-    const handleConfirmScoring = () => {
-        props.connection.send({
-            type: "herd:confirm_scoring",
-            data: {},
-        });
-    };
-
     const handleNextRound = () => {
         props.connection.send({
             type: "herd:next_round",
@@ -114,25 +92,41 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
     return (
         <div
             data-testid="herd-room"
-            class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla"
+            class="min-h-screen paper text-ink font-karla"
         >
-            <Show when={view()} keyed>
+            <Show
+                when={view()}
+                fallback={
+                    <p
+                        role="status"
+                        class="p-8 text-center font-bebas text-2xl text-navy"
+                    >
+                        Loading game…
+                    </p>
+                }
+            >
                 {(v) => (
-                    <div class="max-w-3xl mx-auto px-4 py-6">
-                        <div class="flex items-center justify-between mb-6">
-                            <div>
+                    <div
+                        class={
+                            props.initialLayout === "controller"
+                                ? "max-w-lg mx-auto px-4 py-5 pb-24"
+                                : "max-w-3xl mx-auto px-4 py-6"
+                        }
+                    >
+                        <div class="flex items-start justify-between gap-3 mb-6">
+                            <div class="min-w-0 flex-1">
                                 <h1 class="font-bebas text-[2rem] tracking-[.08em] leading-none">
                                     HERD MENTALITY
                                 </h1>
-                                <div class="font-bebas text-[.75rem] tracking-[.2em] text-[#9a9080]">
+                                <div class="font-bebas text-[.75rem] tracking-[.2em] text-[#9a9080] break-all">
                                     ROOM {props.roomId.toUpperCase()}
-                                    <Show when={v.roundNumber > 0}>
+                                    <Show when={v().roundNumber > 0}>
                                         {" "}
-                                        &middot; ROUND {v.roundNumber}
+                                        &middot; ROUND {v().roundNumber}
                                     </Show>
                                 </div>
                             </div>
-                            <Show when={v.isHost}>
+                            <Show when={v().isHost}>
                                 <button
                                     type="button"
                                     onClick={props.onEndGame}
@@ -143,12 +137,28 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                             </Show>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-6">
+                        <Show when={errorMessage()}>
+                            {(message) => (
+                                <p
+                                    role="alert"
+                                    class="border-2 border-ink bg-cream text-tomato p-3 mb-4 shadow-ink-sm"
+                                >
+                                    {message()}
+                                </p>
+                            )}
+                        </Show>
+                        <div
+                            class={
+                                props.initialLayout === "controller"
+                                    ? "grid grid-cols-1 gap-5"
+                                    : "grid grid-cols-1 md:grid-cols-[1fr_240px] gap-6"
+                            }
+                        >
                             <div>
                                 <Switch>
-                                    <Match when={v.phase === "waiting"}>
+                                    <Match when={v().phase === "waiting"}>
                                         <WaitingPhase
-                                            view={v}
+                                            view={v()}
                                             customQuestion={customQuestionInput()}
                                             setCustomQuestion={
                                                 setCustomQuestionInput
@@ -162,42 +172,104 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                             }
                                         />
                                     </Match>
-                                    <Match when={v.phase === "answering"}>
+                                    <Match when={v().phase === "answering"}>
                                         <AnsweringPhase
-                                            view={v}
+                                            view={v()}
                                             answerInput={answerInput()}
                                             setAnswerInput={setAnswerInput}
                                             editingAnswer={editingAnswer()}
                                             onSubmit={handleSubmitAnswer}
                                             onChangeAnswer={() => {
                                                 setAnswerInput(
-                                                    v.myAnswer ?? "",
+                                                    v().myAnswer ?? "",
                                                 );
                                                 setEditingAnswer(true);
                                             }}
                                             onCloseAnswers={handleCloseAnswers}
                                         />
                                     </Match>
-                                    <Match when={v.phase === "reveal"}>
-                                        <RevealPhase
-                                            view={v}
-                                            selectedGroups={selectedGroups()}
-                                            onToggleGroup={toggleGroupSelection}
-                                            onMerge={handleMerge}
-                                            onConfirmScoring={
-                                                handleConfirmScoring
+                                    <Match when={v().phase === "reveal"}>
+                                        <Show
+                                            when={
+                                                props.initialLayout ===
+                                                    "controller" && !v().isHost
                                             }
-                                        />
+                                            fallback={
+                                                <HerdDiscussion
+                                                    view={v()}
+                                                    compact={
+                                                        props.initialLayout ===
+                                                        "controller"
+                                                    }
+                                                    onCombine={(
+                                                        groupId1,
+                                                        groupId2,
+                                                    ) =>
+                                                        props.connection.send({
+                                                            type: "herd:merge_groups",
+                                                            data: {
+                                                                groupId1,
+                                                                groupId2,
+                                                            },
+                                                        })
+                                                    }
+                                                    onSeparate={(
+                                                        groupId,
+                                                        answer,
+                                                    ) =>
+                                                        props.connection.send({
+                                                            type: "herd:separate_answer",
+                                                            data: {
+                                                                groupId,
+                                                                answer,
+                                                            },
+                                                        })
+                                                    }
+                                                    onNextRound={
+                                                        handleNextRound
+                                                    }
+                                                />
+                                            }
+                                        >
+                                            <TablePanel
+                                                active
+                                                class="text-center"
+                                            >
+                                                <h2 class="font-bebas text-3xl text-navy">
+                                                    Discuss the answers
+                                                </h2>
+                                                <p class="mt-3 text-muted">
+                                                    Your answer: {v().myAnswer}
+                                                </p>
+                                                <p
+                                                    class="mt-2 text-muted"
+                                                    role="status"
+                                                >
+                                                    {v().previewRoundResult?.scoringPlayerIds.includes(
+                                                        v().myId,
+                                                    )
+                                                        ? "+1 point pending"
+                                                        : "No point yet"}
+                                                    . Scores settle when the
+                                                    host moves to the next
+                                                    round.
+                                                </p>
+                                            </TablePanel>
+                                        </Show>
                                     </Match>
-                                    <Match when={v.phase === "scored"}>
+                                    <Match when={v().phase === "scored"}>
                                         <ScoredPhase
-                                            view={v}
+                                            compact={
+                                                props.initialLayout ===
+                                                "controller"
+                                            }
+                                            view={v()}
                                             onNextRound={handleNextRound}
                                         />
                                     </Match>
-                                    <Match when={v.phase === "game_over"}>
+                                    <Match when={v().phase === "game_over"}>
                                         <GameOverPhase
-                                            view={v}
+                                            view={v()}
                                             playerName={playerName}
                                             onReturnToLobby={
                                                 props.onReturnToLobby
@@ -207,7 +279,12 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                 </Switch>
                             </div>
 
-                            <Leaderboard view={v} playerName={playerName} />
+                            <Show when={props.initialLayout !== "controller"}>
+                                <Leaderboard
+                                    view={v()}
+                                    playerName={playerName}
+                                />
+                            </Show>
                         </div>
                     </div>
                 )}
@@ -252,6 +329,7 @@ const WaitingPhase: Component<{
                     </label>
                     <input
                         type="text"
+                        aria-label="Custom question"
                         value={props.customQuestion}
                         onInput={(e) =>
                             props.setCustomQuestion(e.currentTarget.value)
@@ -261,15 +339,15 @@ const WaitingPhase: Component<{
                     />
                 </div>
 
-                <button
-                    type="button"
+                <TableButton
                     onClick={props.onNextQuestion}
-                    class="w-full font-bebas text-[1.1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a] mb-4"
+                    tone="navy"
+                    class="w-full"
                 >
                     {props.view.roundNumber === 0
                         ? "START FIRST QUESTION"
                         : "NEXT QUESTION"}
-                </button>
+                </TableButton>
 
                 <div class="flex items-center justify-between border-t border-[#9a9080] pt-4">
                     <div class="flex items-center gap-3">
@@ -363,6 +441,7 @@ const AnsweringPhase: Component<{
                             <div class="flex gap-2">
                                 <input
                                     type="text"
+                                    aria-label="Your answer"
                                     value={props.answerInput}
                                     onInput={(e) =>
                                         props.setAnswerInput(
@@ -374,18 +453,18 @@ const AnsweringPhase: Component<{
                                     }}
                                     placeholder="Type your answer..."
                                     maxlength={200}
-                                    class="flex-1 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-3 py-2 text-[.95rem] font-karla focus:outline-none focus:ring-2 focus:ring-[#1a3a6e]"
+                                    class="flex-1 min-w-0 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-3 py-2 text-[.95rem] font-karla focus:outline-none focus:ring-2 focus:ring-[#1a3a6e]"
                                 />
-                                <button
-                                    type="button"
+                                <TableButton
                                     onClick={props.onSubmit}
+                                    tone="navy"
+                                    class="px-4 min-w-24"
                                     disabled={
                                         props.answerInput.trim().length === 0
                                     }
-                                    class="font-bebas text-[.95rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-4 py-2 shadow-[2px_2px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1a1a1a] disabled:opacity-40 disabled:pointer-events-none"
                                 >
                                     SUBMIT
-                                </button>
+                                </TableButton>
                             </div>
                         </Show>
                     </div>
@@ -411,144 +490,13 @@ const AnsweringPhase: Component<{
                             }}
                         />
                     </div>
-                    <button
-                        type="button"
+                    <TableButton
                         onClick={props.onCloseAnswers}
-                        class="w-full font-bebas text-[1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                        tone="navy"
+                        class="w-full"
                     >
                         CLOSE ANSWERS
-                    </button>
-                </div>
-            </Show>
-        </div>
-    );
-};
-
-const RevealPhase: Component<{
-    view: HerdPlayerView;
-    selectedGroups: string[];
-    onToggleGroup: (groupId: string) => void;
-    onMerge: () => void;
-    onConfirmScoring: () => void;
-}> = (props) => {
-    return (
-        <div>
-            <div class="border-2 border-[#1a1a1a] bg-[#1a3a6e] text-[#ddd5c4] p-4 shadow-[4px_4px_0_#1a1a1a] mb-4">
-                <div class="font-bebas text-[.7rem] tracking-[.24em] text-[#b8ae9e] mb-1">
-                    QUESTION
-                </div>
-                <h2 class="font-bebas text-[1.3rem] tracking-[.04em] leading-tight">
-                    {props.view.currentQuestion}
-                </h2>
-            </div>
-
-            <Show when={props.view.isHost}>
-                <div class="border-2 border-[#1a1a1a] bg-[#c0261a] text-[#ddd5c4] px-4 py-3 shadow-[3px_3px_0_#1a1a1a] mb-4">
-                    <div class="font-bebas text-[.8rem] tracking-[.16em]">
-                        SELECT TWO GROUPS TO MERGE SYNONYMS / TYPOS, THEN
-                        CONFIRM SCORING
-                    </div>
-                </div>
-            </Show>
-
-            <div class="space-y-3 mb-4">
-                <For each={props.view.answerGroups}>
-                    {(group) => (
-                        <AnswerGroupCard
-                            group={group}
-                            isHost={props.view.isHost}
-                            isSelected={props.selectedGroups.includes(group.id)}
-                            onToggle={() => props.onToggleGroup(group.id)}
-                        />
-                    )}
-                </For>
-            </div>
-
-            <Show when={props.view.answerGroups.length === 0}>
-                <div class="border-2 border-[#1a1a1a] bg-[#c9c0b0] p-6 shadow-[4px_4px_0_#1a1a1a] text-center mb-4">
-                    <p class="text-[.9rem] text-[#5a5040]">
-                        No answers were submitted this round.
-                    </p>
-                </div>
-            </Show>
-
-            <Show
-                when={props.view.isHost}
-                fallback={
-                    <div class="text-center py-4">
-                        <p class="font-bebas text-[.85rem] tracking-[.16em] text-[#9a9080]">
-                            WAITING FOR HOST TO CONFIRM SCORING...
-                        </p>
-                    </div>
-                }
-            >
-                <div class="flex gap-3">
-                    <Show when={props.selectedGroups.length === 2}>
-                        <button
-                            type="button"
-                            onClick={props.onMerge}
-                            class="flex-1 font-bebas text-[1rem] tracking-[.14em] bg-[#c0261a] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
-                        >
-                            MERGE SELECTED
-                        </button>
-                    </Show>
-                    <button
-                        type="button"
-                        onClick={props.onConfirmScoring}
-                        class="flex-1 font-bebas text-[1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
-                    >
-                        CONFIRM SCORING
-                    </button>
-                </div>
-            </Show>
-        </div>
-    );
-};
-
-const AnswerGroupCard: Component<{
-    group: AnswerGroupView;
-    isHost: boolean;
-    isSelected: boolean;
-    onToggle: () => void;
-}> = (props) => {
-    const borderColor = () =>
-        props.isSelected ? "border-[#c0261a]" : "border-[#1a1a1a]";
-    const bgColor = () => (props.isSelected ? "bg-[#e8d8c8]" : "bg-[#c9c0b0]");
-
-    return (
-        <div
-            class={`border-2 ${borderColor()} ${bgColor()} p-4 shadow-[3px_3px_0_#1a1a1a] ${
-                props.isHost ? "cursor-pointer" : ""
-            } transition-all duration-100`}
-            onClick={() => {
-                if (props.isHost) props.onToggle();
-            }}
-        >
-            <div class="flex items-start justify-between mb-2">
-                <div class="font-bebas text-[1.3rem] tracking-[.04em] leading-tight">
-                    "{props.group.canonicalAnswer}"
-                </div>
-                <div class="font-bebas text-[1.6rem] tracking-[.04em] text-[#1a3a6e] leading-none ml-4">
-                    {props.group.count}
-                </div>
-            </div>
-            <div class="text-[.8rem] text-[#5a5040]">
-                <For each={props.group.playerNames}>
-                    {(name, i) => (
-                        <span>
-                            {name}
-                            <Show
-                                when={i() < props.group.playerNames.length - 1}
-                            >
-                                ,{" "}
-                            </Show>
-                        </span>
-                    )}
-                </For>
-            </div>
-            <Show when={props.isHost && props.isSelected}>
-                <div class="mt-2 font-bebas text-[.7rem] tracking-[.2em] text-[#c0261a]">
-                    SELECTED FOR MERGE
+                    </TableButton>
                 </div>
             </Show>
         </div>
@@ -556,6 +504,7 @@ const AnswerGroupCard: Component<{
 };
 
 const ScoredPhase: Component<{
+    compact?: boolean;
     view: HerdPlayerView;
     onNextRound: () => void;
 }> = (props) => {
@@ -601,7 +550,9 @@ const ScoredPhase: Component<{
                         </div>
                         <div class="text-[.85rem] text-[#5a5040]">
                             {result()!.scoringPlayerIds.length} player
-                            {result()!.scoringPlayerIds.length !== 1 ? "s" : ""}{" "}
+                            {result()!.scoringPlayerIds.length !== 1
+                                ? "s"
+                                : ""}{" "}
                             scored!
                         </div>
                     </div>
@@ -619,72 +570,88 @@ const ScoredPhase: Component<{
                 </div>
             </Show>
 
-            <div class="space-y-2 mb-4">
-                <For each={props.view.answerGroups}>
-                    {(group) => {
-                        const isMajority = () =>
-                            result()?.majorityGroupId === group.id;
-                        return (
-                            <div
-                                class={`border-2 border-[#1a1a1a] p-3 shadow-[2px_2px_0_#1a1a1a] ${
-                                    isMajority()
-                                        ? "bg-[#1a3a6e] text-[#ddd5c4]"
-                                        : "bg-[#c9c0b0]"
-                                }`}
-                            >
-                                <div class="flex items-center justify-between">
-                                    <div class="font-bebas text-[1.1rem] tracking-[.04em]">
-                                        "{group.canonicalAnswer}"
-                                    </div>
-                                    <div
-                                        class={`font-bebas text-[1.3rem] tracking-[.04em] ${
-                                            isMajority()
-                                                ? "text-[#ddd5c4]"
-                                                : "text-[#1a3a6e]"
-                                        }`}
-                                    >
-                                        {group.count}
-                                    </div>
-                                </div>
+            <Show when={props.compact && !props.view.isHost}>
+                <TablePanel active class="mb-4 text-center">
+                    <p class="font-bebas text-lg text-muted">Your score</p>
+                    <p class="font-bebas text-5xl text-navy">
+                        {props.view.players.find(
+                            (player) => player.id === props.view.myId,
+                        )?.score ?? 0}
+                    </p>
+                    <p class="mt-2 text-muted">
+                        {result()?.scoringPlayerIds.includes(props.view.myId)
+                            ? "You matched the herd! +1 point."
+                            : "No point this round. Try to think like the herd!"}
+                    </p>
+                </TablePanel>
+            </Show>
+            <Show when={!props.compact}>
+                <div class="space-y-2 mb-4">
+                    <For each={props.view.answerGroups}>
+                        {(group) => {
+                            const isMajority = () =>
+                                result()?.majorityGroupId === group.id;
+                            return (
                                 <div
-                                    class={`text-[.75rem] ${
+                                    class={`border-2 border-[#1a1a1a] p-3 shadow-[2px_2px_0_#1a1a1a] ${
                                         isMajority()
-                                            ? "text-[#b8ae9e]"
-                                            : "text-[#5a5040]"
+                                            ? "bg-[#1a3a6e] text-[#ddd5c4]"
+                                            : "bg-[#c9c0b0]"
                                     }`}
                                 >
-                                    <For each={group.playerNames}>
-                                        {(name, i) => (
-                                            <span>
-                                                {name}
-                                                <Show
-                                                    when={
-                                                        i() <
-                                                        group.playerNames
-                                                            .length -
-                                                            1
-                                                    }
-                                                >
-                                                    ,{" "}
-                                                </Show>
-                                            </span>
-                                        )}
-                                    </For>
+                                    <div class="flex items-center justify-between">
+                                        <div class="font-bebas text-[1.1rem] tracking-[.04em]">
+                                            "{group.canonicalAnswer}"
+                                        </div>
+                                        <div
+                                            class={`font-bebas text-[1.3rem] tracking-[.04em] ${
+                                                isMajority()
+                                                    ? "text-[#ddd5c4]"
+                                                    : "text-[#1a3a6e]"
+                                            }`}
+                                        >
+                                            {group.count}
+                                        </div>
+                                    </div>
+                                    <div
+                                        class={`text-[.75rem] ${
+                                            isMajority()
+                                                ? "text-[#b8ae9e]"
+                                                : "text-[#5a5040]"
+                                        }`}
+                                    >
+                                        <For each={group.playerNames}>
+                                            {(name, i) => (
+                                                <span>
+                                                    {name}
+                                                    <Show
+                                                        when={
+                                                            i() <
+                                                            group.playerNames
+                                                                .length -
+                                                                1
+                                                        }
+                                                    >
+                                                        ,{" "}
+                                                    </Show>
+                                                </span>
+                                            )}
+                                        </For>
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    }}
-                </For>
-            </div>
-
+                            );
+                        }}
+                    </For>
+                </div>
+            </Show>
             <Show when={props.view.isHost}>
-                <button
-                    type="button"
+                <TableButton
                     onClick={props.onNextRound}
-                    class="w-full font-bebas text-[1.1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                    tone="navy"
+                    class="w-full"
                 >
                     NEXT ROUND
-                </button>
+                </TableButton>
             </Show>
         </div>
     );

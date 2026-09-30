@@ -709,6 +709,7 @@ function PlayerRoom() {
                                     });
                                 return (
                                     <HerdRoom
+                                        initialLayout={search().view === "controller" ? "controller" : "table"}
                                         roomId={roomId()}
                                         playerId={playerId()}
                                         isHost={isHost()}
@@ -748,6 +749,7 @@ function PlayerRoom() {
                                     });
                                 return (
                                     <FunFactsRoom
+                                        initialLayout={search().view === "controller" ? "controller" : "table"}
                                         roomId={roomId()}
                                         playerId={playerId()}
                                         isHost={isHost()}
@@ -787,6 +789,7 @@ function PlayerRoom() {
                                     });
                                 return (
                                     <CheeseThiefRoom
+                                        initialLayout={search().view === "controller" ? "controller" : "table"}
                                         roomId={roomId()}
                                         playerId={playerId()}
                                         isHost={isHost()}

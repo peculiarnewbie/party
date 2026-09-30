@@ -2,6 +2,7 @@ import { definePartyModeTest } from "./helpers/party-mode";
 import { test, expect } from "@playwright/test";
 import { nanoid } from "nanoid";
 import { MultiplayerRoomPage } from "./helpers/multiplayer-room-page";
+import type { BlackjackPlayerView } from "../src/game/blackjack/views";
 
 function createRoomId(prefix: string) {
     return `${prefix}-${nanoid(6).toLowerCase()}`;
@@ -49,14 +50,32 @@ async function startBlackjackRound(page: import("@playwright/test").Page) {
 
         for (const playerId of [bobId, aliceId]) {
             await room.switchPlayer(playerId);
+            await expect
+                .poll(async () =>
+                    (await room.gameView<BlackjackPlayerView>()).myId,
+                )
+                .toBe(playerId);
             const decline = page.getByRole("button", { name: "NO" });
-            if (await decline.isVisible()) {
+            if ((await room.gameView<BlackjackPlayerView>()).needsInsurance) {
                 await decline.click();
+                await expect
+                    .poll(async () =>
+                        (
+                            await room.gameView<BlackjackPlayerView>()
+                        ).players.find((player) => player.id === playerId)
+                            ?.insuranceDecided,
+                    )
+                    .toBe(true);
             }
         }
         await room.switchPlayer(bobId);
 
-        if (await currentTurnPlayerId(page)) {
+        await expect
+            .poll(async () =>
+                (await room.gameView<BlackjackPlayerView>()).phase,
+            )
+            .toMatch(/^(playing|settled)$/);
+        if ((await room.gameView<BlackjackPlayerView>()).phase === "playing") {
             return { room, aliceId, bobId };
         }
 
@@ -195,31 +214,25 @@ test.describe("blackjack-live", () => {
         const { room, aliceId, bobId } = await startBlackjackRound(page);
 
         for (let i = 0; i < 16; i++) {
-            if (await page.getByText("NEXT ROUND STARTING SOON...").isVisible())
-                break;
-            const currentId = await currentTurnPlayerId(page);
-            if (!currentId) {
-                for (const playerId of [aliceId, bobId]) {
-                    await room.switchPlayer(playerId);
-                    const decline = page.getByRole("button", { name: "NO" });
-                    if (await decline.isVisible()) {
-                        await decline.click();
-                    }
-                }
-                await page.waitForTimeout(50);
-                continue;
-            }
+            const before = await room.gameView<BlackjackPlayerView>();
+            if (before.phase === "settled") break;
+            expect(before.phase).toBe("playing");
+            const current = before.players[before.currentPlayerIndex];
+            expect(current).toBeTruthy();
+            const currentId = current!.id;
             await room.switchPlayer(currentId);
-            if (await page.getByRole("button", { name: "STAND" }).isVisible()) {
-                await page.getByRole("button", { name: "STAND" }).click();
-            } else if (
-                await page.getByRole("button", { name: "NO" }).isVisible()
-            ) {
-                await page.getByRole("button", { name: "NO" }).click();
-            } else {
-                await page.getByRole("button", { name: "HIT" }).click();
-            }
-            await page.waitForTimeout(50);
+            await page.getByRole("button", { name: "STAND", exact: true }).click();
+            await expect
+                .poll(async () => {
+                    const after = await room.gameView<BlackjackPlayerView>();
+                    return (
+                        after.phase !== "playing" ||
+                        after.players[after.currentPlayerIndex]?.id !== currentId ||
+                        after.players[after.currentPlayerIndex]?.currentHandIndex !==
+                            current!.currentHandIndex
+                    );
+                })
+                .toBe(true);
         }
 
         await expect(page.getByText("NEXT ROUND STARTING SOON...")).toBeVisible(

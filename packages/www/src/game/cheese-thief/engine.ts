@@ -115,7 +115,7 @@ function computeVoteResult(state: CheeseThiefState): VoteResult {
     }
 
     const mostVotedIds = Object.entries(voteCounts)
-        .filter(([, count]) => count === maxVotes)
+        .filter(([, count]) => maxVotes > 0 && count === maxVotes)
         .map(([id]) => id);
 
     const thiefCaught = mostVotedIds.includes(state.thiefId);
@@ -138,10 +138,16 @@ export function processAction(
 ): CheeseThiefResult {
     if (action.type === "start_day") {
         if (state.phase !== "night") {
-            return { type: "error", message: "Can only start day from night phase" };
+            return {
+                type: "error",
+                message: "Can only start day from night phase",
+            };
         }
         if (action.hostId !== state.hostId) {
-            return { type: "error", message: "Only the host can advance phases" };
+            return {
+                type: "error",
+                message: "Only the host can advance phases",
+            };
         }
         state.phase = "day";
         return { type: "day_started" };
@@ -155,7 +161,10 @@ export function processAction(
             };
         }
         if (action.hostId !== state.hostId) {
-            return { type: "error", message: "Only the host can advance phases" };
+            return {
+                type: "error",
+                message: "Only the host can advance phases",
+            };
         }
         state.phase = "voting";
         state.votes = {};
@@ -201,6 +210,12 @@ export function processAction(
         if (action.hostId !== state.hostId) {
             return { type: "error", message: "Only the host can reveal votes" };
         }
+        if (Object.keys(state.votes).length === 0) {
+            return {
+                type: "error",
+                message: "Cast at least one vote before revealing",
+            };
+        }
 
         const result = computeVoteResult(state);
         state.voteResult = result;
@@ -226,10 +241,16 @@ export function processAction(
 
     if (action.type === "next_round") {
         if (state.phase !== "reveal") {
-            return { type: "error", message: "Can only start next round from reveal" };
+            return {
+                type: "error",
+                message: "Can only start next round from reveal",
+            };
         }
         if (action.hostId !== state.hostId) {
-            return { type: "error", message: "Only the host can start next round" };
+            return {
+                type: "error",
+                message: "Only the host can start next round",
+            };
         }
 
         const existingScores: Record<string, number> = {};

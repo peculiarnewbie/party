@@ -1,4 +1,5 @@
 import type { HerdState, AnswerGroup } from "./types";
+import { buildAnswerGroups, calculateScoring } from "./engine";
 import type {
     AnswerGroupView,
     HerdPlayerInfo,
@@ -24,6 +25,12 @@ function toGroupView(group: AnswerGroup, state: HerdState): AnswerGroupView {
             return p?.name ?? "Unknown";
         }),
         playerIds: [...group.playerIds],
+        answers: buildAnswerGroups(group.originalAnswers, 0).groups.map(
+            (answer) => ({
+                answer: answer.canonicalAnswer,
+                count: answer.playerIds.length,
+            }),
+        ),
     };
 }
 
@@ -81,6 +88,8 @@ export function getPlayerView(
         totalPlayers: state.players.length,
         answerGroups,
         lastRoundResult: state.lastRoundResult,
+        previewRoundResult:
+            state.phase === "reveal" ? calculateScoring(state) : null,
         leaderboard,
     };
 }

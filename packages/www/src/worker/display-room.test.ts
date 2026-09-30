@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Schema } from "effect";
 import { displayMessageSchema } from "~/room/display-protocol";
+import type { DisplayState } from "~/room/display-protocol";
 import { pokerPlayerViewSchema } from "~/game/poker/schemas";
 import {
     connectClient,
@@ -37,6 +38,13 @@ describe("Party mode display connections", () => {
         "flip_7:hit",
         "blackjack:hit",
         "perudo:bid",
+        "herd:next_question",
+        "herd:submit_answer",
+        "herd:separate_answer",
+        "fun_facts:place_arrow",
+        "fun_facts:submit_answer",
+        "cheese_thief:cast_vote",
+        "cheese_thief:reveal_votes",
     ])(
         "does not take a seat or become host, and rejects %s commands",
         async (type) => {
@@ -190,6 +198,225 @@ describe("Party mode display connections", () => {
         },
     );
 });
+
+it.each(["herd", "fun_facts"] as const)(
+    "streams private-safe %s Party rounds, merges or placements, reconnects, and clears the display",
+    async (gameType) => {
+        const roomId = `display-social-${gameType}`;
+        let display = await connectDisplay(roomId);
+        const clients = {
+            alice: await join(roomId, "alice", "Alice"),
+            bob: await join(roomId, "bob", "Bob"),
+            charlie: await join(roomId, "charlie", "Charlie"),
+            dave: await join(roomId, "dave", "Dave"),
+        };
+        const send = (
+            type: string,
+            data: Record<string, unknown> = {},
+            id: keyof typeof clients = "alice",
+        ) => clients[id].send({ type, data, playerId: id, playerName: id });
+        type SocialGame = Extract<
+            NonNullable<DisplayState["game"]>,
+            { type: "herd" | "fun_facts" }
+        >;
+        const waitView = async (
+            predicate: (game: SocialGame) => boolean,
+            since = 0,
+        ): Promise<SocialGame> => {
+            const message = await display.waitForMessage(
+                (message) => {
+                    const game =
+                        Schema.decodeUnknownSync(displayMessageSchema)(message)
+                            .data.game;
+                    return (
+                        (game?.type === "herd" || game?.type === "fun_facts") &&
+                        game.type === gameType &&
+                        predicate(game)
+                    );
+                },
+                { since },
+            );
+            const game =
+                Schema.decodeUnknownSync(displayMessageSchema)(message).data
+                    .game;
+            if (game?.type !== "herd" && game?.type !== "fun_facts")
+                throw new Error("Expected social game display");
+            return game;
+        };
+        send("select_game", { gameType });
+        await clients.alice.waitForMessage(
+            (message) =>
+                message.type === "room_state" &&
+                message.data.selectedGameType === gameType,
+        );
+        send("start");
+        await waitView((game) => game.view.phase === "waiting");
+        if (gameType === "herd")
+            send("herd:toggle_pink_cow", { enabled: true });
+        send(`${gameType}:next_question`, {
+            customQuestion: "Party question?",
+        });
+        await waitView((game) => game.view.phase === "answering");
+        const answers: Record<string, string | number> =
+            gameType === "herd"
+                ? {
+                      bob: "SECRET DOG",
+                      charlie: "SECRET DOGS",
+                      dave: "SECRET CAT",
+                  }
+                : { alice: 91001, bob: 91002, charlie: 91003, dave: 91004 };
+        for (const [id, answer] of Object.entries(answers))
+            send(
+                `${gameType}:submit_answer`,
+                { answer },
+                id as keyof typeof clients,
+            );
+        const answered = await waitView(
+            (game) =>
+                (game.type === "herd" || game.type === "fun_facts") &&
+                game.view.answeredCount === Object.keys(answers).length,
+        );
+        expect(JSON.stringify(answered)).not.toContain("SECRET");
+        expect(JSON.stringify(answered)).not.toContain("9100");
+        expect(answered.view).not.toHaveProperty("myAnswer");
+        expect(answered.view).not.toHaveProperty("answers");
+        expect(answered.view).not.toHaveProperty("shuffledQuestions");
+        display.close();
+        display = await connectDisplay(roomId);
+        const reconnected = Schema.decodeUnknownSync(displayMessageSchema)(
+            display.messages[0],
+        ).data.game;
+        expect(reconnected).toEqual(answered);
+        send(`${gameType}:close_answers`);
+        if (gameType === "herd") {
+            const reveal = await waitView(
+                (game) => game.view.phase === "reveal",
+            );
+            if (reveal.type !== "herd")
+                throw new Error("Expected Herd display");
+            expect(reveal.view.answerGroups).toHaveLength(3);
+            const dogs = reveal.view.answerGroups.filter((group) =>
+                group.canonicalAnswer.includes("DOG"),
+            );
+            send("herd:merge_groups", {
+                groupId1: dogs[0].id,
+                groupId2: dogs[1].id,
+            });
+            const combined = await waitView(
+                (game) =>
+                    game.type === "herd" && game.view.answerGroups.length === 2,
+            );
+            const scored = combined;
+            if (scored.type !== "herd")
+                throw new Error("Expected Herd display");
+            expect(scored.view.roundResult?.scoringPlayerIds).toEqual([
+                "bob",
+                "charlie",
+            ]);
+            expect(
+                scored.view.players.every((player) => player.score === 0),
+            ).toBe(true);
+            expect(scored.view.answerGroups[0].answers).toHaveLength(2);
+            expect(JSON.stringify(scored)).not.toContain("originalAnswers");
+            const separateCursor = display.cursor();
+            send("herd:separate_answer", {
+                groupId: dogs[0].id,
+                answer: dogs[1].canonicalAnswer,
+            });
+            const separated = await waitView(
+                (game) =>
+                    game.type === "herd" && game.view.answerGroups.length === 3,
+                separateCursor,
+            );
+            if (separated.type !== "herd")
+                throw new Error("Expected Herd display");
+            expect(separated.view.roundResult?.scoringPlayerIds).toEqual([]);
+            display.close();
+            display = await connectDisplay(roomId);
+            const restored = Schema.decodeUnknownSync(displayMessageSchema)(
+                display.messages[0],
+            ).data.game;
+            expect(restored).toEqual(separated);
+            const secondDog = separated.view.answerGroups.find(
+                (group) => group.canonicalAnswer === dogs[1].canonicalAnswer,
+            )!;
+            const combineCursor = display.cursor();
+            send("herd:merge_groups", {
+                groupId1: dogs[0].id,
+                groupId2: secondDog.id,
+            });
+            await waitView(
+                (game) =>
+                    game.type === "herd" && game.view.answerGroups.length === 2,
+                combineCursor,
+            );
+        } else {
+            let placing = await waitView(
+                (game) => game.view.phase === "placing",
+            );
+            while (
+                placing.type === "fun_facts" &&
+                placing.view.currentPlacerId
+            ) {
+                expect(
+                    placing.view.placedArrows.every(
+                        (arrow) => arrow.answer === null,
+                    ),
+                ).toBe(true);
+                const actor = placing.view
+                    .currentPlacerId as keyof typeof clients;
+                const position = placing.view.placedArrows.filter(
+                    (arrow) =>
+                        Number(answers[arrow.playerId]) <=
+                        Number(answers[actor]),
+                ).length;
+                const placedCount = placing.view.placedArrows.length;
+                send("fun_facts:place_arrow", { position }, actor);
+                placing = await waitView(
+                    (game) =>
+                        game.type === "fun_facts" &&
+                        game.view.placedArrows.length > placedCount,
+                );
+            }
+            expect(placing.view.phase).toBe("reveal");
+            if (placing.type !== "fun_facts")
+                throw new Error("Expected Fun Facts display");
+            expect(
+                placing.view.placedArrows.map((arrow) => arrow.answer),
+            ).toEqual([91001, 91002, 91003, 91004]);
+            expect(placing.view.teamScore).toBe(4);
+        }
+        send(`${gameType}:next_round`);
+        const cleared = await waitView(
+            (game) =>
+                game.view.phase === "waiting" && game.view.roundNumber === 1,
+        );
+        expect(cleared.view.currentQuestion).toBeNull();
+        if (cleared.type === "herd") {
+            expect(cleared.view.answerGroups).toEqual([]);
+            expect(cleared.view.pinkCowHolderId).toBe("dave");
+            expect(
+                cleared.view.players.filter((player) => player.score === 1),
+            ).toHaveLength(2);
+        }
+        if (cleared.type === "fun_facts")
+            expect(cleared.view.placedArrows).toEqual([]);
+        send("end");
+        send("return_to_lobby");
+        await display.waitForMessage(
+            (message) =>
+                message.data.phase === "lobby" && message.data.game === null,
+            { since: display.cursor() },
+        );
+        expect(
+            display.messages.every(
+                (message) => message.type === "display:state",
+            ),
+        ).toBe(true);
+        display.close();
+        for (const client of Object.values(clients)) client.close();
+    },
+);
 
 it.each(["flip_7", "blackjack", "perudo"] as const)(
     "streams public %s snapshots through reconnect and game end",

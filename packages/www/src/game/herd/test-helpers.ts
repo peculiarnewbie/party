@@ -1,9 +1,5 @@
 import type { HerdPhase, RoundResult } from "./types";
-import type {
-    AnswerGroupView,
-    HerdPlayerInfo,
-    HerdPlayerView,
-} from "./views";
+import type { AnswerGroupView, HerdPlayerInfo, HerdPlayerView } from "./views";
 
 export function makePlayerInfo(
     overrides: Partial<HerdPlayerInfo> = {},
@@ -26,6 +22,12 @@ export function makeAnswerGroup(
         count: 1,
         playerNames: ["Alice"],
         playerIds: ["p1"],
+        answers: [
+            {
+                answer: overrides.canonicalAnswer ?? "cat",
+                count: overrides.count ?? 1,
+            },
+        ],
         ...overrides,
     };
 }
@@ -54,6 +56,7 @@ export function makeView(
         totalPlayers: players.length,
         answerGroups: [],
         lastRoundResult: null as RoundResult | null,
+        previewRoundResult: null,
         leaderboard: [...players].sort((a, b) => b.score - a.score),
         ...overrides,
     };

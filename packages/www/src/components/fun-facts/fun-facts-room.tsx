@@ -1,11 +1,5 @@
-import {
-    createSignal,
-    For,
-    Show,
-    Switch,
-    Match,
-    onCleanup,
-} from "solid-js";
+import { TableButton, TablePanel } from "~/components/casino";
+import { createSignal, For, Show, Switch, Match, onCleanup } from "solid-js";
 import type { Component } from "solid-js";
 import type {
     FunFactsPlayerView,
@@ -13,7 +7,10 @@ import type {
 } from "~/game/fun-facts/views";
 import type { FunFactsConnection } from "~/game/fun-facts/connection";
 
+import type { PartyLayout } from "~/components/party-layout-controls";
+
 interface FunFactsRoomProps {
+    initialLayout?: PartyLayout;
     roomId: string;
     playerId: string | null;
     isHost: boolean;
@@ -23,18 +20,12 @@ interface FunFactsRoomProps {
 }
 
 const ARROW_COLORS = [
-    "#e74c3c",
-    "#3498db",
-    "#2ecc71",
-    "#f39c12",
-    "#9b59b6",
-    "#1abc9c",
-    "#e67e22",
-    "#e84393",
-    "#00b894",
-    "#6c5ce7",
-    "#fd79a8",
-    "#00cec9",
+    "#c0261a",
+    "#1a3a6e",
+    "#0f766e",
+    "#d4a017",
+    "#6b3a78",
+    "#e07a2e",
 ];
 
 function getArrowColor(index: number): string {
@@ -43,13 +34,18 @@ function getArrowColor(index: number): string {
 
 export const FunFactsRoom: Component<FunFactsRoomProps> = (props) => {
     const view = () => props.connection.view();
+    const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
     const [answerInput, setAnswerInput] = createSignal("");
     const [customQuestionInput, setCustomQuestionInput] = createSignal("");
     const [editingAnswer, setEditingAnswer] = createSignal(false);
 
     onCleanup(
         props.connection.subscribe((event) => {
+            if (event.type === "fun_facts:error") {
+                setErrorMessage(event.data.message);
+            }
             if (event.type === "fun_facts:action") {
+                setErrorMessage(null);
                 const action = event.data as { type?: string };
                 if (
                     action.type === "question_started" ||
@@ -64,7 +60,7 @@ export const FunFactsRoom: Component<FunFactsRoomProps> = (props) => {
 
     const handleSubmitAnswer = () => {
         const val = parseFloat(answerInput().trim());
-        if (isNaN(val)) return;
+        if (!Number.isFinite(val)) return;
         props.connection.send({
             type: "fun_facts:submit_answer",
             data: { answer: val },
@@ -111,19 +107,40 @@ export const FunFactsRoom: Component<FunFactsRoomProps> = (props) => {
     };
 
     return (
-        <div data-testid="fun-facts-room" class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla">
-            <Show when={view()} keyed>
+        <div
+            data-testid="fun-facts-room"
+            class="min-h-screen paper text-ink font-karla"
+        >
+            <Show
+                when={view()}
+                fallback={
+                    <p
+                        role="status"
+                        class="p-8 text-center font-bebas text-2xl text-navy"
+                    >
+                        Loading game…
+                    </p>
+                }
+            >
                 {(v) => (
-                    <div class="max-w-3xl mx-auto px-4 py-6">
-                        <div class="flex items-center justify-between mb-6">
-                            <div>
+                    <div
+                        class={
+                            props.initialLayout === "controller"
+                                ? "max-w-lg mx-auto px-4 py-5 pb-24"
+                                : "max-w-3xl mx-auto px-4 py-6"
+                        }
+                    >
+                        <div class="flex items-start justify-between gap-3 mb-6">
+                            <div class="min-w-0 flex-1">
                                 <h1 class="font-bebas text-[2rem] tracking-[.08em] leading-none">
                                     FUN FACTS
                                 </h1>
-                                <div class="font-bebas text-[.75rem] tracking-[.2em] text-[#9a9080]">
+                                <div class="font-bebas text-[.75rem] tracking-[.2em] text-[#9a9080] break-all">
                                     ROOM {props.roomId.toUpperCase()}
-                                    <Show when={v.roundNumber > 0}>
-                                        {" "}&middot; ROUND {v.roundNumber} / {v.totalRounds}
+                                    <Show when={v().roundNumber > 0}>
+                                        {" "}
+                                        &middot; ROUND {v().roundNumber} /{" "}
+                                        {v().totalRounds}
                                     </Show>
                                 </div>
                             </div>
@@ -133,10 +150,10 @@ export const FunFactsRoom: Component<FunFactsRoomProps> = (props) => {
                                         TEAM SCORE
                                     </div>
                                     <div class="font-bebas text-[1.6rem] leading-none tracking-[.04em] text-[#1a3a6e]">
-                                        {v.teamScore}
+                                        {v().teamScore}
                                     </div>
                                 </div>
-                                <Show when={v.isHost}>
+                                <Show when={v().isHost}>
                                     <button
                                         type="button"
                                         onClick={props.onEndGame}
@@ -148,29 +165,49 @@ export const FunFactsRoom: Component<FunFactsRoomProps> = (props) => {
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-6">
+                        <Show when={errorMessage()}>
+                            {(message) => (
+                                <p
+                                    role="alert"
+                                    class="border-2 border-ink bg-cream text-tomato p-3 mb-4 shadow-ink-sm"
+                                >
+                                    {message()}
+                                </p>
+                            )}
+                        </Show>
+                        <div
+                            class={
+                                props.initialLayout === "controller"
+                                    ? "grid grid-cols-1 gap-5"
+                                    : "grid grid-cols-1 md:grid-cols-[1fr_220px] gap-6"
+                            }
+                        >
                             <div>
                                 <Switch>
-                                    <Match when={v.phase === "waiting"}>
+                                    <Match when={v().phase === "waiting"}>
                                         <WaitingPhase
-                                            view={v}
+                                            view={v()}
                                             customQuestion={customQuestionInput()}
-                                            setCustomQuestion={setCustomQuestionInput}
+                                            setCustomQuestion={
+                                                setCustomQuestionInput
+                                            }
                                             onNextQuestion={handleNextQuestion}
-                                            onReturnToLobby={props.onReturnToLobby}
+                                            onReturnToLobby={
+                                                props.onReturnToLobby
+                                            }
                                         />
                                     </Match>
-                                    <Match when={v.phase === "answering"}>
+                                    <Match when={v().phase === "answering"}>
                                         <AnsweringPhase
-                                            view={v}
+                                            view={v()}
                                             answerInput={answerInput()}
                                             setAnswerInput={setAnswerInput}
                                             editingAnswer={editingAnswer()}
                                             onSubmit={handleSubmitAnswer}
                                             onChangeAnswer={() => {
                                                 setAnswerInput(
-                                                    v.myAnswer !== null
-                                                        ? String(v.myAnswer)
+                                                    v().myAnswer !== null
+                                                        ? String(v().myAnswer)
                                                         : "",
                                                 );
                                                 setEditingAnswer(true);
@@ -178,31 +215,69 @@ export const FunFactsRoom: Component<FunFactsRoomProps> = (props) => {
                                             onCloseAnswers={handleCloseAnswers}
                                         />
                                     </Match>
-                                    <Match when={v.phase === "placing"}>
+                                    <Match when={v().phase === "placing"}>
                                         <PlacingPhase
-                                            view={v}
+                                            view={v()}
                                             colorMap={playerColorMap()}
                                             onPlace={handlePlaceArrow}
                                         />
                                     </Match>
-                                    <Match when={v.phase === "reveal"}>
-                                        <RevealPhase
-                                            view={v}
-                                            colorMap={playerColorMap()}
-                                            onNextRound={handleNextRound}
-                                        />
+                                    <Match when={v().phase === "reveal"}>
+                                        <Show
+                                            when={
+                                                props.initialLayout ===
+                                                    "controller" && !v().isHost
+                                            }
+                                            fallback={
+                                                <RevealPhase
+                                                    compact={
+                                                        props.initialLayout ===
+                                                        "controller"
+                                                    }
+                                                    view={v()}
+                                                    colorMap={playerColorMap()}
+                                                    onNextRound={
+                                                        handleNextRound
+                                                    }
+                                                />
+                                            }
+                                        >
+                                            <TablePanel
+                                                active
+                                                class="text-center"
+                                            >
+                                                <h2 class="font-bebas text-3xl text-navy">
+                                                    Look up for the reveal!
+                                                </h2>
+                                                <p class="mt-3 text-muted">
+                                                    {v().lastRoundResult
+                                                        ?.pointsEarned ??
+                                                        0}{" "}
+                                                    arrows in order this round.
+                                                    The host starts the next
+                                                    round from their phone.
+                                                </p>
+                                            </TablePanel>
+                                        </Show>
                                     </Match>
-                                    <Match when={v.phase === "game_over"}>
+                                    <Match when={v().phase === "game_over"}>
                                         <GameOverPhase
-                                            view={v}
+                                            view={v()}
                                             colorMap={playerColorMap()}
-                                            onReturnToLobby={props.onReturnToLobby}
+                                            onReturnToLobby={
+                                                props.onReturnToLobby
+                                            }
                                         />
                                     </Match>
                                 </Switch>
                             </div>
 
-                            <ScoreSidebar view={v} colorMap={playerColorMap()} />
+                            <Show when={props.initialLayout !== "controller"}>
+                                <ScoreSidebar
+                                    view={v()}
+                                    colorMap={playerColorMap()}
+                                />
+                            </Show>
                         </div>
                     </div>
                 )}
@@ -246,6 +321,7 @@ const WaitingPhase: Component<{
                     </label>
                     <input
                         type="text"
+                        aria-label="Custom question"
                         value={props.customQuestion}
                         onInput={(e) =>
                             props.setCustomQuestion(e.currentTarget.value)
@@ -255,15 +331,15 @@ const WaitingPhase: Component<{
                     />
                 </div>
 
-                <button
-                    type="button"
+                <TableButton
                     onClick={props.onNextQuestion}
-                    class="w-full font-bebas text-[1.1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a] mb-4"
+                    tone="navy"
+                    class="w-full"
                 >
                     {props.view.roundNumber === 0
                         ? "START FIRST QUESTION"
                         : "NEXT QUESTION"}
-                </button>
+                </TableButton>
 
                 <div class="flex items-center justify-end border-t border-[#9a9080] pt-4">
                     <button
@@ -288,8 +364,7 @@ const AnsweringPhase: Component<{
     onChangeAnswer: () => void;
     onCloseAnswers: () => void;
 }> = (props) => {
-    const showForm = () =>
-        !props.view.hasAnswered || props.editingAnswer;
+    const showForm = () => !props.view.hasAnswered || props.editingAnswer;
 
     return (
         <div>
@@ -314,7 +389,8 @@ const AnsweringPhase: Component<{
                                 Your answer: {props.view.myAnswer}
                             </p>
                             <p class="text-[.8rem] text-[#9a9080] mb-4">
-                                {props.view.answeredCount} / {props.view.totalPlayers} players answered
+                                {props.view.answeredCount} /{" "}
+                                {props.view.totalPlayers} players answered
                             </p>
                             <button
                                 type="button"
@@ -332,6 +408,7 @@ const AnsweringPhase: Component<{
                     <div class="flex gap-2">
                         <input
                             type="number"
+                            aria-label="Your answer"
                             value={props.answerInput}
                             onInput={(e) =>
                                 props.setAnswerInput(e.currentTarget.value)
@@ -341,19 +418,21 @@ const AnsweringPhase: Component<{
                             }}
                             placeholder="Enter a number..."
                             step="any"
-                            class="flex-1 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-3 py-2 text-[.95rem] font-karla focus:outline-none focus:ring-2 focus:ring-[#1a3a6e]"
+                            class="flex-1 min-w-0 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-3 py-2 text-[.95rem] font-karla focus:outline-none focus:ring-2 focus:ring-[#1a3a6e]"
                         />
-                        <button
-                            type="button"
+                        <TableButton
                             onClick={props.onSubmit}
+                            tone="navy"
+                            class="px-4 min-w-24"
                             disabled={
                                 props.answerInput.trim().length === 0 ||
-                                isNaN(parseFloat(props.answerInput.trim()))
+                                !Number.isFinite(
+                                    parseFloat(props.answerInput.trim()),
+                                )
                             }
-                            class="font-bebas text-[.95rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-4 py-2 shadow-[2px_2px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1a1a1a] disabled:opacity-40 disabled:pointer-events-none"
                         >
                             SUBMIT
-                        </button>
+                        </TableButton>
                     </div>
                 </Show>
             </div>
@@ -379,14 +458,14 @@ const AnsweringPhase: Component<{
                             }}
                         />
                     </div>
-                    <button
-                        type="button"
+                    <TableButton
                         onClick={props.onCloseAnswers}
+                        tone="navy"
+                        class="w-full"
                         disabled={props.view.answeredCount < 2}
-                        class="w-full font-bebas text-[1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a] disabled:opacity-40 disabled:pointer-events-none"
                     >
                         CLOSE ANSWERS &amp; START PLACING
-                    </button>
+                    </TableButton>
                 </div>
             </Show>
         </div>
@@ -401,9 +480,7 @@ const PlacingPhase: Component<{
     const currentPlacerName = () => {
         const id = props.view.currentPlacerId;
         if (!id) return "???";
-        return (
-            props.view.players.find((p) => p.id === id)?.name ?? "Unknown"
-        );
+        return props.view.players.find((p) => p.id === id)?.name ?? "Unknown";
     };
 
     return (
@@ -438,17 +515,22 @@ const PlacingPhase: Component<{
                         YOUR TURN TO PLACE
                     </div>
                     <p class="text-[.85rem] text-[#5a5040] mb-1">
-                        Your answer: <span class="font-bold text-[#1a1a1a]">{props.view.myAnswer}</span>
+                        Your answer:{" "}
+                        <span class="font-bold text-[#1a1a1a]">
+                            {props.view.myAnswer}
+                        </span>
                     </p>
                     <p class="text-[.8rem] text-[#9a9080] mb-4">
-                        Place your arrow where you think your number falls (lowest at top, highest at bottom).
+                        Place your arrow where you think your number falls
+                        (lowest at top, highest at bottom).
                     </p>
                 </Show>
 
                 <div class="font-bebas text-[.7rem] tracking-[.2em] text-[#9a9080] mb-2 flex justify-between">
                     <span>LOWEST</span>
                     <span>
-                        {props.view.placedArrows.length} / {props.view.placingOrder.length} PLACED
+                        {props.view.placedArrows.length} /{" "}
+                        {props.view.placingOrder.length} PLACED
                     </span>
                 </div>
 
@@ -456,6 +538,7 @@ const PlacingPhase: Component<{
                     <Show when={props.view.isMyTurn}>
                         <InsertionSlot
                             position={0}
+                            label="Before position 1"
                             onPlace={props.onPlace}
                         />
                     </Show>
@@ -476,6 +559,7 @@ const PlacingPhase: Component<{
                                 <Show when={props.view.isMyTurn}>
                                     <InsertionSlot
                                         position={i() + 1}
+                                        label={`After position ${i() + 1}${i() + 1 < props.view.placedArrows.length ? ` / before ${i() + 2}` : ""}`}
                                         onPlace={props.onPlace}
                                     />
                                 </Show>
@@ -530,15 +614,16 @@ const PlacingPhase: Component<{
 
 const InsertionSlot: Component<{
     position: number;
+    label: string;
     onPlace: (position: number) => void;
 }> = (props) => {
     return (
         <button
             type="button"
             onClick={() => props.onPlace(props.position)}
-            class="w-full py-2 my-1 border-2 border-dashed border-[#9a9080] bg-[#ddd5c4] text-[#9a9080] font-bebas text-[.7rem] tracking-[.2em] transition-all duration-100 hover:border-[#1a3a6e] hover:bg-[#e8dccf] hover:text-[#1a3a6e] hover:py-3"
+            class="w-full min-h-12 py-3 my-2 border-2 border-dashed border-[#9a9080] bg-[#ddd5c4] text-[#9a9080] font-bebas text-[.7rem] tracking-[.2em] transition-all duration-100 hover:border-[#1a3a6e] hover:bg-[#e8dccf] hover:text-[#1a3a6e] hover:py-3"
         >
-            PLACE HERE
+            PLACE HERE · {props.label}
         </button>
     );
 };
@@ -582,7 +667,7 @@ const ArrowCard: Component<{
                 </div>
             </Show>
             <Show when={props.isCorrect === true}>
-                <div class="font-bebas text-[.7rem] tracking-[.16em] text-[#2ecc71]">
+                <div class="font-bebas text-[.7rem] tracking-[.16em] text-teal">
                     +1
                 </div>
             </Show>
@@ -596,13 +681,13 @@ const ArrowCard: Component<{
 };
 
 const RevealPhase: Component<{
+    compact?: boolean;
     view: FunFactsPlayerView;
     colorMap: Map<string, string>;
     onNextRound: () => void;
 }> = (props) => {
     const result = () => props.view.lastRoundResult;
-    const isLastRound = () =>
-        props.view.roundNumber >= props.view.totalRounds;
+    const isLastRound = () => props.view.roundNumber >= props.view.totalRounds;
 
     return (
         <div>
@@ -630,59 +715,64 @@ const RevealPhase: Component<{
                             </div>
                         </div>
 
-                        <div class="mb-4">
-                            <div class="font-bebas text-[.7rem] tracking-[.2em] text-[#9a9080] mb-2">
-                                LOWEST
-                            </div>
-                            <div class="space-y-1">
-                                <For each={r.placedOrder}>
-                                    {(playerId) => {
-                                        const playerName = () =>
-                                            props.view.players.find(
-                                                (p) => p.id === playerId,
-                                            )?.name ?? "Unknown";
-                                        const answer = () =>
-                                            r.answers[playerId] ?? 0;
-                                        const isCorrect = () =>
-                                            r.correctArrows.includes(playerId);
-                                        const color = () =>
-                                            props.colorMap.get(playerId) ??
-                                            "#999";
-                                        return (
-                                            <ArrowCard
-                                                arrow={{
+                        <Show when={!props.compact}>
+                            <div class="mb-4">
+                                <div class="font-bebas text-[.7rem] tracking-[.2em] text-[#9a9080] mb-2">
+                                    LOWEST
+                                </div>
+                                <div class="space-y-1">
+                                    <For each={r.placedOrder}>
+                                        {(playerId) => {
+                                            const playerName = () =>
+                                                props.view.players.find(
+                                                    (p) => p.id === playerId,
+                                                )?.name ?? "Unknown";
+                                            const answer = () =>
+                                                r.answers[playerId] ?? 0;
+                                            const isCorrect = () =>
+                                                r.correctArrows.includes(
                                                     playerId,
-                                                    playerName: playerName(),
-                                                    answer: answer(),
-                                                }}
-                                                color={color()}
-                                                isMe={
-                                                    playerId ===
-                                                    props.view.myId
-                                                }
-                                                showAnswer={true}
-                                                isCorrect={isCorrect()}
-                                            />
-                                        );
-                                    }}
-                                </For>
+                                                );
+                                            const color = () =>
+                                                props.colorMap.get(playerId) ??
+                                                "#999";
+                                            return (
+                                                <ArrowCard
+                                                    arrow={{
+                                                        playerId,
+                                                        playerName:
+                                                            playerName(),
+                                                        answer: answer(),
+                                                    }}
+                                                    color={color()}
+                                                    isMe={
+                                                        playerId ===
+                                                        props.view.myId
+                                                    }
+                                                    showAnswer={true}
+                                                    isCorrect={isCorrect()}
+                                                />
+                                            );
+                                        }}
+                                    </For>
+                                </div>
+                                <div class="font-bebas text-[.7rem] tracking-[.2em] text-[#9a9080] mt-2">
+                                    HIGHEST
+                                </div>
                             </div>
-                            <div class="font-bebas text-[.7rem] tracking-[.2em] text-[#9a9080] mt-2">
-                                HIGHEST
-                            </div>
-                        </div>
+                        </Show>
                     </>
                 )}
             </Show>
 
             <Show when={props.view.isHost}>
-                <button
-                    type="button"
+                <TableButton
                     onClick={props.onNextRound}
-                    class="w-full font-bebas text-[1.1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                    tone="navy"
+                    class="w-full"
                 >
                     {isLastRound() ? "SEE FINAL SCORES" : "NEXT ROUND"}
-                </button>
+                </TableButton>
             </Show>
         </div>
     );

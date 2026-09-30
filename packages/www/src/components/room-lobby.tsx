@@ -108,6 +108,9 @@ export const RoomLobby: Component<{
                                 "flip_7",
                                 "perudo",
                                 "six_nimmt",
+                                "herd",
+                                "fun_facts",
+                                "cheese_thief",
                             ].includes(props.selectedGameType)
                         }
                     >
@@ -144,8 +147,9 @@ export const RoomLobby: Component<{
                     <p class="mt-1 text-sm">
                         Playing in the same room? Put the table on a TV or
                         laptop, then scan the QR code for private cards, dice,
-                        and controls on your phones. Available for poker, Flip
-                        7, Blackjack, and Perudo.
+                        and answers on your phones. Available for poker, Flip 7,
+                        Blackjack, Perudo, 6 nimmt!, Herd Mentality, and Fun
+                        Facts.
                     </p>
                 </div>
 

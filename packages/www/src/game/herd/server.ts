@@ -97,6 +97,13 @@ export const herdServer = (stateRef: { current: HerdState | null }) => ({
                 groupId1: message.data.groupId1,
                 groupId2: message.data.groupId2,
             };
+        } else if (message.type === "herd:separate_answer") {
+            action = {
+                type: "separate_answer" as const,
+                hostId: message.playerId,
+                groupId: message.data.groupId,
+                answer: message.data.answer,
+            };
         } else if (message.type === "herd:confirm_scoring") {
             action = {
                 type: "confirm_scoring" as const,

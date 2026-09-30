@@ -25,6 +25,9 @@ This is a casual multiplayer party game app built with Solid 2 and TanStack Rout
 - Blackjack displays dealer and player hands while keeping the dealer’s hole card hidden until revealed; phones show the player’s hand and betting/actions
 - Perudo displays bids and dice counts; private dice stay on phones until a public challenge reveal
 - 6 nimmt! displays rows, scores, readiness, and revealed plays; hands and locked choices stay private until everyone has selected
+- Herd Mentality displays questions, readiness, original answers within reversible combined groups, provisional scores, and the Pink Cow; answers stay on phones until revealed, and scores finalize only when the host advances the round
+- Fun Facts displays questions, readiness, ordered arrows, public number reveals, and team scores; numbers stay private until the round reveal, and phones provide answer and placement controls
+- Cheese Thief keeps roles, dice, clues, and vote choices on phones until the host reveals; the Party display shows simple phase prompts, then the outcome, roles, votes, and scores at the end
 - Other games currently show room information on the display; add game-specific public views and phone controls when extending Party mode
 - Card tables (poker, blackjack) share `src/components/casino`: `TableCard` deal/flip animations, chip stacks, animated numbers, confetti, and synthesized sound effects with a mute toggle
 - Keep every screen in the paper board-game style: `paper` backgrounds, `table-mat` surfaces, ink outlines with hard offset shadows, Bebas Neue headings, and the palette tokens in `src/styles/app.css`; avoid dark casino styling, glows, and gradients

@@ -55,6 +55,9 @@ import {
 import { getFlip7TableView } from "~/game/flip-7/table-view";
 import { getBlackjackTableView } from "~/game/blackjack/table-view";
 import { getPerudoTableView } from "~/game/perudo/table-view";
+import { getHerdTableView } from "~/game/herd/table-view";
+import { getFunFactsTableView } from "~/game/fun-facts/table-view";
+import { getCheeseThiefTableView } from "~/game/cheese-thief/table-view";
 
 const HIBERNATION_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 const MAX_WEBSOCKET_MESSAGE_BYTES = 64 * 1024;
@@ -290,6 +293,15 @@ export class GameRoom extends DurableObject {
         let game: DisplayState["game"] = null;
         if (this.state.phase === "playing") {
             switch (snapshot?.gameType) {
+                case "cheese_thief":
+                    game = { type: "cheese_thief", view: getCheeseThiefTableView(snapshot.state) };
+                    break;
+                case "herd":
+                    game = { type: "herd", view: getHerdTableView(snapshot.state) };
+                    break;
+                case "fun_facts":
+                    game = { type: "fun_facts", view: getFunFactsTableView(snapshot.state) };
+                    break;
                 case "six_nimmt":
                     game = { type: "six_nimmt", view: getSixNimmtTableView(snapshot.state) };
                     break;

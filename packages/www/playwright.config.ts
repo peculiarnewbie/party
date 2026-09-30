@@ -6,7 +6,7 @@ export default defineConfig({
     testDir: "e2e",
     testMatch: "*.spec.ts",
     fullyParallel: false,
-    workers: 4,
+    workers: isCI ? 1 : 4,
     forbidOnly: isCI,
     retries: isCI ? 1 : 0,
     timeout: 30_000,
