@@ -16,6 +16,7 @@ import type { FunFactsPlayerView } from "~/game/fun-facts/views";
 
 function renderRoom(
     options: {
+        initialLayout?: "table" | "controller";
         view?: FunFactsPlayerView;
         playerId?: string | null;
         isHost?: boolean;
@@ -34,6 +35,7 @@ function renderRoom(
 
     const result = render(() => (
         <FunFactsRoom
+            initialLayout={options.initialLayout}
             roomId="room1"
             playerId={playerId}
             isHost={isHost}
@@ -199,4 +201,42 @@ describe("FunFactsRoom", () => {
         flush();
         expect(getAllByText("9").length).toBeGreaterThan(0);
     });
+});
+
+it("keeps a controller's draft and focused input through other players' live updates", () => {
+    const view = makeView({
+        phase: "answering",
+        currentQuestion: "Question?",
+        hasAnswered: false,
+    });
+    const { container, connection, getByRole } = renderRoom({
+        view,
+        initialLayout: "controller",
+    });
+    const input = container.querySelector(
+        "input[type='number']",
+    ) as HTMLInputElement;
+    input.focus();
+    fireEvent.input(input, { target: { value: "42" } });
+    flush();
+    connection.setView({ ...view, answeredCount: 1 });
+    flush();
+    expect(container.querySelector("input[type='number']")).toBe(input);
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("42");
+    fireEvent.click(getByRole("button", { name: /^submit$/i }));
+    flush();
+    expect(connection.sentMessages).toContainEqual({
+        type: "fun_facts:submit_answer",
+        data: { answer: 42 },
+    });
+});
+
+it("shows a controller guest the shared-screen reveal prompt without host actions", () => {
+    const { getByText, queryByRole } = renderRoom({
+        view: makeView({ phase: "reveal", isHost: false }),
+        initialLayout: "controller",
+    });
+    expect(getByText("Look up for the reveal!")).toBeInTheDocument();
+    expect(queryByRole("button", { name: /next round/i })).toBeNull();
 });

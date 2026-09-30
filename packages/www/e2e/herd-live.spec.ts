@@ -3,6 +3,9 @@ import { expect, test } from "@playwright/test";
 import type { HerdClientMessage, HerdPlayerView } from "../src/game/herd";
 import { defineLiveGameSmoke, startLiveGame } from "./helpers/live-game-smoke";
 import type { PlayerGameMessage } from "./helpers/multiplayer-room-page";
+import { definePartyQuestionGame } from "./helpers/party-question-game";
+
+definePartyQuestionGame("herd");
 
 defineLiveGameSmoke({
     gameType: "herd",

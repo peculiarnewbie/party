@@ -13,6 +13,7 @@ import type { HerdPlayerView } from "~/game/herd/views";
 
 function renderRoom(
     options: {
+        initialLayout?: "table" | "controller";
         view?: HerdPlayerView;
         playerId?: string | null;
         isHost?: boolean;
@@ -31,6 +32,7 @@ function renderRoom(
 
     const result = render(() => (
         <HerdRoom
+            initialLayout={options.initialLayout}
             roomId="room1"
             playerId={playerId}
             isHost={isHost}
@@ -201,4 +203,42 @@ describe("HerdRoom", () => {
 
         expect(getByText(/ROUND 4/)).toBeInTheDocument();
     });
+});
+
+it("keeps a controller's draft and focused input through other players' live updates", () => {
+    const view = makeView({
+        phase: "answering",
+        currentQuestion: "Question?",
+        hasAnswered: false,
+    });
+    const { container, connection, getByRole } = renderRoom({
+        view,
+        initialLayout: "controller",
+    });
+    const input = container.querySelector(
+        "input[type='text']",
+    ) as HTMLInputElement;
+    input.focus();
+    fireEvent.input(input, { target: { value: "A draft answer" } });
+    flush();
+    connection.setView({ ...view, answeredCount: 1 });
+    flush();
+    expect(container.querySelector("input[type='text']")).toBe(input);
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("A draft answer");
+    fireEvent.click(getByRole("button", { name: /^submit$/i }));
+    flush();
+    expect(connection.sentMessages).toContainEqual({
+        type: "herd:submit_answer",
+        data: { answer: "A draft answer" },
+    });
+});
+
+it("shows a controller guest the shared-screen reveal prompt without host actions", () => {
+    const { getByText, queryByRole } = renderRoom({
+        view: makeView({ phase: "reveal", isHost: false }),
+        initialLayout: "controller",
+    });
+    expect(getByText("The answers are on the big screen")).toBeInTheDocument();
+    expect(queryByRole("button", { name: /confirm scoring/i })).toBeNull();
 });

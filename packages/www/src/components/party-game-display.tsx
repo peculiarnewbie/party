@@ -3,11 +3,21 @@ import { Match, Switch } from "solid-js";
 import { Flip7TableDisplay } from "./flip-7/flip-7-table-display";
 import { BlackjackTableDisplay } from "./blackjack/blackjack-table-display";
 import { PerudoTableDisplay } from "./perudo/perudo-table-display";
+import { HerdTableDisplay } from "./herd/herd-table-display";
+import { FunFactsTableDisplay } from "./fun-facts/fun-facts-table-display";
 import type { PartyGame } from "~/room/display-protocol";
 
 export function PartyGameDisplay(props: { game: PartyGame }) {
     return (
         <Switch>
+            <Match when={props.game.type === "herd" ? props.game.view : null}>
+                {(view) => <HerdTableDisplay view={view()} />}
+            </Match>
+            <Match
+                when={props.game.type === "fun_facts" ? props.game.view : null}
+            >
+                {(view) => <FunFactsTableDisplay view={view()} />}
+            </Match>
             <Match
                 when={props.game.type === "six_nimmt" ? props.game.view : null}
             >

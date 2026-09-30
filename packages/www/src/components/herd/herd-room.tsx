@@ -1,9 +1,13 @@
+import { TableButton, TablePanel } from "~/components/casino";
 import { createSignal, For, Show, Switch, Match, onCleanup } from "solid-js";
 import type { Component } from "solid-js";
 import type { HerdPlayerView, AnswerGroupView } from "~/game/herd/views";
 import type { HerdConnection } from "~/game/herd/connection";
 
+import type { PartyLayout } from "~/components/party-layout-controls";
+
 interface HerdRoomProps {
+    initialLayout?: PartyLayout;
     roomId: string;
     playerId: string | null;
     isHost: boolean;
@@ -14,6 +18,7 @@ interface HerdRoomProps {
 
 export const HerdRoom: Component<HerdRoomProps> = (props) => {
     const view = () => props.connection.view();
+    const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
     const [answerInput, setAnswerInput] = createSignal("");
     const [customQuestionInput, setCustomQuestionInput] = createSignal("");
     const [selectedGroups, setSelectedGroups] = createSignal<string[]>([]);
@@ -21,7 +26,11 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
 
     onCleanup(
         props.connection.subscribe((event) => {
+            if (event.type === "herd:error") {
+                setErrorMessage(event.data.message);
+            }
             if (event.type === "herd:action") {
+                setErrorMessage(null);
                 const action = event.data as { type?: string };
                 if (
                     action.type === "question_started" ||
@@ -114,25 +123,41 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
     return (
         <div
             data-testid="herd-room"
-            class="min-h-screen bg-[#ddd5c4] text-[#1a1a1a] font-karla"
+            class="min-h-screen paper text-ink font-karla"
         >
-            <Show when={view()} keyed>
+            <Show
+                when={view()}
+                fallback={
+                    <p
+                        role="status"
+                        class="p-8 text-center font-bebas text-2xl text-navy"
+                    >
+                        Loading game…
+                    </p>
+                }
+            >
                 {(v) => (
-                    <div class="max-w-3xl mx-auto px-4 py-6">
-                        <div class="flex items-center justify-between mb-6">
-                            <div>
+                    <div
+                        class={
+                            props.initialLayout === "controller"
+                                ? "max-w-lg mx-auto px-4 py-5 pb-24"
+                                : "max-w-3xl mx-auto px-4 py-6"
+                        }
+                    >
+                        <div class="flex items-start justify-between gap-3 mb-6">
+                            <div class="min-w-0 flex-1">
                                 <h1 class="font-bebas text-[2rem] tracking-[.08em] leading-none">
                                     HERD MENTALITY
                                 </h1>
-                                <div class="font-bebas text-[.75rem] tracking-[.2em] text-[#9a9080]">
+                                <div class="font-bebas text-[.75rem] tracking-[.2em] text-[#9a9080] break-all">
                                     ROOM {props.roomId.toUpperCase()}
-                                    <Show when={v.roundNumber > 0}>
+                                    <Show when={v().roundNumber > 0}>
                                         {" "}
-                                        &middot; ROUND {v.roundNumber}
+                                        &middot; ROUND {v().roundNumber}
                                     </Show>
                                 </div>
                             </div>
-                            <Show when={v.isHost}>
+                            <Show when={v().isHost}>
                                 <button
                                     type="button"
                                     onClick={props.onEndGame}
@@ -143,12 +168,28 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                             </Show>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-6">
+                        <Show when={errorMessage()}>
+                            {(message) => (
+                                <p
+                                    role="alert"
+                                    class="border-2 border-ink bg-cream text-tomato p-3 mb-4 shadow-ink-sm"
+                                >
+                                    {message()}
+                                </p>
+                            )}
+                        </Show>
+                        <div
+                            class={
+                                props.initialLayout === "controller"
+                                    ? "grid grid-cols-1 gap-5"
+                                    : "grid grid-cols-1 md:grid-cols-[1fr_240px] gap-6"
+                            }
+                        >
                             <div>
                                 <Switch>
-                                    <Match when={v.phase === "waiting"}>
+                                    <Match when={v().phase === "waiting"}>
                                         <WaitingPhase
-                                            view={v}
+                                            view={v()}
                                             customQuestion={customQuestionInput()}
                                             setCustomQuestion={
                                                 setCustomQuestionInput
@@ -162,42 +203,71 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                             }
                                         />
                                     </Match>
-                                    <Match when={v.phase === "answering"}>
+                                    <Match when={v().phase === "answering"}>
                                         <AnsweringPhase
-                                            view={v}
+                                            view={v()}
                                             answerInput={answerInput()}
                                             setAnswerInput={setAnswerInput}
                                             editingAnswer={editingAnswer()}
                                             onSubmit={handleSubmitAnswer}
                                             onChangeAnswer={() => {
                                                 setAnswerInput(
-                                                    v.myAnswer ?? "",
+                                                    v().myAnswer ?? "",
                                                 );
                                                 setEditingAnswer(true);
                                             }}
                                             onCloseAnswers={handleCloseAnswers}
                                         />
                                     </Match>
-                                    <Match when={v.phase === "reveal"}>
-                                        <RevealPhase
-                                            view={v}
-                                            selectedGroups={selectedGroups()}
-                                            onToggleGroup={toggleGroupSelection}
-                                            onMerge={handleMerge}
-                                            onConfirmScoring={
-                                                handleConfirmScoring
+                                    <Match when={v().phase === "reveal"}>
+                                        <Show
+                                            when={
+                                                props.initialLayout ===
+                                                    "controller" && !v().isHost
                                             }
-                                        />
+                                            fallback={
+                                                <RevealPhase
+                                                    view={v()}
+                                                    selectedGroups={selectedGroups()}
+                                                    onToggleGroup={
+                                                        toggleGroupSelection
+                                                    }
+                                                    onMerge={handleMerge}
+                                                    onConfirmScoring={
+                                                        handleConfirmScoring
+                                                    }
+                                                />
+                                            }
+                                        >
+                                            <TablePanel
+                                                active
+                                                class="text-center"
+                                            >
+                                                <h2 class="font-bebas text-3xl text-navy">
+                                                    The answers are on the big
+                                                    screen
+                                                </h2>
+                                                <p class="mt-3 text-muted">
+                                                    Compare answers while the
+                                                    host groups matching ideas
+                                                    and confirms the scores.
+                                                </p>
+                                            </TablePanel>
+                                        </Show>
                                     </Match>
-                                    <Match when={v.phase === "scored"}>
+                                    <Match when={v().phase === "scored"}>
                                         <ScoredPhase
-                                            view={v}
+                                            compact={
+                                                props.initialLayout ===
+                                                "controller"
+                                            }
+                                            view={v()}
                                             onNextRound={handleNextRound}
                                         />
                                     </Match>
-                                    <Match when={v.phase === "game_over"}>
+                                    <Match when={v().phase === "game_over"}>
                                         <GameOverPhase
-                                            view={v}
+                                            view={v()}
                                             playerName={playerName}
                                             onReturnToLobby={
                                                 props.onReturnToLobby
@@ -207,7 +277,12 @@ export const HerdRoom: Component<HerdRoomProps> = (props) => {
                                 </Switch>
                             </div>
 
-                            <Leaderboard view={v} playerName={playerName} />
+                            <Show when={props.initialLayout !== "controller"}>
+                                <Leaderboard
+                                    view={v()}
+                                    playerName={playerName}
+                                />
+                            </Show>
                         </div>
                     </div>
                 )}
@@ -252,6 +327,7 @@ const WaitingPhase: Component<{
                     </label>
                     <input
                         type="text"
+                        aria-label="Custom question"
                         value={props.customQuestion}
                         onInput={(e) =>
                             props.setCustomQuestion(e.currentTarget.value)
@@ -261,15 +337,15 @@ const WaitingPhase: Component<{
                     />
                 </div>
 
-                <button
-                    type="button"
+                <TableButton
                     onClick={props.onNextQuestion}
-                    class="w-full font-bebas text-[1.1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a] mb-4"
+                    tone="navy"
+                    class="w-full"
                 >
                     {props.view.roundNumber === 0
                         ? "START FIRST QUESTION"
                         : "NEXT QUESTION"}
-                </button>
+                </TableButton>
 
                 <div class="flex items-center justify-between border-t border-[#9a9080] pt-4">
                     <div class="flex items-center gap-3">
@@ -363,6 +439,7 @@ const AnsweringPhase: Component<{
                             <div class="flex gap-2">
                                 <input
                                     type="text"
+                                    aria-label="Your answer"
                                     value={props.answerInput}
                                     onInput={(e) =>
                                         props.setAnswerInput(
@@ -374,18 +451,18 @@ const AnsweringPhase: Component<{
                                     }}
                                     placeholder="Type your answer..."
                                     maxlength={200}
-                                    class="flex-1 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-3 py-2 text-[.95rem] font-karla focus:outline-none focus:ring-2 focus:ring-[#1a3a6e]"
+                                    class="flex-1 min-w-0 border-2 border-[#1a1a1a] bg-[#ddd5c4] px-3 py-2 text-[.95rem] font-karla focus:outline-none focus:ring-2 focus:ring-[#1a3a6e]"
                                 />
-                                <button
-                                    type="button"
+                                <TableButton
                                     onClick={props.onSubmit}
+                                    tone="navy"
+                                    class="px-4 min-w-24"
                                     disabled={
                                         props.answerInput.trim().length === 0
                                     }
-                                    class="font-bebas text-[.95rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-4 py-2 shadow-[2px_2px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[4px_4px_0_#1a1a1a] disabled:opacity-40 disabled:pointer-events-none"
                                 >
                                     SUBMIT
-                                </button>
+                                </TableButton>
                             </div>
                         </Show>
                     </div>
@@ -411,13 +488,13 @@ const AnsweringPhase: Component<{
                             }}
                         />
                     </div>
-                    <button
-                        type="button"
+                    <TableButton
                         onClick={props.onCloseAnswers}
-                        class="w-full font-bebas text-[1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                        tone="navy"
+                        class="w-full"
                     >
                         CLOSE ANSWERS
-                    </button>
+                    </TableButton>
                 </div>
             </Show>
         </div>
@@ -484,21 +561,21 @@ const RevealPhase: Component<{
             >
                 <div class="flex gap-3">
                     <Show when={props.selectedGroups.length === 2}>
-                        <button
-                            type="button"
+                        <TableButton
                             onClick={props.onMerge}
-                            class="flex-1 font-bebas text-[1rem] tracking-[.14em] bg-[#c0261a] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                            tone="tomato"
+                            class="flex-1"
                         >
                             MERGE SELECTED
-                        </button>
+                        </TableButton>
                     </Show>
-                    <button
-                        type="button"
+                    <TableButton
                         onClick={props.onConfirmScoring}
-                        class="flex-1 font-bebas text-[1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                        tone="navy"
+                        class="flex-1"
                     >
                         CONFIRM SCORING
-                    </button>
+                    </TableButton>
                 </div>
             </Show>
         </div>
@@ -517,11 +594,30 @@ const AnswerGroupCard: Component<{
 
     return (
         <div
+            role={props.isHost ? "button" : undefined}
+            tabindex={props.isHost ? 0 : undefined}
+            aria-pressed={
+                props.isHost ? (props.isSelected ? "true" : "false") : undefined
+            }
+            aria-label={
+                props.isHost
+                    ? `${props.group.canonicalAnswer}: ${props.group.count} answers`
+                    : undefined
+            }
             class={`border-2 ${borderColor()} ${bgColor()} p-4 shadow-[3px_3px_0_#1a1a1a] ${
                 props.isHost ? "cursor-pointer" : ""
             } transition-all duration-100`}
             onClick={() => {
                 if (props.isHost) props.onToggle();
+            }}
+            onKeyDown={(event) => {
+                if (
+                    props.isHost &&
+                    (event.key === "Enter" || event.key === " ")
+                ) {
+                    event.preventDefault();
+                    props.onToggle();
+                }
             }}
         >
             <div class="flex items-start justify-between mb-2">
@@ -556,6 +652,7 @@ const AnswerGroupCard: Component<{
 };
 
 const ScoredPhase: Component<{
+    compact?: boolean;
     view: HerdPlayerView;
     onNextRound: () => void;
 }> = (props) => {
@@ -601,7 +698,9 @@ const ScoredPhase: Component<{
                         </div>
                         <div class="text-[.85rem] text-[#5a5040]">
                             {result()!.scoringPlayerIds.length} player
-                            {result()!.scoringPlayerIds.length !== 1 ? "s" : ""}{" "}
+                            {result()!.scoringPlayerIds.length !== 1
+                                ? "s"
+                                : ""}{" "}
                             scored!
                         </div>
                     </div>
@@ -619,72 +718,88 @@ const ScoredPhase: Component<{
                 </div>
             </Show>
 
-            <div class="space-y-2 mb-4">
-                <For each={props.view.answerGroups}>
-                    {(group) => {
-                        const isMajority = () =>
-                            result()?.majorityGroupId === group.id;
-                        return (
-                            <div
-                                class={`border-2 border-[#1a1a1a] p-3 shadow-[2px_2px_0_#1a1a1a] ${
-                                    isMajority()
-                                        ? "bg-[#1a3a6e] text-[#ddd5c4]"
-                                        : "bg-[#c9c0b0]"
-                                }`}
-                            >
-                                <div class="flex items-center justify-between">
-                                    <div class="font-bebas text-[1.1rem] tracking-[.04em]">
-                                        "{group.canonicalAnswer}"
-                                    </div>
-                                    <div
-                                        class={`font-bebas text-[1.3rem] tracking-[.04em] ${
-                                            isMajority()
-                                                ? "text-[#ddd5c4]"
-                                                : "text-[#1a3a6e]"
-                                        }`}
-                                    >
-                                        {group.count}
-                                    </div>
-                                </div>
+            <Show when={props.compact && !props.view.isHost}>
+                <TablePanel active class="mb-4 text-center">
+                    <p class="font-bebas text-lg text-muted">Your score</p>
+                    <p class="font-bebas text-5xl text-navy">
+                        {props.view.players.find(
+                            (player) => player.id === props.view.myId,
+                        )?.score ?? 0}
+                    </p>
+                    <p class="mt-2 text-muted">
+                        {result()?.scoringPlayerIds.includes(props.view.myId)
+                            ? "You matched the herd! +1 point."
+                            : "No point this round. Try to think like the herd!"}
+                    </p>
+                </TablePanel>
+            </Show>
+            <Show when={!props.compact}>
+                <div class="space-y-2 mb-4">
+                    <For each={props.view.answerGroups}>
+                        {(group) => {
+                            const isMajority = () =>
+                                result()?.majorityGroupId === group.id;
+                            return (
                                 <div
-                                    class={`text-[.75rem] ${
+                                    class={`border-2 border-[#1a1a1a] p-3 shadow-[2px_2px_0_#1a1a1a] ${
                                         isMajority()
-                                            ? "text-[#b8ae9e]"
-                                            : "text-[#5a5040]"
+                                            ? "bg-[#1a3a6e] text-[#ddd5c4]"
+                                            : "bg-[#c9c0b0]"
                                     }`}
                                 >
-                                    <For each={group.playerNames}>
-                                        {(name, i) => (
-                                            <span>
-                                                {name}
-                                                <Show
-                                                    when={
-                                                        i() <
-                                                        group.playerNames
-                                                            .length -
-                                                            1
-                                                    }
-                                                >
-                                                    ,{" "}
-                                                </Show>
-                                            </span>
-                                        )}
-                                    </For>
+                                    <div class="flex items-center justify-between">
+                                        <div class="font-bebas text-[1.1rem] tracking-[.04em]">
+                                            "{group.canonicalAnswer}"
+                                        </div>
+                                        <div
+                                            class={`font-bebas text-[1.3rem] tracking-[.04em] ${
+                                                isMajority()
+                                                    ? "text-[#ddd5c4]"
+                                                    : "text-[#1a3a6e]"
+                                            }`}
+                                        >
+                                            {group.count}
+                                        </div>
+                                    </div>
+                                    <div
+                                        class={`text-[.75rem] ${
+                                            isMajority()
+                                                ? "text-[#b8ae9e]"
+                                                : "text-[#5a5040]"
+                                        }`}
+                                    >
+                                        <For each={group.playerNames}>
+                                            {(name, i) => (
+                                                <span>
+                                                    {name}
+                                                    <Show
+                                                        when={
+                                                            i() <
+                                                            group.playerNames
+                                                                .length -
+                                                                1
+                                                        }
+                                                    >
+                                                        ,{" "}
+                                                    </Show>
+                                                </span>
+                                            )}
+                                        </For>
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    }}
-                </For>
-            </div>
-
+                            );
+                        }}
+                    </For>
+                </div>
+            </Show>
             <Show when={props.view.isHost}>
-                <button
-                    type="button"
+                <TableButton
                     onClick={props.onNextRound}
-                    class="w-full font-bebas text-[1.1rem] tracking-[.14em] bg-[#1a3a6e] text-[#ddd5c4] border-2 border-[#1a1a1a] px-5 py-3 shadow-[3px_3px_0_#1a1a1a] transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a]"
+                    tone="navy"
+                    class="w-full"
                 >
                     NEXT ROUND
-                </button>
+                </TableButton>
             </Show>
         </div>
     );

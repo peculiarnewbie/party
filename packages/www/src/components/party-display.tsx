@@ -126,7 +126,8 @@ export function PartyDisplay(props: { roomId: string }) {
                                                     This game is played on your
                                                     phones. Party mode is
                                                     available for poker, Flip 7,
-                                                    Blackjack, Perudo, and 6 nimmt!.
+                                                    Blackjack, Perudo, 6 nimmt!,
+                                                    Herd Mentality, and Fun Facts.
                                                 </p>
                                             </Show>
                                             <h2 class="font-bebas text-3xl tracking-wider mb-4">
