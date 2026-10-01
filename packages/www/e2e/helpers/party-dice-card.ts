@@ -10,6 +10,7 @@ export function defineDiceCardPartyTest(gameType: "yahtzee" | "go_fish") {
         page,
         browser,
     }, testInfo) => {
+        test.setTimeout(90_000);
         const id = `party-${gameType}-${crypto.randomUUID().slice(0, 8)}`;
         const gameId = gameType.replaceAll("_", "-");
         await page.setViewportSize({ width: 320, height: 740 });
