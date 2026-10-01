@@ -31,6 +31,8 @@ This is a casual multiplayer party game app built with Solid 2 and TanStack Rout
 - Cheese Thief keeps roles, dice, clues, and vote choices on phones until the host reveals; the Party display shows simple phase prompts, then the outcome, roles, votes, and scores at the end
 - Skull displays face-down stacks, bids, public disc reveals, and challenge wins; hands and unrevealed discs stay private, with placing, bidding, flipping, and disc-loss choices on phones
 - Spicy displays illustrated declarations, stack size, challenge reveals, trophies, and final scores; hands and unchallenged card faces stay private, with playing, bluffing, and challenge controls on phones
+- Yahtzee displays public rolls, held dice, rounds, and scorecards; phones provide rolling, holding, and score selection. Lying Yahtzee remains a two-player full-table game with private rolls and illustrated claims and challenge reveals.
+- Go Fish displays requests, card counts, draw-pile size, completed books, and final scores; hands and drawn card faces stay private on phones.
 - Other games currently show room information on the display; add game-specific public views and phone controls when extending Party mode
 - Card tables (poker, blackjack) share `src/components/casino`: `TableCard` deal/flip animations, chip stacks, animated numbers, confetti, and synthesized sound effects with a mute toggle
 - Keep every screen in the paper board-game style: `paper` backgrounds, `table-mat` surfaces, ink outlines with hard offset shadows, Bebas Neue headings, and the palette tokens in `src/styles/app.css`; avoid dark casino styling, glows, and gradients

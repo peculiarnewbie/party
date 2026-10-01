@@ -1,5 +1,5 @@
 import { flush } from "solid-js";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@solidjs/testing-library";
 import { GoFishRoom } from "./go-fish-room";
 import { createFakeGameConnection } from "~/test/fake-game-connection";
@@ -15,6 +15,7 @@ function renderRoom(
         view?: GoFishPlayerView;
         playerId?: string | null;
         isHost?: boolean;
+        initialLayout?: "table" | "controller";
     } = {},
 ) {
     const { view = makeView(), playerId = "p1", isHost = false } = options;
@@ -25,8 +26,11 @@ function renderRoom(
         GoFishSideEvent
     >({ initialView: view });
 
+    const onReturnToLobby = vi.fn();
     const result = render(() => (
         <GoFishRoom
+            initialLayout={options.initialLayout}
+            onReturnToLobby={onReturnToLobby}
             roomId="room1"
             playerId={playerId}
             isHost={isHost}
@@ -34,7 +38,7 @@ function renderRoom(
         />
     ));
 
-    return { ...result, connection };
+    return { ...result, connection, onReturnToLobby };
 }
 
 describe("GoFishRoom", () => {
@@ -135,7 +139,7 @@ describe("GoFishRoom", () => {
         expect(getByText(/12 LEFT/i)).toBeInTheDocument();
     });
 
-    it("shows game over screen with winner name and Back to Lobby button", () => {
+    it("shows game over scores while guests wait for the host", () => {
         const view = makeView({
             gameOver: true,
             winner: ["p2"],
@@ -144,13 +148,11 @@ describe("GoFishRoom", () => {
                 makeSeat({ id: "p2", name: "Bob", books: [1, 2, 3] }),
             ],
         });
-        const { getByText, getByRole } = renderRoom({ view, playerId: "p1" });
+        const { getByText, queryByRole } = renderRoom({ view, playerId: "p1" });
 
         expect(getByText(/GAME OVER/i)).toBeInTheDocument();
         expect(getByText(/BOB WINS/i)).toBeInTheDocument();
-        expect(
-            getByRole("button", { name: /back to lobby/i }),
-        ).toBeInTheDocument();
+        expect(queryByRole("button", { name: /back to lobby/i })).toBeNull();
     });
 
     it("shows YOU WIN! when the current player wins", () => {
@@ -164,5 +166,54 @@ describe("GoFishRoom", () => {
         });
         const { getByText } = renderRoom({ view, playerId: "p1" });
         expect(getByText("YOU WIN!")).toBeInTheDocument();
+    });
+    it("lets phones select a rank before an opponent and clears stale choices", () => {
+        const { getByRole, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({ myHand: SAMPLE_HAND }),
+        });
+        fireEvent.click(getByRole("button", { name: "Ask for 7s" }));
+        flush();
+        expect(connection.sentMessages).toHaveLength(0);
+        fireEvent.click(getByRole("button", { name: /Bob/ }));
+        flush();
+        expect(connection.sentMessages).toEqual([
+            { type: "go_fish:ask", data: { targetId: "p2", rank: 7 } },
+        ]);
+        connection.setView(
+            makeView({ currentPlayerId: "p2", myHand: SAMPLE_HAND }),
+        );
+        flush();
+        expect(getByRole("button", { name: "Ask for 7s" })).toBeDisabled();
+    });
+    it("uses the host's room callback to return after the game", () => {
+        const { getByRole, onReturnToLobby } = renderRoom({
+            isHost: true,
+            view: makeView({ gameOver: true, winner: ["p1"] }),
+        });
+        fireEvent.click(getByRole("button", { name: "Back to Lobby" }));
+        flush();
+        expect(onReturnToLobby).toHaveBeenCalledOnce();
+    });
+    it("allows asking an empty-handed opponent so the player can go fishing", () => {
+        const { getByRole, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                myHand: SAMPLE_HAND,
+                players: [
+                    makeSeat({ id: "p1", name: "Alice" }),
+                    makeSeat({ id: "p2", name: "Bob", cardCount: 0 }),
+                ],
+            }),
+        });
+        const target = getByRole("button", { name: /Bob/ });
+        expect(target).toBeEnabled();
+        fireEvent.click(target);
+        flush();
+        fireEvent.click(getByRole("button", { name: "Ask for 7s" }));
+        flush();
+        expect(connection.sentMessages).toEqual([
+            { type: "go_fish:ask", data: { targetId: "p2", rank: 7 } },
+        ]);
     });
 });

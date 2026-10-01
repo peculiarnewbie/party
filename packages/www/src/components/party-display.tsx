@@ -123,11 +123,7 @@ export function PartyDisplay(props: { roomId: string }) {
                                                 }
                                             >
                                                 <p class="border-2 border-[#1a1a1a] bg-[#f7f2de] shadow-[4px_4px_0_#1a1a1a] p-4 mb-6 text-xl max-w-2xl">
-                                                    This game is played on your
-                                                    phones. Party mode is
-                                                    available for poker, Flip 7,
-                                                    Blackjack, Perudo, 6 nimmt!,
-                                                    Herd Mentality, and Fun Facts.
+                                                    This game is played on your phones.
                                                 </p>
                                             </Show>
                                             <h2 class="font-bebas text-3xl tracking-wider mb-4">

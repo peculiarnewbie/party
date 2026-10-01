@@ -1,3 +1,4 @@
+import { defineDiceCardPartyTest } from "./helpers/party-dice-card";
 import { expect, test } from "@playwright/test";
 
 import type {
@@ -159,3 +160,5 @@ defineLiveGameSmoke({
     playerCount: 2,
     roomTestId: "yahtzee-room",
 });
+
+defineDiceCardPartyTest("yahtzee");
