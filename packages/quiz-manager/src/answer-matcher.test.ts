@@ -3,66 +3,131 @@ import { checkFillIn } from "./answer-matcher";
 import type { AcceptedAnswer } from "./schemas";
 
 function answer(
-    overrides: Partial<AcceptedAnswer> & { pattern?: string; matchType?: string; caseInsensitive?: boolean } = {},
+    overrides: Partial<AcceptedAnswer> & {
+        pattern?: string;
+        matchType?: string;
+        caseInsensitive?: boolean;
+    } = {},
 ): AcceptedAnswer {
     return {
         id: "a1",
         questionId: "q1",
         pattern: overrides.pattern ?? "",
-        matchType: (overrides.matchType ?? "exact") as AcceptedAnswer["matchType"],
+        matchType: (overrides.matchType ??
+            "exact") as AcceptedAnswer["matchType"],
         caseInsensitive: overrides.caseInsensitive ?? false,
         sortOrder: 0,
     };
 }
 
 describe("checkFillIn", () => {
+    it("accepts mixed-case authored answers when capitalization is ignored", () => {
+        const rule = answer({ pattern: " Jupiter ", caseInsensitive: true });
+        expect(checkFillIn("jupiter", [rule])).toBe(true);
+        expect(checkFillIn("JUPITER", [rule])).toBe(true);
+        expect(checkFillIn("Saturn", [rule])).toBe(false);
+    });
+
+    it("normalizes authored contains rules while retaining case-sensitive rules", () => {
+        expect(
+            checkFillIn("the planet Jupiter", [
+                answer({
+                    pattern: " JUPITER ",
+                    matchType: "contains",
+                    caseInsensitive: true,
+                }),
+            ]),
+        ).toBe(true);
+        expect(
+            checkFillIn("the planet jupiter", [
+                answer({
+                    pattern: "Jupiter",
+                    matchType: "contains",
+                    caseInsensitive: false,
+                }),
+            ]),
+        ).toBe(false);
+    });
+
     describe("exact match", () => {
         it("matches identical strings", () => {
-            expect(checkFillIn("paris", [answer({ pattern: "paris", matchType: "exact" })])).toBe(true);
+            expect(
+                checkFillIn("paris", [
+                    answer({ pattern: "paris", matchType: "exact" }),
+                ]),
+            ).toBe(true);
         });
 
         it("rejects different strings", () => {
-            expect(checkFillIn("london", [answer({ pattern: "paris", matchType: "exact" })])).toBe(false);
+            expect(
+                checkFillIn("london", [
+                    answer({ pattern: "paris", matchType: "exact" }),
+                ]),
+            ).toBe(false);
         });
 
         it("is case sensitive by default", () => {
-            expect(checkFillIn("Paris", [answer({ pattern: "paris", matchType: "exact" })])).toBe(false);
+            expect(
+                checkFillIn("Paris", [
+                    answer({ pattern: "paris", matchType: "exact" }),
+                ]),
+            ).toBe(false);
         });
 
         it("matches case insensitively when flag is set", () => {
             expect(
-                checkFillIn("Paris", [answer({ pattern: "paris", matchType: "exact", caseInsensitive: true })]),
+                checkFillIn("Paris", [
+                    answer({
+                        pattern: "paris",
+                        matchType: "exact",
+                        caseInsensitive: true,
+                    }),
+                ]),
             ).toBe(true);
         });
 
         it("trims whitespace before comparing", () => {
-            expect(checkFillIn("  paris  ", [answer({ pattern: "paris", matchType: "exact" })])).toBe(true);
+            expect(
+                checkFillIn("  paris  ", [
+                    answer({ pattern: "paris", matchType: "exact" }),
+                ]),
+            ).toBe(true);
         });
     });
 
     describe("contains match", () => {
         it("matches when input contains the pattern", () => {
-            expect(checkFillIn("the answer is paris", [answer({ pattern: "paris", matchType: "contains" })])).toBe(
-                true,
-            );
+            expect(
+                checkFillIn("the answer is paris", [
+                    answer({ pattern: "paris", matchType: "contains" }),
+                ]),
+            ).toBe(true);
         });
 
         it("rejects when input does not contain the pattern", () => {
-            expect(checkFillIn("the answer is london", [answer({ pattern: "paris", matchType: "contains" })])).toBe(
-                false,
-            );
+            expect(
+                checkFillIn("the answer is london", [
+                    answer({ pattern: "paris", matchType: "contains" }),
+                ]),
+            ).toBe(false);
         });
 
         it("is case sensitive by default", () => {
             expect(
-                checkFillIn("the answer is Paris", [answer({ pattern: "paris", matchType: "contains" })]),
+                checkFillIn("the answer is Paris", [
+                    answer({ pattern: "paris", matchType: "contains" }),
+                ]),
             ).toBe(false);
         });
 
         it("matches case insensitively when flag is set", () => {
             expect(
                 checkFillIn("the answer is Paris", [
-                    answer({ pattern: "paris", matchType: "contains", caseInsensitive: true }),
+                    answer({
+                        pattern: "paris",
+                        matchType: "contains",
+                        caseInsensitive: true,
+                    }),
                 ]),
             ).toBe(true);
         });
@@ -70,7 +135,11 @@ describe("checkFillIn", () => {
 
     describe("any match", () => {
         it("matches any non-empty input", () => {
-            expect(checkFillIn("literally anything", [answer({ matchType: "any" })])).toBe(true);
+            expect(
+                checkFillIn("literally anything", [
+                    answer({ matchType: "any" }),
+                ]),
+            ).toBe(true);
         });
 
         it("rejects empty input", () => {
@@ -78,7 +147,9 @@ describe("checkFillIn", () => {
         });
 
         it("rejects whitespace-only input after trim", () => {
-            expect(checkFillIn("   ", [answer({ matchType: "any" })])).toBe(false);
+            expect(checkFillIn("   ", [answer({ matchType: "any" })])).toBe(
+                false,
+            );
         });
     });
 

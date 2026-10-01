@@ -1,36 +1,37 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700&display=swap');
-@import 'tailwindcss';
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Karla:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
 
 @theme {
-    --font-bebas: 'Bebas Neue', sans-serif;
+    --font-bebas: "Bebas Neue", sans-serif;
     --font-karla: Karla, sans-serif;
-}
-
-@layer base {
-    *,
-    ::after,
-    ::before,
-    ::backdrop,
-    ::file-selector-button {
-        border-color: var(--color-gray-200, currentcolor);
-    }
+    --color-card: #fffdf6;
+    --color-paper: #ddd5c4;
+    --color-kraft: #c9c0b0;
+    --color-line: #b8ae9e;
+    --color-muted: #5a5040;
+    --color-ink: #1a1a1a;
+    --color-cream: #f7f2de;
+    --color-navy: #1a3a6e;
+    --color-tomato: #c0261a;
+    --color-sun: #f5c542;
+    --color-teal: #0f766e;
+    --shadow-ink-sm: 2px 2px 0 #1a1a1a;
+    --shadow-ink: 4px 4px 0 #1a1a1a;
 }
 
 @layer base {
     html {
-        color-scheme: light dark;
+        color-scheme: light;
     }
-
-    * {
-        @apply border-gray-200 dark:border-gray-800;
-    }
-
-    html,
     body {
-        @apply text-gray-900 bg-gray-50 dark:bg-gray-950 dark:text-gray-200 font-karla;
+        @apply bg-paper text-ink font-karla;
     }
-
-    .using-mouse * {
-        outline: none !important;
+    button:not(:disabled),
+    select {
+        cursor: pointer;
+    }
+    :focus-visible {
+        outline: 2px solid var(--color-navy);
+        outline-offset: 3px;
     }
 }

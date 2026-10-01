@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/solid-router";
-import { createSignal, Loading, refresh, For, Show } from "solid-js";
+import { createSignal, Loading, refresh, For, Show, untrack } from "solid-js";
+import { QuestionForm } from "~/components/question-form";
+import { QUESTION_TYPES, QuestionPreview } from "~/components/question-preview";
 import { callQuiz, createQuizQuery, createQuizActions } from "~/rpc/client";
+import type { QuestionFormData } from "~/components/question-form";
+import type { Question, QuizWithQuestions, TagWithCount } from "~/schemas";
 
 export const Route = createFileRoute("/quiz/$quizId/")({
     component: QuizDetail,
@@ -8,382 +12,531 @@ export const Route = createFileRoute("/quiz/$quizId/")({
 
 function QuizDetail() {
     const params = Route.useParams();
-    const quiz = createQuizQuery(() => {
-        const id = params().quizId;
-        return callQuiz((client) => client.getQuiz(id));
-    });
-    const refetch = () => refresh(quiz);
-    const allTags = createQuizQuery(() =>
-        callQuiz((client) => client.listTags()),
+    const quiz = createQuizQuery(() =>
+        callQuiz((client) => client.getQuiz(params().quizId)),
     );
-
-    const [editing, setEditing] = createSignal(false);
-    const [title, setTitle] = createSignal("");
-    const [description, setDescription] = createSignal("");
-    const { pending: saving, error, run } = createQuizActions();
-
-    function startEdit() {
-        const q = quiz();
-        if (!q) return;
-        setTitle(q.title);
-        setDescription(q.description ?? "");
-        setEditing(true);
-    }
-
-    function saveEdit() {
-        const input = {
-            id: params().quizId,
-            title: title().trim(),
-            description: description().trim() || undefined,
-        };
-        run(
-            callQuiz((client) => client.updateQuiz(input)),
-            () => {
-                setEditing(false);
-                refetch();
-            },
-        );
-    }
-
-    function handleDeleteQuestion(questionId: string) {
-        if (!confirm("Delete this question?")) return;
-        run(
-            callQuiz((client) => client.deleteQuestion(questionId)),
-            refetch,
-        );
-    }
-
-    function toggleTag(tagId: string, isActive: boolean) {
-        const q = quiz();
-        const currentTagIds = q.tags.map((tag) => tag.id);
-        const tagIds = isActive
-            ? currentTagIds.filter((id) => id !== tagId)
-            : [...currentTagIds, tagId];
-        const quizId = params().quizId;
-        run(
-            callQuiz((client) => client.setQuizTags({ quizId, tagIds })),
-            refetch,
-        );
-    }
-
-    function questionTypeLabel(type: string) {
-        switch (type) {
-            case "multiple_choice":
-                return "Multiple Choice";
-            case "fill_in":
-                return "Fill In";
-            case "open":
-                return "Open";
-            case "placeholder":
-                return "Placeholder";
-            default:
-                return type;
-        }
-    }
-
+    const tags = createQuizQuery(() => callQuiz((client) => client.listTags()));
     return (
-        <div class="min-h-screen bg-[#f5f0e8] font-karla">
-            <header class="bg-[#1a3a6e] text-[#ddd5c4] px-8 py-5 flex items-center gap-4">
+        <div class="min-h-screen bg-paper">
+            <header class="flex min-h-20 items-center gap-5 border-b-2 border-ink bg-navy px-4 py-4 text-cream sm:px-8">
                 <a
                     href="/"
-                    class="font-bebas text-sm tracking-widest text-[#b8ae9e] hover:text-[#ddd5c4] transition-colors"
+                    class="flex min-h-11 items-center font-bebas tracking-wide"
                 >
-                    BACK
+                    All quizzes
                 </a>
-                <h1 class="font-bebas text-3xl tracking-wide">Quiz Details</h1>
+                <span class="border-l border-cream/40 pl-5 font-bebas text-2xl">
+                    Quiz editor
+                </span>
             </header>
-
-            <main class="max-w-3xl mx-auto px-6 py-10">
-                <Show when={error()}>
-                    <p role="alert" class="text-[#c0261a] mb-4">
-                        {error()}
-                    </p>
-                </Show>
+            <main class="mx-auto max-w-7xl px-3 py-6 sm:px-6">
                 <Loading
                     fallback={
-                        <div class="text-center text-[#7a7060] font-bebas text-xl tracking-wide py-20">
-                            Loading...
-                        </div>
+                        <p class="p-8 font-bebas text-xl">Loading quiz…</p>
                     }
                 >
-                    <Show
-                        when={quiz()}
-                        fallback={
-                            <div class="text-center py-20">
-                                <p class="text-[#7a7060] font-bebas text-2xl">
-                                    Quiz not found
-                                </p>
-                            </div>
-                        }
-                    >
+                    <Show when={quiz()} fallback={<p>Quiz not found.</p>}>
                         {(q) => (
-                            <div class="space-y-8">
-                                <div class="bg-white border-2 border-[#1a1a1a] shadow-[4px_4px_0_#1a1a1a] p-6">
-                                    <Show
-                                        when={editing()}
-                                        fallback={
-                                            <div>
-                                                <div class="flex items-start justify-between mb-4">
-                                                    <div>
-                                                        <h2 class="font-bebas text-2xl text-[#1a1a1a]">
-                                                            {q().title}
-                                                        </h2>
-                                                        <Show
-                                                            when={
-                                                                q().description
-                                                            }
-                                                        >
-                                                            <p class="text-[#5a5040] mt-1">
-                                                                {
-                                                                    q()
-                                                                        .description
-                                                                }
-                                                            </p>
-                                                        </Show>
-                                                    </div>
-                                                    <button
-                                                        onClick={startEdit}
-                                                        class="font-bebas text-sm tracking-widest text-[#1a3a6e] hover:text-[#c0261a] transition-colors cursor-pointer"
-                                                    >
-                                                        EDIT
-                                                    </button>
-                                                </div>
-                                                <Show when={allTags()}>
-                                                    <div class="border-t border-[#e5dfd5] pt-4 mt-4">
-                                                        <label class="block font-bebas text-xs tracking-widest text-[#5a5040] mb-2">
-                                                            TAGS
-                                                        </label>
-                                                        <div class="flex flex-wrap gap-2">
-                                                            <For
-                                                                each={allTags()}
-                                                            >
-                                                                {(tag) => {
-                                                                    const isActive =
-                                                                        () =>
-                                                                            q().tags.some(
-                                                                                (
-                                                                                    t,
-                                                                                ) =>
-                                                                                    t.slug ===
-                                                                                    tag.slug,
-                                                                            );
-                                                                    return (
-                                                                        <button
-                                                                            disabled={saving()}
-                                                                            onClick={() =>
-                                                                                toggleTag(
-                                                                                    tag.id,
-                                                                                    isActive(),
-                                                                                )
-                                                                            }
-                                                                            class={`text-xs font-bebas tracking-wider px-2.5 py-1 border transition-colors cursor-pointer ${isActive() ? "bg-[#1a3a6e] text-[#ddd5c4] border-[#1a3a6e]" : "bg-[#e5dfd5] text-[#5a5040] border-[#b8ae9e] hover:bg-[#d5cfc5]"}`}
-                                                                        >
-                                                                            {
-                                                                                tag.name
-                                                                            }
-                                                                        </button>
-                                                                    );
-                                                                }}
-                                                            </For>
-                                                        </div>
-                                                    </div>
-                                                </Show>
-                                            </div>
-                                        }
-                                    >
-                                        <div class="space-y-4">
-                                            <div>
-                                                <label class="block font-bebas text-xs tracking-widest text-[#5a5040] mb-1">
-                                                    TITLE
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={title()}
-                                                    onInput={(e) =>
-                                                        setTitle(
-                                                            e.currentTarget
-                                                                .value,
-                                                        )
-                                                    }
-                                                    class="w-full px-3 py-2 bg-white border-2 border-[#b8ae9e] font-karla text-[#1a1a1a] focus:border-[#1a3a6e] outline-none"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label class="block font-bebas text-xs tracking-widest text-[#5a5040] mb-1">
-                                                    DESCRIPTION
-                                                </label>
-                                                <textarea
-                                                    value={description()}
-                                                    onInput={(e) =>
-                                                        setDescription(
-                                                            e.currentTarget
-                                                                .value,
-                                                        )
-                                                    }
-                                                    rows={2}
-                                                    class="w-full px-3 py-2 bg-white border-2 border-[#b8ae9e] font-karla text-[#1a1a1a] focus:border-[#1a3a6e] outline-none resize-y"
-                                                />
-                                            </div>
-                                            <Show when={error()}>
-                                                <p class="text-[#c0261a] text-sm">
-                                                    {error()}
-                                                </p>
-                                            </Show>
-                                            <div class="flex gap-2">
-                                                <button
-                                                    onClick={saveEdit}
-                                                    disabled={saving()}
-                                                    class="font-bebas text-sm tracking-widest bg-[#1a3a6e] text-[#ddd5c4] px-4 py-2 border-2 border-[#1a1a1a] shadow-[2px_2px_0_#1a1a1a] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_#1a1a1a] transition-all cursor-pointer disabled:opacity-40"
-                                                >
-                                                    {saving()
-                                                        ? "SAVING..."
-                                                        : "SAVE"}
-                                                </button>
-                                                <button
-                                                    onClick={() =>
-                                                        setEditing(false)
-                                                    }
-                                                    class="font-bebas text-sm tracking-widest text-[#5a5040] px-4 py-2 border-2 border-[#b8ae9e] hover:bg-[#e5dfd5] transition-colors cursor-pointer"
-                                                >
-                                                    CANCEL
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </Show>
-                                </div>
-
-                                <div>
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h3 class="font-bebas text-xl tracking-wide text-[#1a1a1a]">
-                                            Questions ({q().questions.length})
-                                        </h3>
-                                        <a
-                                            href={`/quiz/${params().quizId}/question/new`}
-                                            class="font-bebas text-sm tracking-widest bg-[#c0261a] text-[#ddd5c4] px-4 py-2 border-2 border-[#1a1a1a] shadow-[2px_2px_0_#1a1a1a] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_#1a1a1a] transition-all"
-                                        >
-                                            + Add Question
-                                        </a>
-                                    </div>
-                                    <Show
-                                        when={q().questions.length > 0}
-                                        fallback={
-                                            <div class="bg-white border-2 border-dashed border-[#b8ae9e] p-8 text-center">
-                                                <p class="text-[#7a7060] font-bebas text-lg tracking-wide">
-                                                    No questions yet
-                                                </p>
-                                            </div>
-                                        }
-                                    >
-                                        <div class="space-y-3">
-                                            <For each={q().questions}>
-                                                {(question, index) => (
-                                                    <div class="bg-white border-2 border-[#1a1a1a] shadow-[3px_3px_0_#1a1a1a] p-4 flex items-start gap-4">
-                                                        <div class="font-bebas text-[#9a9080] text-lg w-8 shrink-0 text-center pt-0.5">
-                                                            {index() + 1}
-                                                        </div>
-                                                        <div class="flex-1 min-w-0">
-                                                            <span class="text-xs font-bebas tracking-wider bg-[#e5dfd5] text-[#5a5040] px-2 py-0.5">
-                                                                {questionTypeLabel(
-                                                                    question.type,
-                                                                )}
-                                                            </span>
-                                                            <p class="text-[#1a1a1a] mt-1">
-                                                                {question.text}
-                                                            </p>
-                                                            <Show
-                                                                when={
-                                                                    question.type ===
-                                                                        "multiple_choice" &&
-                                                                    question
-                                                                        .options
-                                                                        ?.length
-                                                                }
-                                                            >
-                                                                <ul class="mt-2 space-y-1">
-                                                                    <For
-                                                                        each={
-                                                                            question.options
-                                                                        }
-                                                                    >
-                                                                        {(
-                                                                            opt,
-                                                                        ) => (
-                                                                            <li class="text-sm text-[#5a5040]">
-                                                                                {opt.isCorrect
-                                                                                    ? "✓"
-                                                                                    : "○"}{" "}
-                                                                                {
-                                                                                    opt.text
-                                                                                }
-                                                                            </li>
-                                                                        )}
-                                                                    </For>
-                                                                </ul>
-                                                            </Show>
-                                                            <Show
-                                                                when={
-                                                                    question.type ===
-                                                                        "fill_in" &&
-                                                                    question
-                                                                        .acceptedAnswers
-                                                                        ?.length
-                                                                }
-                                                            >
-                                                                <div class="mt-2 text-sm text-[#5a5040]">
-                                                                    Accepted:{" "}
-                                                                    <For
-                                                                        each={
-                                                                            question.acceptedAnswers
-                                                                        }
-                                                                    >
-                                                                        {(
-                                                                            ans,
-                                                                        ) => (
-                                                                            <span class="inline-block bg-[#e5dfd5] px-1.5 py-0.5 mr-1">
-                                                                                {
-                                                                                    ans.pattern
-                                                                                }{" "}
-                                                                                (
-                                                                                {
-                                                                                    ans.matchType
-                                                                                }
-                                                                                )
-                                                                            </span>
-                                                                        )}
-                                                                    </For>
-                                                                </div>
-                                                            </Show>
-                                                        </div>
-                                                        <div class="flex gap-2 shrink-0">
-                                                            <a
-                                                                href={`/quiz/${params().quizId}/question/${question.id}`}
-                                                                class="font-bebas text-xs tracking-widest text-[#1a3a6e] hover:text-[#c0261a] transition-colors"
-                                                            >
-                                                                EDIT
-                                                            </a>
-                                                            <button
-                                                                disabled={saving()}
-                                                                onClick={() =>
-                                                                    handleDeleteQuestion(
-                                                                        question.id,
-                                                                    )
-                                                                }
-                                                                class="font-bebas text-xs tracking-widest text-[#c0261a] hover:text-[#8b1a10] transition-colors cursor-pointer"
-                                                            >
-                                                                DEL
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </For>
-                                        </div>
-                                    </Show>
-                                </div>
-                            </div>
+                            <QuizEditor
+                                quiz={q()}
+                                tags={tags()}
+                                onRefresh={() => refresh(quiz)}
+                            />
                         )}
                     </Show>
                 </Loading>
             </main>
+        </div>
+    );
+}
+
+type Editor = { question?: Question };
+
+function QuizEditor(props: {
+    quiz: QuizWithQuestions;
+    tags: readonly TagWithCount[];
+    onRefresh: () => void;
+}) {
+    const initialQuiz = untrack(() => props.quiz);
+    const [editor, setEditor] = createSignal<Editor | null>(
+        initialQuiz.questions.length ? null : {},
+    );
+    const [dirty, setDirty] = createSignal(false);
+    const [notice, setNotice] = createSignal("");
+    const [showQuestions, setShowQuestions] = createSignal(false);
+    const [editingDetails, setEditingDetails] = createSignal(false);
+    const [title, setTitle] = createSignal(initialQuiz.title);
+    const [description, setDescription] = createSignal(
+        initialQuiz.description ?? "",
+    );
+    const [previewQuestion, setPreviewQuestion] = createSignal<Question | null>(
+        null,
+    );
+    const { pending: saving, error, run } = createQuizActions();
+    const buttonClass =
+        "min-h-11 border-2 border-ink px-4 py-2 font-bebas tracking-wide shadow-ink-sm disabled:opacity-40";
+    const inputClass =
+        "w-full min-w-0 border-2 border-line bg-card px-3 py-3 outline-none focus:border-navy";
+
+    function selectEditor(next: Editor | null) {
+        if (saving()) return;
+        if (dirty() && !confirm("Discard your unsaved question changes?"))
+            return;
+        setDirty(false);
+        setPreviewQuestion(null);
+        setEditor(next);
+        setShowQuestions(false);
+    }
+    function saveQuestion(data: QuestionFormData, addAnother: boolean) {
+        const question = editor()?.question;
+        const program = question
+            ? callQuiz((client) =>
+                  client.updateQuestion({ questionId: question.id, ...data }),
+              )
+            : callQuiz((client) =>
+                  client.createQuestion({ quizId: props.quiz.id, ...data }),
+              );
+        run(program, () => {
+            setDirty(false);
+            setNotice("Question saved.");
+            setEditor(addAnother ? {} : null);
+            props.onRefresh();
+        });
+    }
+    function moveQuestion(index: number, direction: -1 | 1) {
+        const ids = props.quiz.questions.map((question) => question.id);
+        const target = index + direction;
+        if (target < 0 || target >= ids.length) return;
+        [ids[index], ids[target]] = [ids[target], ids[index]];
+        run(
+            callQuiz((client) =>
+                client.reorderQuestions({
+                    quizId: props.quiz.id,
+                    orderedIds: ids,
+                }),
+            ),
+            () => {
+                setNotice("Question order saved.");
+                props.onRefresh();
+            },
+        );
+    }
+    function deleteQuestion(question: Question) {
+        if (!confirm(`Delete “${question.text}”?`)) return;
+        if (
+            editor()?.question?.id === question.id &&
+            dirty() &&
+            !confirm("Discard your unsaved question changes?")
+        )
+            return;
+        run(
+            callQuiz((client) => client.deleteQuestion(question.id)),
+            () => {
+                if (editor()?.question?.id === question.id) {
+                    setDirty(false);
+                    setEditor(null);
+                }
+                if (previewQuestion()?.id === question.id)
+                    setPreviewQuestion(null);
+                setNotice("Question deleted.");
+                props.onRefresh();
+            },
+        );
+    }
+    function toggleTag(tagId: string) {
+        const ids = props.quiz.tags.map((tag) => tag.id);
+        const tagIds = ids.includes(tagId)
+            ? ids.filter((id) => id !== tagId)
+            : [...ids, tagId];
+        run(
+            callQuiz((client) =>
+                client.setQuizTags({ quizId: props.quiz.id, tagIds }),
+            ),
+            props.onRefresh,
+        );
+    }
+    function saveDetails(event: Event) {
+        event.preventDefault();
+        run(
+            callQuiz((client) =>
+                client.updateQuiz({
+                    id: props.quiz.id,
+                    title: title().trim(),
+                    description: description().trim(),
+                }),
+            ),
+            () => {
+                setEditingDetails(false);
+                setNotice("Quiz details saved.");
+                props.onRefresh();
+            },
+        );
+    }
+
+    return (
+        <div class="space-y-6">
+            <section class="border-2 border-ink bg-cream p-4 shadow-ink sm:p-6">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div class="min-w-0 flex-1">
+                        <h1 class="break-words font-bebas text-3xl sm:text-4xl">
+                            {props.quiz.title}
+                        </h1>
+                        <Show when={props.quiz.description}>
+                            <p class="mt-1 break-words text-sm text-muted">
+                                {props.quiz.description}
+                            </p>
+                        </Show>
+                        <p class="mt-3 font-bebas tracking-wide text-muted">
+                            {props.quiz.questions.length} saved{" "}
+                            {props.quiz.questions.length === 1
+                                ? "question"
+                                : "questions"}
+                        </p>
+                    </div>
+                    <button
+                        disabled={saving()}
+                        onClick={() => {
+                            setTitle(props.quiz.title);
+                            setDescription(props.quiz.description ?? "");
+                            setEditingDetails(!editingDetails());
+                        }}
+                        class="min-h-11 font-bebas text-navy underline underline-offset-4"
+                    >
+                        Edit details
+                    </button>
+                </div>
+                <Show when={editingDetails()}>
+                    <form
+                        onSubmit={saveDetails}
+                        class="mt-4 grid gap-3 border-t-2 border-line pt-4"
+                    >
+                        <label class="space-y-1">
+                            <span class="font-bebas text-muted">Title</span>
+                            <input
+                                value={title()}
+                                onInput={(event) =>
+                                    setTitle(event.currentTarget.value)
+                                }
+                                required
+                                maxlength={200}
+                                disabled={saving()}
+                                class={inputClass}
+                            />
+                        </label>
+                        <label class="space-y-1">
+                            <span class="font-bebas text-muted">
+                                Description
+                            </span>
+                            <textarea
+                                value={description()}
+                                onInput={(event) =>
+                                    setDescription(event.currentTarget.value)
+                                }
+                                rows={2}
+                                maxlength={2000}
+                                disabled={saving()}
+                                class={inputClass}
+                            />
+                        </label>
+                        <div class="flex gap-3">
+                            <button
+                                type="submit"
+                                disabled={saving() || !title().trim()}
+                                class={`${buttonClass} bg-navy text-cream`}
+                            >
+                                Save details
+                            </button>
+                            <button
+                                type="button"
+                                disabled={saving()}
+                                onClick={() => setEditingDetails(false)}
+                                class="min-h-11 px-3 font-bebas text-muted"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </Show>
+                <Show when={props.tags.length}>
+                    <details class="mt-4 border-t-2 border-line pt-3">
+                        <summary class="cursor-pointer font-bebas tracking-wide text-muted">
+                            Tags{" "}
+                            {props.quiz.tags.length
+                                ? `· ${props.quiz.tags.map((tag) => tag.name).join(", ")}`
+                                : ""}
+                        </summary>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <For each={props.tags}>
+                                {(tag) => (
+                                    <button
+                                        disabled={saving()}
+                                        aria-pressed={
+                                            props.quiz.tags.some(
+                                                (item) => item.id === tag.id,
+                                            )
+                                                ? "true"
+                                                : "false"
+                                        }
+                                        onClick={() => toggleTag(tag.id)}
+                                        class={`min-h-11 border-2 border-ink px-3 font-bebas tracking-wide ${props.quiz.tags.some((item) => item.id === tag.id) ? "bg-navy text-cream" : "bg-card"}`}
+                                    >
+                                        {tag.name}
+                                    </button>
+                                )}
+                            </For>
+                        </div>
+                    </details>
+                </Show>
+            </section>
+            <div role="status" aria-live="polite" class="text-sm text-teal">
+                {notice()}
+            </div>
+            <Show when={error() && !editor()}>
+                <p
+                    role="alert"
+                    class="border-l-4 border-tomato p-3 text-tomato"
+                >
+                    {error()}
+                </p>
+            </Show>
+            <div class="grid items-start gap-6 xl:grid-cols-[290px_minmax(0,1fr)]">
+                <aside
+                    aria-label="Saved questions"
+                    class={`min-w-0 space-y-3 ${props.quiz.questions.length ? "" : "hidden xl:block"}`}
+                >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h2 class="font-bebas text-2xl">Questions</h2>
+                        <button
+                            disabled={saving()}
+                            onClick={() => selectEditor({})}
+                            class={`${buttonClass} bg-sun text-ink`}
+                        >
+                            + Add question
+                        </button>
+                    </div>
+                    <Show when={props.quiz.questions.length}>
+                        <button
+                            aria-expanded={showQuestions() ? "true" : "false"}
+                            onClick={() => setShowQuestions(!showQuestions())}
+                            class="min-h-11 font-bebas text-navy underline underline-offset-4 xl:hidden"
+                        >
+                            {showQuestions()
+                                ? "Hide saved questions"
+                                : "Show saved questions"}
+                        </button>
+                    </Show>
+                    <Show
+                        when={props.quiz.questions.length}
+                        fallback={
+                            <p class="border-2 border-dashed border-line p-4 text-sm text-muted">
+                                Start with your first question.
+                            </p>
+                        }
+                    >
+                        <ol
+                            class={`${showQuestions() ? "grid" : "hidden xl:grid"} gap-3 sm:grid-cols-2 xl:grid-cols-1`}
+                        >
+                            <For each={props.quiz.questions}>
+                                {(question, index) => (
+                                    <li
+                                        data-testid={`saved-question-${question.id}`}
+                                        class={`min-w-0 border-2 border-ink p-3 shadow-ink-sm ${editor()?.question?.id === question.id ? "bg-sun" : "bg-cream"}`}
+                                    >
+                                        <div class="flex items-start gap-3">
+                                            <span class="font-bebas text-2xl text-muted">
+                                                {index() + 1}
+                                            </span>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="break-words font-bold leading-snug">
+                                                    {question.text}
+                                                </p>
+                                                <p class="mt-1 text-xs text-muted">
+                                                    {
+                                                        QUESTION_TYPES.find(
+                                                            (entry) =>
+                                                                entry.value ===
+                                                                question.type,
+                                                        )?.label
+                                                    }
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2 flex flex-wrap items-center gap-1">
+                                            <button
+                                                disabled={saving()}
+                                                onClick={() =>
+                                                    selectEditor({ question })
+                                                }
+                                                aria-label={`Edit question ${index() + 1}`}
+                                                class="min-h-11 px-2 font-bebas text-navy"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                disabled={saving()}
+                                                onClick={() => {
+                                                    if (
+                                                        dirty() &&
+                                                        !confirm(
+                                                            "Discard your unsaved question changes?",
+                                                        )
+                                                    )
+                                                        return;
+                                                    setDirty(false);
+                                                    setEditor(null);
+                                                    setPreviewQuestion(
+                                                        question,
+                                                    );
+                                                }}
+                                                aria-label={`Preview question ${index() + 1}`}
+                                                class="min-h-11 px-2 font-bebas text-navy"
+                                            >
+                                                Preview
+                                            </button>
+                                            <button
+                                                aria-label={`Move question ${index() + 1} up`}
+                                                disabled={
+                                                    saving() || index() === 0
+                                                }
+                                                onClick={() =>
+                                                    moveQuestion(index(), -1)
+                                                }
+                                                class="flex h-11 w-9 items-center justify-center disabled:opacity-25"
+                                            >
+                                                <svg
+                                                    viewBox="0 0 24 24"
+                                                    aria-hidden="true"
+                                                    class="h-5 w-5"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <path d="m6 14 6-6 6 6" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                aria-label={`Move question ${index() + 1} down`}
+                                                disabled={
+                                                    saving() ||
+                                                    index() ===
+                                                        props.quiz.questions
+                                                            .length -
+                                                            1
+                                                }
+                                                onClick={() =>
+                                                    moveQuestion(index(), 1)
+                                                }
+                                                class="flex h-11 w-9 items-center justify-center disabled:opacity-25"
+                                            >
+                                                <svg
+                                                    viewBox="0 0 24 24"
+                                                    aria-hidden="true"
+                                                    class="h-5 w-5"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <path d="m6 10 6 6 6-6" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                aria-label={`Delete question ${index() + 1}`}
+                                                disabled={saving()}
+                                                onClick={() =>
+                                                    deleteQuestion(question)
+                                                }
+                                                class="min-h-11 px-2 font-bebas text-tomato"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </li>
+                                )}
+                            </For>
+                        </ol>
+                    </Show>
+                </aside>
+                <section class="min-w-0 border-2 border-ink bg-cream p-4 shadow-ink sm:p-6">
+                    <Show
+                        when={editor()}
+                        keyed
+                        fallback={
+                            <Show
+                                when={previewQuestion()}
+                                fallback={
+                                    <div class="space-y-4 py-8 text-center">
+                                        <h2 class="font-bebas text-3xl">
+                                            {props.quiz.questions.length
+                                                ? "Your questions are saved"
+                                                : "Build your quiz"}
+                                        </h2>
+                                        <p class="text-sm text-muted">
+                                            Add a question or select one to
+                                            edit.
+                                        </p>
+                                        <button
+                                            disabled={saving()}
+                                            onClick={() => selectEditor({})}
+                                            class={`${buttonClass} bg-navy text-cream`}
+                                        >
+                                            + Add question
+                                        </button>
+                                    </div>
+                                }
+                            >
+                                {(question) => (
+                                    <QuestionPreview question={question()} />
+                                )}
+                            </Show>
+                        }
+                    >
+                        {(current) => (
+                            <div>
+                                <div class="mb-5 flex flex-wrap items-center justify-between gap-2">
+                                    <h2 class="font-bebas text-2xl">
+                                        {current.question
+                                            ? "Edit question"
+                                            : `Question ${props.quiz.questions.length + 1}`}
+                                    </h2>
+                                    <span class="text-xs text-muted">
+                                        {saving()
+                                            ? "Saving…"
+                                            : dirty()
+                                              ? "Unsaved changes"
+                                              : "Draft"}
+                                    </span>
+                                </div>
+                                <QuestionForm
+                                    initial={
+                                        current.question
+                                            ? {
+                                                  type: current.question.type,
+                                                  text: current.question.text,
+                                                  options:
+                                                      current.question.options,
+                                                  acceptedAnswers:
+                                                      current.question
+                                                          .acceptedAnswers,
+                                              }
+                                            : undefined
+                                    }
+                                    onSubmit={saveQuestion}
+                                    onCancel={() => selectEditor(null)}
+                                    onDirty={setDirty}
+                                    saving={saving()}
+                                    error={error()}
+                                    submitLabel={
+                                        current.question
+                                            ? "Save changes"
+                                            : "Save question"
+                                    }
+                                    allowAddAnother
+                                />
+                            </div>
+                        )}
+                    </Show>
+                </section>
+            </div>
         </div>
     );
 }
