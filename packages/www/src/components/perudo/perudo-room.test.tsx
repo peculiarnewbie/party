@@ -67,16 +67,13 @@ describe("PerudoRoom", () => {
             getByTestId("perudo-my-dice").querySelectorAll("svg"),
         ).toHaveLength(5);
         expect(queryByText("Bob")).toBeNull();
-        expect(
-            getByRole("button", { name: "CHALLENGE" }),
-        ).toBeDisabled();
+        expect(getByRole("button", { name: "CHALLENGE" })).toBeDisabled();
         fireEvent.click(getByRole("button", { name: "BID" }));
         flush();
         expect(connection.sentMessages).toContainEqual({
             type: "perudo:bid",
             data: { quantity: 1, faceValue: 2 },
         });
-
     });
 
     it("renders round number and dice in play", () => {
@@ -218,6 +215,68 @@ describe("PerudoRoom", () => {
         });
         const { getByText } = renderRoom({ view });
         expect(getByText(/CHALLENGE RESULT/i)).toBeInTheDocument();
-        expect(getByText(/4 4s FOUND/i)).toBeInTheDocument();
+        expect(
+            document.querySelector('[aria-label="4 4s found; bid was 5"]'),
+        ).toBeInTheDocument();
+    });
+
+    it("blocks bids that do not raise the current bid and keeps a choice through unrelated updates", () => {
+        const view = makeView({
+            currentBid: makeBid({ quantity: 2, faceValue: 3 }),
+            nextHigherBid: { quantity: 3, faceValue: 3 },
+        });
+        const { getByRole, connection } = renderRoom({ view });
+        fireEvent.change(getByRole("combobox", { name: "Bid quantity" }), {
+            target: { value: "2" },
+        });
+        flush();
+        expect(getByRole("button", { name: "BID" })).toBeDisabled();
+        fireEvent.click(getByRole("button", { name: "Bid face 6" }));
+        flush();
+        connection.setView({
+            ...view,
+            players: view.players.map((player) => ({ ...player })),
+        });
+        flush();
+        expect(getByRole("button", { name: "Bid face 6" })).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        );
+        expect(getByRole("combobox", { name: "Bid quantity" })).toHaveValue(
+            "2",
+        );
+        fireEvent.click(getByRole("button", { name: "BID" }));
+        flush();
+        expect(connection.sentMessages).toEqual([
+            { type: "perudo:bid", data: { quantity: 2, faceValue: 6 } },
+        ]);
+    });
+
+    it("keeps private dice out of other seats until the public reveal", () => {
+        const view = makeView({
+            players: [
+                makePlayerInfo({ dice: [1, 2, 3] }),
+                makePlayerInfo({ id: "p2", name: "Bob" }),
+            ],
+        });
+        const { getByTestId, connection } = renderRoom({ view });
+        expect(
+            getByTestId("display-seat-p1").querySelectorAll('[role="img"]'),
+        ).toHaveLength(0);
+        expect(
+            getByTestId("perudo-my-dice").querySelectorAll('[role="img"]'),
+        ).toHaveLength(3);
+        connection.setView({
+            ...view,
+            phase: "revealing",
+            players: [
+                view.players[0]!,
+                makePlayerInfo({ id: "p2", name: "Bob", dice: [4, 5] }),
+            ],
+        });
+        flush();
+        expect(
+            getByTestId("display-seat-p2").querySelectorAll('[role="img"]'),
+        ).toHaveLength(2);
     });
 });

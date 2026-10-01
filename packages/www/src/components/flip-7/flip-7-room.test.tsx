@@ -80,7 +80,6 @@ describe("Flip7Room", () => {
             type: "flip_7:choose_target",
             data: { targetId: "p2" },
         });
-
     });
 
     it("renders initial state with round number, deck count, and phase", () => {
@@ -220,5 +219,64 @@ describe("Flip7Room", () => {
         expect(getAllByText("42").length).toBeGreaterThan(0);
         expect(getAllByText("5").length).toBeGreaterThan(0);
         expect(getAllByText("7").length).toBeGreaterThan(0);
+    });
+
+    it("keeps existing card elements when the next card arrives", () => {
+        const view = makeView({
+            players: [makePlayerInfo({ cards: [numberCard(5)] })],
+        });
+        const { connection } = renderRoom({ view });
+        const original = document.querySelector('[aria-label="number 5"]');
+        connection.setView({
+            ...view,
+            players: [
+                makePlayerInfo({ cards: [numberCard(5), numberCard(7)] }),
+            ],
+        });
+        flush();
+        expect(document.querySelector('[aria-label="number 5"]')).toBe(
+            original,
+        );
+        expect(
+            document.querySelector('[aria-label="number 7"]'),
+        ).toBeInTheDocument();
+    });
+
+    it("shows the finalized round score including the Flip 7 bonus", () => {
+        const view = makeView({
+            phase: "round_over",
+            players: [
+                makePlayerInfo({
+                    roundScore: 28,
+                    totalScore: 43,
+                    uniqueNumberCount: 7,
+                }),
+            ],
+            lastRoundResult: {
+                roundNumber: 1,
+                dealerId: "p1",
+                endReason: "flip7",
+                flip7WinnerId: "p1",
+                scores: [
+                    {
+                        playerId: "p1",
+                        score: 43,
+                        totalScore: 43,
+                        status: "stayed",
+                        numberTotal: 28,
+                        flatModifierTotal: 0,
+                        usedMultiplier: false,
+                        flip7Bonus: 15,
+                    },
+                ],
+            },
+        });
+        renderRoom({ view });
+        expect(
+            document.querySelector('[aria-label="Round score 43"]'),
+        ).toBeInTheDocument();
+        expect(
+            document.querySelector('[aria-label="Round score 28"]'),
+        ).toBeNull();
     });
 });

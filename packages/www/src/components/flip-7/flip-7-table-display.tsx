@@ -1,60 +1,46 @@
 import { For, Show } from "solid-js";
-import { PartyTableFrame } from "~/components/party-table-frame";
 import { PlayerBoard } from "./player-board";
+import { Flip7Results, Flip7Status } from "./flip-7-status";
 import type { Flip7TableView } from "~/game/flip-7/table-view";
 
 export function Flip7TableDisplay(props: { view: Flip7TableView }) {
-    const name = (id: string | null) =>
-        props.view.players.find((player) => player.id === id)?.name ?? "Player";
-    const status = () => {
-        if (props.view.phase === "game_over")
-            return props.view.endedByHost
-                ? "Game ended by host"
-                : `${props.view.winners?.map(name).join(" & ")} wins`;
-        if (props.view.phase === "round_over")
-            return "Round complete · waiting for the host";
-        if (props.view.targetChoice)
-            return `${name(props.view.targetChoice.chooserPlayerId)} chooses a target`;
-        if (props.view.currentPlayerId)
-            return `${name(props.view.currentPlayerId)}’s turn`;
-        return "Dealing opening cards";
-    };
     return (
-        <PartyTableFrame
-            game="flip-7"
-            title="Flip 7"
-            round={props.view.roundNumber}
-            phase={props.view.phase}
-            status={status()}
+        <section
+            data-testid="flip-7-table-display"
+            data-phase={props.view.phase}
+            class="mx-auto max-w-[1600px] space-y-5 px-6 py-5"
         >
-            <p class="text-center text-xl mb-6">
-                First to {props.view.targetScore} points · Dealer:{" "}
-                {name(props.view.dealerId)} · {props.view.deckCount} cards left
-            </p>
-            <Show when={props.view.targetChoice}>
-                {(choice) => (
-                    <p class="text-center font-bebas text-3xl mb-6">
-                        {choice().card.replaceAll("_", " ")}
-                    </p>
-                )}
-            </Show>
-            <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))] gap-5">
-                <For each={props.view.players}>
+            <header class="flex flex-wrap items-center justify-between gap-3 font-bebas">
+                <h1 class="text-4xl">FLIP 7</h1>
+                <span class="text-2xl">
+                    ROUND {props.view.roundNumber} · FIRST TO{" "}
+                    {props.view.targetScore}
+                </span>
+            </header>
+            <Flip7Status view={props.view} />
+            <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-5">
+                <For each={props.view.players} keyed={false}>
                     {(player) => (
                         <div
-                            data-testid={`display-seat-${player.id}`}
+                            data-testid={`display-seat-${player().id}`}
                             data-acting={String(
-                                props.view.currentPlayerId === player.id,
+                                props.view.currentPlayerId === player().id,
                             )}
                         >
                             <PlayerBoard
                                 large
-                                player={player}
+                                player={player()}
+                                roundScore={
+                                    props.view.lastRoundResult?.scores.find(
+                                        (score) =>
+                                            score.playerId === player().id,
+                                    )?.score
+                                }
                                 isCurrent={
-                                    props.view.currentPlayerId === player.id
+                                    props.view.currentPlayerId === player().id
                                 }
                                 isWinner={
-                                    props.view.winners?.includes(player.id) ??
+                                    props.view.winners?.includes(player().id) ??
                                     false
                                 }
                             />
@@ -62,6 +48,19 @@ export function Flip7TableDisplay(props: { view: Flip7TableView }) {
                     )}
                 </For>
             </div>
-        </PartyTableFrame>
+            <Show
+                when={
+                    props.view.phase === "round_over" ||
+                    props.view.phase === "game_over"
+                }
+            >
+                <div class="mx-auto max-w-xl">
+                    <Flip7Results view={props.view} />
+                </div>
+            </Show>
+            <p class="text-center font-bebas text-lg tracking-wider text-muted">
+                {props.view.deckCount} CARDS LEFT
+            </p>
+        </section>
     );
 }
