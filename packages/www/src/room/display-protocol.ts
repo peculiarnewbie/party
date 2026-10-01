@@ -11,7 +11,12 @@ import { funFactsTableViewSchema } from "~/game/fun-facts/table-view";
 import { cheeseThiefTableViewSchema } from "~/game/cheese-thief/table-view";
 import { cockroachPokerTableViewSchema } from "~/game/cockroach-poker/table-view";
 
+import { skullTableViewSchema } from "~/game/skull/table-view";
+import { spicyTableViewSchema } from "~/game/spicy/table-view";
+
 export const partyGameSchema = Schema.Union([
+    Schema.Struct({ type: Schema.Literal("skull"), view: skullTableViewSchema }),
+    Schema.Struct({ type: Schema.Literal("spicy"), view: spicyTableViewSchema }),
     Schema.Struct({ type: Schema.Literal("cockroach_poker"), view: cockroachPokerTableViewSchema }),
     Schema.Struct({
         type: Schema.Literal("cheese_thief"),

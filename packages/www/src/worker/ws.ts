@@ -58,6 +58,8 @@ import { getPerudoTableView } from "~/game/perudo/table-view";
 import { getHerdTableView } from "~/game/herd/table-view";
 import { getFunFactsTableView } from "~/game/fun-facts/table-view";
 import { getCheeseThiefTableView } from "~/game/cheese-thief/table-view";
+import { getSkullTableView } from "~/game/skull/table-view";
+import { getSpicyTableView } from "~/game/spicy/table-view";
 import { getCockroachPokerTableView } from "~/game/cockroach-poker/table-view";
 
 const HIBERNATION_TIMEOUT_MS = 3 * 60 * 60 * 1000;
@@ -294,6 +296,12 @@ export class GameRoom extends DurableObject {
         let game: DisplayState["game"] = null;
         if (this.state.phase === "playing") {
             switch (snapshot?.gameType) {
+                case "skull":
+                    game = { type: "skull", view: getSkullTableView(snapshot.state) };
+                    break;
+                case "spicy":
+                    game = { type: "spicy", view: getSpicyTableView(snapshot.state) };
+                    break;
                 case "cockroach_poker":
                     game = { type: "cockroach_poker", view: getCockroachPokerTableView(snapshot.state) };
                     break;

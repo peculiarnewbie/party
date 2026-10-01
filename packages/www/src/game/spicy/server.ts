@@ -116,7 +116,12 @@ export const spicyServer = (stateRef: { current: SpicyState | null }) => ({
         }
 
         const lastPublicResult =
-            result.events.length > 0 ? result.events[result.events.length - 1]! : null;
+            result.events.find(
+                (event) => event.type === "challenge_resolved",
+            ) ??
+            result.events.at(-1) ??
+            null;
+        state.lastPublicResult = lastPublicResult;
         const gameOverEvent = broadcastEvents(result.events, broadcast);
         sendStateToAll(state, lastPublicResult, sendTo);
 
@@ -136,6 +141,7 @@ export const spicyServer = (stateRef: { current: SpicyState | null }) => ({
         if (!state) return;
 
         const result = endGameByHost(state);
+        state.lastPublicResult = result;
         sendServerMessage(broadcast, {
             type: "spicy:action",
             data: result,
@@ -156,6 +162,7 @@ export const spicyServer = (stateRef: { current: SpicyState | null }) => ({
         if (!state) return;
 
         const result = removePlayer(state, playerId);
+        state.lastPublicResult = result;
         sendStateToAll(state, result, sendTo);
 
         if (result?.type === "game_over") {

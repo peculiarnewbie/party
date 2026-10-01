@@ -20,6 +20,7 @@ function renderRoom(
         view?: SpicyPlayerView;
         playerId?: string | null;
         isHost?: boolean;
+        initialLayout?: "controller" | "table";
     } = {},
 ) {
     const { view = makeView(), playerId = "p1", isHost = false } = options;
@@ -36,6 +37,7 @@ function renderRoom(
     const result = render(() => (
         <SpicyRoom
             roomId="room1"
+            initialLayout={options.initialLayout}
             playerId={playerId}
             isHost={isHost}
             connection={connection}
@@ -54,7 +56,6 @@ describe("SpicyRoom", () => {
 
         expect(getByText(/ROOM ROOM1/i)).toBeInTheDocument();
         expect(getByText(/FRESH STACK/i)).toBeInTheDocument();
-        expect(getByText(/In Play/i)).toBeInTheDocument();
     });
 
     it("shows stack top declaration when there is a top card", () => {
@@ -66,10 +67,9 @@ describe("SpicyRoom", () => {
                 stackSize: 2,
             }),
         });
-        const { getByText } = renderRoom({ view });
+        const { getByLabelText } = renderRoom({ view });
 
-        expect(getByText(/4 Wasabi/i)).toBeInTheDocument();
-        expect(getByText("TOP CARD OWNER")).toBeInTheDocument();
+        expect(getByLabelText("4 Wasabi", { exact: true })).toBeInTheDocument();
     });
 
     it("sends spicy:play_card with selected card and declaration", () => {
@@ -160,14 +160,14 @@ describe("SpicyRoom", () => {
         });
 
         expect(getByText("FINAL SCORES")).toBeInTheDocument();
-        expect(getByText("BOB")).toBeInTheDocument();
+        expect(getByText("WINNER")).toBeInTheDocument();
         fireEvent.click(getByRole("button", { name: /return to lobby/i }));
         flush();
         expect(onReturnToLobby).toHaveBeenCalledTimes(1);
     });
 
     it("reactively updates UI when a new spicy:state message arrives", () => {
-        const { getByText, connection } = renderRoom({
+        const { getByText, getByLabelText, connection } = renderRoom({
             view: makeView({ stackTop: null }),
         });
         expect(getByText(/FRESH STACK/i)).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe("SpicyRoom", () => {
         );
         flush();
 
-        expect(getByText(/5 Pepper/i)).toBeInTheDocument();
+        expect(getByLabelText("5 Pepper", { exact: true })).toBeInTheDocument();
     });
 
     it("shows spicy:error message when received", () => {
@@ -195,5 +195,61 @@ describe("SpicyRoom", () => {
         flush();
 
         expect(getByText(/Invalid declaration/i)).toBeInTheDocument();
+    });
+    it("accepts the last card from controller mode", () => {
+        const { getByRole, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                phase: "last_card_window",
+                canPlayCard: false,
+                canPass: false,
+                canConfirmLastCard: true,
+                stackTop: makeStackTop(),
+                pendingLastCardPlayerId: "p2",
+            }),
+        });
+        fireEvent.click(getByRole("button", { name: "ACCEPT LAST CARD" }));
+        flush();
+        expect(connection.sentMessages).toEqual([
+            { type: "spicy:confirm_last_card", data: {} },
+        ]);
+        expect(getByRole("button", { name: /Select 1 Chili/ })).toBeDisabled();
+    });
+
+    it("resets unavailable cards and declarations when the state changes", () => {
+        const { getByRole, getByLabelText, connection } = renderRoom({
+            initialLayout: "controller",
+        });
+        connection.setView(
+            makeView({
+                myHand: [standardCard(7, "pepper", "new-card")],
+                allowedDeclarationNumbers: [9, 10],
+                allowedDeclarationSpices: ["pepper"],
+            }),
+        );
+        flush();
+        expect(getByLabelText("7 Pepper", { exact: true })).toHaveTextContent(
+            "7",
+        );
+        expect(getByRole("button", { name: "Claim number 9" })).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        );
+        expect(getByRole("button", { name: "Claim Pepper" })).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        );
+        fireEvent.click(getByRole("button", { name: "PLAY FACE DOWN" }));
+        flush();
+        expect(connection.sentMessages).toEqual([
+            {
+                type: "spicy:play_card",
+                data: {
+                    cardId: "new-card",
+                    declaredNumber: 9,
+                    declaredSpice: "pepper",
+                },
+            },
+        ]);
     });
 });

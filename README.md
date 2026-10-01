@@ -2,7 +2,7 @@
 
 Casual multiplayer party game app built with Solid 2, TanStack Router, and Effect, deployed on Cloudflare Workers.
 
-**Party mode** puts the public table on a shared screen while everyone plays from their own phone. Texas Hold’em, Backwards Poker, Flip 7, Blackjack, Perudo, 6 nimmt!, Herd Mentality, Fun Facts, Cheese Thief, and Cockroach Poker support focused phone controls; open **Party mode → Open Party screen** from a room lobby and scan the QR code. [Party mode details](packages/www/README.md).
+**Party mode** puts the public table on a shared screen while everyone plays from their own phone. Texas Hold’em, Backwards Poker, Flip 7, Blackjack, Perudo, 6 nimmt!, Herd Mentality, Fun Facts, Cheese Thief, Cockroach Poker, Skull, and Spicy support focused phone controls; open **Party mode → Open Party screen** from a room lobby and scan the QR code. [Party mode details](packages/www/README.md).
 
 This is a pnpm workspace. The party app lives in `packages/www`; the quiz administration app lives in `packages/quiz-manager`.
 

@@ -19,6 +19,7 @@ function renderRoom(
         view?: SkullPlayerView;
         playerId?: string | null;
         isHost?: boolean;
+        initialLayout?: "controller" | "table";
     } = {},
 ) {
     const { view = makeView(), playerId = "p1", isHost = false } = options;
@@ -35,6 +36,7 @@ function renderRoom(
     const result = render(() => (
         <SkullRoom
             roomId="room1"
+            initialLayout={options.initialLayout}
             playerId={playerId}
             isHost={isHost}
             connection={connection}
@@ -56,11 +58,11 @@ describe("SkullRoom", () => {
         expect(getByText(/ROUND 3/)).toBeInTheDocument();
     });
 
-    it("shows TURN PREP phase label for non-host in turn_prep phase", () => {
+    it("shows PLACE A DISC phase label for non-host in turn_prep phase", () => {
         const view = makeView({ phase: "turn_prep" });
-        const { getByText } = renderRoom({ view, isHost: false });
+        const { getAllByText } = renderRoom({ view, isHost: false });
 
-        expect(getByText("TURN PREP")).toBeInTheDocument();
+        expect(getAllByText("PLACE A DISC").length).toBeGreaterThan(0);
     });
 
     it("sends skull:play_disc when player clicks a disc in hand", () => {
@@ -70,12 +72,9 @@ describe("SkullRoom", () => {
             canPlayDisc: true,
             myHand: ["flower", "skull"],
         });
-        const { container, connection } = renderRoom({ view });
+        const { getByRole, connection } = renderRoom({ view });
 
-        const discButtons = container.querySelectorAll(
-            "div.border-2.border-\\[\\#442116\\].bg-\\[\\#f5e3be\\] button",
-        );
-        fireEvent.click(discButtons[0]!);
+        fireEvent.click(getByRole("button", { name: "Play flower" }));
         flush();
 
         expect(connection.sentMessages).toEqual([
@@ -209,11 +208,109 @@ describe("SkullRoom", () => {
         const { getByText, getAllByText, connection } = renderRoom({
             view: makeView({ phase: "turn_prep" }),
         });
-        expect(getByText("TURN PREP")).toBeInTheDocument();
+        expect(getAllByText("PLACE A DISC").length).toBeGreaterThan(0);
 
         connection.setView(makeView({ phase: "auction", highestBid: 2 }));
         flush();
 
-        expect(getAllByText("AUCTION").length).toBeGreaterThan(0);
+        expect(getAllByText("BIDDING").length).toBeGreaterThan(0);
+    });
+    it("keeps private discs available while waiting without enabling a play", () => {
+        const { getByRole, getAllByRole } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                currentPlayerId: "p2",
+                isMyTurn: false,
+                canPlayDisc: false,
+            }),
+        });
+        expect(getByRole("button", { name: "Play skull" })).toBeDisabled();
+        for (const button of getAllByRole("button", { name: "Play flower" }))
+            expect(button).toBeDisabled();
+    });
+
+    it("lets the penalty chooser lose a disc without exposing an opponent's disc type", () => {
+        const { getByRole, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                phase: "penalty",
+                canPlayDisc: false,
+                penaltyPlayerId: "p2",
+                penaltyChooserId: "p1",
+                needsDiscardChoice: true,
+                discardableDiscIndices: [0, 1],
+            }),
+        });
+        fireEvent.click(getByRole("button", { name: "Lose disc 2" }));
+        flush();
+        expect(connection.sentMessages).toEqual([
+            { type: "skull:discard_lost_disc", data: { discIndex: 1 } },
+        ]);
+    });
+
+    it("allows an eliminated chooser to select the next starter", () => {
+        const { getByRole, connection } = renderRoom({
+            view: makeView({
+                phase: "next_starter",
+                canPlayDisc: false,
+                canChooseNextStarter: true,
+                pendingNextStarterChooserId: "p1",
+                nextStarterOptions: ["p2"],
+                players: [
+                    makePlayerInfo({
+                        id: "p1",
+                        name: "Alice",
+                        eliminated: true,
+                    }),
+                    makePlayerInfo({ id: "p2", name: "Bob" }),
+                ],
+            }),
+        });
+        fireEvent.click(getByRole("button", { name: "Bob" }));
+        flush();
+        expect(connection.sentMessages).toEqual([
+            { type: "skull:choose_next_starter", data: { playerId: "p2" } },
+        ]);
+    });
+    it("shows the actual hand and played discs together during a challenge without a disclosure", () => {
+        const { getByRole, getByLabelText, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                phase: "building",
+                myHand: ["flower", "skull"],
+                myMat: ["flower", "flower"],
+            }),
+        });
+        expect(
+            getByRole("group", { name: "Your hand" }).querySelectorAll("svg"),
+        ).toHaveLength(2);
+        expect(
+            getByRole("group", { name: "Your played discs" }).querySelectorAll(
+                "svg",
+            ),
+        ).toHaveLength(2);
+        expect(getByRole("button", { name: "Play skull" })).toBeVisible();
+        expect(
+            getByLabelText("Your played discs").closest("details"),
+        ).toBeNull();
+        connection.setView(
+            makeView({
+                phase: "attempt",
+                canPlayDisc: false,
+                myHand: ["flower", "skull"],
+                myMat: ["flower", "flower"],
+                attempt: makeAttempt(),
+            }),
+        );
+        flush();
+        expect(
+            getByRole("group", { name: "Your hand" }).querySelectorAll("svg"),
+        ).toHaveLength(2);
+        expect(
+            getByRole("group", { name: "Your played discs" }).querySelectorAll(
+                "svg",
+            ),
+        ).toHaveLength(2);
+        expect(getByRole("button", { name: "Play skull" })).toBeDisabled();
     });
 });

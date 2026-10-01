@@ -54,28 +54,7 @@ export const skullPlayerStateSchema = Schema.Struct({
     eliminated: Schema.mutableKey(Schema.Boolean),
 });
 
-export const skullStateSchema = Schema.Struct({
-    players: Schema.mutableKey(
-        Schema.mutable(Schema.Array(skullPlayerStateSchema)),
-    ),
-    phase: Schema.mutableKey(skullPhaseSchema),
-    roundNumber: Schema.mutableKey(Schema.Number),
-    starterPlayerId: Schema.mutableKey(Schema.String),
-    currentPlayerId: Schema.mutableKey(Schema.String),
-    playersWhoPlacedOpeningDisc: Schema.mutableKey(
-        Schema.mutable(Schema.Array(Schema.String)),
-    ),
-    highestBid: Schema.mutableKey(Schema.NullOr(Schema.Number)),
-    highestBidderId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    passedBidderIds: Schema.mutableKey(
-        Schema.mutable(Schema.Array(Schema.String)),
-    ),
-    attempt: Schema.mutableKey(Schema.NullOr(skullAttemptStateSchema)),
-    penaltyPlayerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    penaltyChooserId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    pendingNextStarterChooserId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    winnerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-});
+
 
 const skullPlayerInfoSchema = Schema.Struct({
     id: Schema.mutableKey(Schema.String),
@@ -190,6 +169,30 @@ export const skullResultSchema = Schema.Union([
     }),
     skullGameOverPayloadSchema,
 ]);
+
+export const skullStateSchema = Schema.Struct({
+    players: Schema.mutableKey(
+        Schema.mutable(Schema.Array(skullPlayerStateSchema)),
+    ),
+    phase: Schema.mutableKey(skullPhaseSchema),
+    roundNumber: Schema.mutableKey(Schema.Number),
+    starterPlayerId: Schema.mutableKey(Schema.String),
+    currentPlayerId: Schema.mutableKey(Schema.String),
+    playersWhoPlacedOpeningDisc: Schema.mutableKey(
+        Schema.mutable(Schema.Array(Schema.String)),
+    ),
+    highestBid: Schema.mutableKey(Schema.NullOr(Schema.Number)),
+    highestBidderId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    passedBidderIds: Schema.mutableKey(
+        Schema.mutable(Schema.Array(Schema.String)),
+    ),
+    attempt: Schema.mutableKey(Schema.NullOr(skullAttemptStateSchema)),
+    penaltyPlayerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    penaltyChooserId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    pendingNextStarterChooserId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    winnerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    lastPublicResult: Schema.mutableKey(Schema.optionalKey(Schema.NullOr(skullResultSchema))),
+});
 
 export const skullPlayerViewSchema = Schema.Struct({
     myId: Schema.mutableKey(Schema.String),
