@@ -7,11 +7,19 @@ import { HerdTableDisplay } from "./herd/herd-table-display";
 import { FunFactsTableDisplay } from "./fun-facts/fun-facts-table-display";
 import { CheeseThiefTableDisplay } from "./cheese-thief/cheese-thief-table-display";
 import { CockroachPokerTableDisplay } from "./cockroach-poker/cockroach-poker-table-display";
+import { SkullTableDisplay } from "./skull/skull-table-display";
+import { SpicyTableDisplay } from "./spicy/spicy-table-display";
 import type { PartyGame } from "~/room/display-protocol";
 
 export function PartyGameDisplay(props: { game: PartyGame }) {
     return (
         <Switch>
+            <Match when={props.game.type === "skull" ? props.game.view : null}>
+                {(view) => <SkullTableDisplay view={view()} />}
+            </Match>
+            <Match when={props.game.type === "spicy" ? props.game.view : null}>
+                {(view) => <SpicyTableDisplay view={view()} />}
+            </Match>
             <Match when={props.game.type === "cockroach_poker" ? props.game.view : null}>
                 {(view) => <CockroachPokerTableDisplay view={view()} />}
             </Match>

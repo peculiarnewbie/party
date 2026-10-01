@@ -911,6 +911,7 @@ function PlayerRoom() {
                                     });
                                 return (
                                     <SkullRoom
+                                        initialLayout={search().view === "controller" ? "controller" : "table"}
                                         roomId={roomId()}
                                         playerId={playerId()}
                                         isHost={isHost()}
@@ -949,6 +950,7 @@ function PlayerRoom() {
                                     });
                                 return (
                                     <SpicyRoom
+                                        initialLayout={search().view === "controller" ? "controller" : "table"}
                                         roomId={roomId()}
                                         playerId={playerId()}
                                         isHost={isHost()}
@@ -1005,11 +1007,11 @@ function PlayerRoom() {
                         myGameStatus() !== "sitting_out"
                     }
                 >
-                    <div class={activeGameType() === "cockroach_poker" ? "paper min-h-[52px] px-3 pb-3" : ""}>
+                    <div class={["cockroach_poker", "skull", "spicy"].includes(activeGameType() ?? "") ? "paper min-h-[52px] px-3 pb-3" : ""}>
                         <button
                             type="button"
                             onClick={leaveGame}
-                            class={`${activeGameType() === "cockroach_poker" ? "" : "fixed left-3 bottom-3 z-50"} font-bebas text-[.8rem] tracking-[.16em] bg-paper text-tomato border-2 border-ink px-3 pt-1.5 pb-1 shadow-ink-sm transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-ink`}
+                            class={`${["cockroach_poker", "skull", "spicy"].includes(activeGameType() ?? "") ? "" : "fixed left-3 bottom-3 z-50"} font-bebas text-[.8rem] tracking-[.16em] bg-paper text-tomato border-2 border-ink px-3 pt-1.5 pb-1 shadow-ink-sm transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-ink`}
                         >
                             LEAVE GAME
                         </button>

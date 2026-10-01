@@ -23,7 +23,7 @@ function getRevealedDiscs(state: SkullState, ownerId: string) {
 export function getPlayerView(
     state: SkullState,
     playerId: string,
-    lastPublicResult: SkullResult | null = null,
+    lastPublicResult: SkullResult | null = state.lastPublicResult ?? null,
 ): SkullPlayerView {
     const me = state.players.find((player) => player.id === playerId);
     const myHand = me ? [...me.hand] : [];

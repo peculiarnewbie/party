@@ -93,25 +93,7 @@ export const spicyPlayerStateSchema = Schema.Struct({
     trophies: Schema.mutableKey(Schema.Number),
 });
 
-export const spicyStateSchema = Schema.Struct({
-    players: Schema.mutableKey(
-        Schema.mutable(Schema.Array(spicyPlayerStateSchema)),
-    ),
-    phase: Schema.mutableKey(spicyPhaseSchema),
-    currentPlayerId: Schema.mutableKey(Schema.String),
-    stack: Schema.mutableKey(Schema.mutable(Schema.Array(spicyStackEntrySchema))),
-    drawPile: Schema.mutableKey(Schema.mutable(Schema.Array(drawPileCardSchema))),
-    pendingLastCardPlayerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
-    safePassPlayerIds: Schema.mutableKey(
-        Schema.mutable(Schema.Array(Schema.String)),
-    ),
-    trophiesRemaining: Schema.mutableKey(Schema.Number),
-    winners: Schema.mutableKey(Schema.NullOr(Schema.mutable(Schema.Array(Schema.String)))),
-    endReason: Schema.mutableKey(Schema.NullOr(spicyEndReasonSchema)),
-    finalScores: Schema.mutableKey(
-        Schema.NullOr(Schema.mutable(Schema.Array(spicyFinalScoreSchema))),
-    ),
-});
+
 
 const spicyPlayerInfoSchema = Schema.Struct({
     id: Schema.mutableKey(Schema.String),
@@ -196,6 +178,27 @@ export const spicyResultSchema = Schema.Union([
     }),
     spicyGameOverPayloadSchema,
 ]);
+
+export const spicyStateSchema = Schema.Struct({
+    players: Schema.mutableKey(
+        Schema.mutable(Schema.Array(spicyPlayerStateSchema)),
+    ),
+    phase: Schema.mutableKey(spicyPhaseSchema),
+    currentPlayerId: Schema.mutableKey(Schema.String),
+    stack: Schema.mutableKey(Schema.mutable(Schema.Array(spicyStackEntrySchema))),
+    drawPile: Schema.mutableKey(Schema.mutable(Schema.Array(drawPileCardSchema))),
+    pendingLastCardPlayerId: Schema.mutableKey(Schema.NullOr(Schema.String)),
+    safePassPlayerIds: Schema.mutableKey(
+        Schema.mutable(Schema.Array(Schema.String)),
+    ),
+    trophiesRemaining: Schema.mutableKey(Schema.Number),
+    winners: Schema.mutableKey(Schema.NullOr(Schema.mutable(Schema.Array(Schema.String)))),
+    endReason: Schema.mutableKey(Schema.NullOr(spicyEndReasonSchema)),
+    finalScores: Schema.mutableKey(
+        Schema.NullOr(Schema.mutable(Schema.Array(spicyFinalScoreSchema))),
+    ),
+    lastPublicResult: Schema.mutableKey(Schema.optionalKey(Schema.NullOr(spicyResultSchema))),
+});
 
 export const spicyPlayerViewSchema = Schema.Struct({
     myId: Schema.mutableKey(Schema.String),

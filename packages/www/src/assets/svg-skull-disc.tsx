@@ -17,6 +17,7 @@ interface SvgSkullDiscProps {
 export function SvgSkullDisc(props: SvgSkullDiscProps) {
     return (
         <svg
+            aria-hidden="true"
             viewBox="0 0 100 100"
             class={props.class}
             style={props.style}

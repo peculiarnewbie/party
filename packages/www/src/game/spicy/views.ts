@@ -11,7 +11,7 @@ export type { SpicyPlayerInfo, SpicyPlayerView, SpicyStackTopView };
 export function getPlayerView(
     state: SpicyState,
     playerId: string,
-    lastPublicResult: SpicyResult | null = null,
+    lastPublicResult: SpicyResult | null = state.lastPublicResult ?? null,
 ): SpicyPlayerView {
     const me = state.players.find((player) => player.id === playerId);
     const stackTop = state.stack[state.stack.length - 1] ?? null;

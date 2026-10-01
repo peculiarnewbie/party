@@ -141,7 +141,14 @@ export const skullServer = (stateRef: { current: SkullState | null }) => ({
         }
 
         const lastPublicResult =
-            result.events.length > 0 ? result.events[result.events.length - 1]! : null;
+            result.events.find(
+                (event) =>
+                    event.type === "attempt_succeeded" ||
+                    event.type === "attempt_failed",
+            ) ??
+            result.events.at(-1) ??
+            null;
+        state.lastPublicResult = lastPublicResult;
         const gameOverEvent = broadcastEvents(result, broadcast);
         sendStateToAll(state, lastPublicResult, sendTo);
 
@@ -161,6 +168,7 @@ export const skullServer = (stateRef: { current: SkullState | null }) => ({
         if (!state) return;
 
         const result = endGameByHost(state);
+        state.lastPublicResult = result;
         sendServerMessage(broadcast, {
             type: "skull:action",
             data: result,
@@ -181,6 +189,7 @@ export const skullServer = (stateRef: { current: SkullState | null }) => ({
         if (!state) return;
 
         const result = removeSkullPlayer(state, playerId);
+        state.lastPublicResult = result;
         sendStateToAll(state, result, sendTo);
 
         if (result?.type === "game_over") {
