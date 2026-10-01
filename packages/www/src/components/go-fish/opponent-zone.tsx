@@ -2,7 +2,7 @@ import { For, Show } from "solid-js";
 import * as stylex from "@stylexjs/stylex";
 import { TableCard, TableNameplate, PlayerAvatar } from "~/components/casino";
 import { colors, fonts } from "~/styles/tokens.stylex";
-import { RANK_LABEL } from "~/assets/card-deck/types";
+import { RANK_LABEL, SUITS } from "~/assets/card-deck/types";
 import type { Rank } from "~/assets/card-deck/types";
 
 interface OpponentZoneProps {
@@ -79,8 +79,42 @@ export function OpponentZone(props: OpponentZoneProps) {
             </TableNameplate>
             <Show when={props.books.length > 0}>
                 <div {...stylex.attrs(styles.books)}>
-                    BOOKS:{" "}
-                    {props.books.map((rank) => RANK_LABEL[rank]).join(", ")}
+                    <span class="sr-only">
+                        BOOKS:{" "}
+                        {props.books.map((rank) => RANK_LABEL[rank]).join(", ")}
+                    </span>
+                    <div
+                        class="flex flex-wrap justify-center gap-1 py-1"
+                        aria-hidden="true"
+                    >
+                        <For each={props.books} keyed={false}>
+                            {(rank) => (
+                                <div class="flex">
+                                    <For each={SUITS} keyed={false}>
+                                        {(suit, index) => (
+                                            <div
+                                                style={{
+                                                    "margin-left":
+                                                        index > 0
+                                                            ? "calc(var(--u)*-1.8)"
+                                                            : undefined,
+                                                }}
+                                            >
+                                                <TableCard
+                                                    card={{
+                                                        rank: rank(),
+                                                        suit: suit(),
+                                                    }}
+                                                    class="w-[calc(var(--u)*2.6)]"
+                                                    animate={false}
+                                                />
+                                            </div>
+                                        )}
+                                    </For>
+                                </div>
+                            )}
+                        </For>
+                    </div>
                 </div>
             </Show>
         </button>

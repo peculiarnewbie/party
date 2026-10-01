@@ -14,7 +14,12 @@ import { cockroachPokerTableViewSchema } from "~/game/cockroach-poker/table-view
 import { skullTableViewSchema } from "~/game/skull/table-view";
 import { spicyTableViewSchema } from "~/game/spicy/table-view";
 
+import { goFishTableViewSchema } from "~/game/go-fish/table-view";
+import { yahtzeeTableViewSchema } from "~/game/yahtzee/table-view";
+
 export const partyGameSchema = Schema.Union([
+    Schema.Struct({ type: Schema.Literal("go_fish"), view: goFishTableViewSchema }),
+    Schema.Struct({ type: Schema.Literal("yahtzee"), view: yahtzeeTableViewSchema }),
     Schema.Struct({ type: Schema.Literal("skull"), view: skullTableViewSchema }),
     Schema.Struct({ type: Schema.Literal("spicy"), view: spicyTableViewSchema }),
     Schema.Struct({ type: Schema.Literal("cockroach_poker"), view: cockroachPokerTableViewSchema }),

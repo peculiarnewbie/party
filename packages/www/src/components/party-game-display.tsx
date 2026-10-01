@@ -1,3 +1,5 @@
+import { GoFishTableDisplay } from "./go-fish/go-fish-table-display";
+import { YahtzeeTableDisplay } from "./yahtzee/yahtzee-table-display";
 import { SixNimmtBoard } from "./six-nimmt/six-nimmt-board";
 import { Match, Switch } from "solid-js";
 import { Flip7TableDisplay } from "./flip-7/flip-7-table-display";
@@ -14,13 +16,29 @@ import type { PartyGame } from "~/room/display-protocol";
 export function PartyGameDisplay(props: { game: PartyGame }) {
     return (
         <Switch>
+            <Match
+                when={props.game.type === "yahtzee" ? props.game.view : null}
+            >
+                {(view) => <YahtzeeTableDisplay view={view()} />}
+            </Match>
+            <Match
+                when={props.game.type === "go_fish" ? props.game.view : null}
+            >
+                {(view) => <GoFishTableDisplay view={view()} />}
+            </Match>
             <Match when={props.game.type === "skull" ? props.game.view : null}>
                 {(view) => <SkullTableDisplay view={view()} />}
             </Match>
             <Match when={props.game.type === "spicy" ? props.game.view : null}>
                 {(view) => <SpicyTableDisplay view={view()} />}
             </Match>
-            <Match when={props.game.type === "cockroach_poker" ? props.game.view : null}>
+            <Match
+                when={
+                    props.game.type === "cockroach_poker"
+                        ? props.game.view
+                        : null
+                }
+            >
                 {(view) => <CockroachPokerTableDisplay view={view()} />}
             </Match>
             <Match

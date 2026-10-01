@@ -1,3 +1,4 @@
+import { defineDiceCardPartyTest } from "./helpers/party-dice-card";
 import { expect, test } from "@playwright/test";
 import { RANK_LABEL } from "../src/assets/card-deck/types";
 import { MultiplayerRoomPage } from "./helpers/multiplayer-room-page";
@@ -223,3 +224,5 @@ test("go fish resolves a legal ask through the live room", async ({ page }) => {
         expect(resolved.lastResult?.type).toBe("go_fish");
     }
 });
+
+defineDiceCardPartyTest("go_fish");

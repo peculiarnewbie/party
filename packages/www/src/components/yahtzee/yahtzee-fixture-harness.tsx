@@ -93,7 +93,6 @@ export function YahtzeeFixtureHarness(props: YahtzeeFixtureHarnessProps) {
                 fixtureState.hostActions.push("return_to_lobby");
                 window.__YAHTZEE_FIXTURE__ = fixtureState;
             }}
-            announcementDelayMs={0}
         />
     );
 }

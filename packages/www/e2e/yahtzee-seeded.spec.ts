@@ -6,18 +6,21 @@ test.describe("yahtzee-seeded", () => {
         const fixture = new YahtzeeFixturePage(page);
         await fixture.gotoFixture("standard-my-turn-pre-roll");
 
-        await expect(page.getByTestId("yahtzee-title")).toContainText(/YAHTZEE/);
+        await expect(page.getByTestId("yahtzee-title")).toContainText(
+            /YAHTZEE/,
+        );
         await expect(page.getByTestId("yahtzee-round")).toHaveText(
             "ROUND 3 / 13",
         );
         await expect(page.getByTestId("yahtzee-roll-button")).toBeEnabled();
-        await expect(page.getByTestId("scorecard-cell-p1-chance")).toHaveText("");
+        await expect(page.getByTestId("scorecard-cell-p1-chance")).toHaveText(
+            "",
+        );
 
         for (const index of [0, 1, 2, 3, 4]) {
-            await expect(page.getByTestId(`yahtzee-die-${index}`)).toHaveAttribute(
-                "data-has-value",
-                "false",
-            );
+            await expect(
+                page.getByTestId(`yahtzee-die-${index}`),
+            ).toHaveAttribute("data-has-value", "false");
         }
 
         await fixture.takeScreenshot("standard-my-turn-pre-roll-full");
@@ -127,10 +130,9 @@ test.describe("yahtzee-seeded", () => {
         await expect(page.getByTestId("yahtzee-return-button")).toBeVisible();
         await expect(page.getByTestId("yahtzee-roll-button")).toHaveCount(0);
 
-        const gameOverText = (
-            (await page.getByTestId("yahtzee-game-over").textContent()) ?? ""
-        ).replace(/\s+/g, "");
-        expect(gameOverText).toMatch(/GAMEOVERALICE421WINNERBOB197RETURNTOLOBBY/);
+        await expect(page.getByTestId("yahtzee-game-over")).toContainText(
+            /ALICE.*421.*WINNER.*BOB.*197/,
+        );
 
         await fixture.takeScreenshot("standard-game-over-full");
         await fixture.takeScreenshot(

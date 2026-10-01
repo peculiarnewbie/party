@@ -187,7 +187,7 @@ export function definePartyModeTest(
                         .not.toBe(signature(view));
                 }
                 await host.switchPlayer(aliceId);
-                await expect(table).toContainText("round over");
+                await expect(table).toHaveAttribute("data-phase", "round_over");
             }
             await page.screenshot({
                 path: testInfo.outputPath("phone.png"),

@@ -459,19 +459,19 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                 <div class="pointer-events-none fixed inset-0 z-30 border-[6px] border-[#c0261a] animate-pulse-fast" />
             </Show>
 
-            <div class="flex items-center justify-between px-4 py-2 bg-[#c9c0b0] border-b-[3px] border-[#1a1a1a]">
-                <div class="flex items-center gap-3">
-                    <span class="font-bebas text-xl tracking-[.12em] bg-[#0f766e] text-[#f7f2de] border-2 border-[#1a1a1a] px-2.5 pt-1 shadow-[2px_2px_0_#1a1a1a] -rotate-2">
+            <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-kraft border-b-3 border-ink">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="whitespace-nowrap font-bebas text-xl tracking-[.12em] bg-[#0f766e] text-[#f7f2de] border-2 border-[#1a1a1a] px-2.5 pt-1 shadow-[2px_2px_0_#1a1a1a] -rotate-2">
                         BLACKJACK
                     </span>
                     <Show when={gameView()}>
-                        <span class="font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]">
+                        <span class="whitespace-nowrap font-bebas text-xs tracking-[.16em] text-[#5a5040] px-2 pt-1 pb-0.5 bg-[#ddd5c4] border border-[#b8ae9e]">
                             ROUND {gameView()!.roundNumber}
                         </span>
                     </Show>
                 </div>
-                <div class="flex items-center gap-3">
-                    <SoundToggle compact class="!px-1.5 !py-0.5" />
+                <div class="ml-auto flex items-center gap-2">
+                    <SoundToggle compact class="!min-h-10 !px-1.5 !py-0.5" />
                     <Show when={me()}>
                         <span class="font-bebas text-xl tracking-[.1em] text-[#1a3a6e]">
                             ${me()!.chips}
@@ -480,7 +480,7 @@ export const BlackjackRoom: Component<BlackjackRoomProps> = (props) => {
                     <Show when={props.isHost}>
                         <button
                             type="button"
-                            class="font-bebas text-sm tracking-[.15em] border-2 border-[#1a1a1a] bg-[#ddd5c4] text-[#c0261a] px-2.5 pt-1 pb-0.5 cursor-pointer transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_#1a1a1a]"
+                            class="min-h-10 shrink-0 font-bebas text-sm tracking-[.15em] border-2 border-[#1a1a1a] bg-[#ddd5c4] text-[#c0261a] px-2.5 pt-1 pb-0.5 cursor-pointer transition-all duration-[120ms] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_#1a1a1a] focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-navy"
                             onClick={props.onEndGame}
                         >
                             END

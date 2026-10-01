@@ -35,8 +35,8 @@ function EditQuestion() {
     }
 
     return (
-        <div class="min-h-screen bg-[#f5f0e8] font-karla">
-            <header class="bg-[#1a3a6e] text-[#ddd5c4] px-8 py-5 flex items-center gap-4">
+        <div class="min-h-screen bg-paper font-karla">
+            <header class="bg-[#1a3a6e] text-[#ddd5c4] px-4 sm:px-8 py-5 flex items-center gap-4 border-b-2 border-ink">
                 <a
                     href={`/quiz/${params().quizId}`}
                     class="font-bebas text-sm tracking-widest text-[#b8ae9e] hover:text-[#ddd5c4] transition-colors"
@@ -45,7 +45,7 @@ function EditQuestion() {
                 </a>
                 <h1 class="font-bebas text-3xl tracking-wide">Edit Question</h1>
             </header>
-            <main class="max-w-xl mx-auto px-6 py-10">
+            <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
                 <Loading fallback={<p>Loading...</p>}>
                     <Show
                         when={question()}

@@ -16,6 +16,7 @@ function renderRoom(
         playerId?: string | null;
         isHost?: boolean;
         title?: string;
+        initialLayout?: "table" | "controller";
     } = {},
 ) {
     const {
@@ -36,6 +37,7 @@ function renderRoom(
 
     const result = render(() => (
         <YahtzeeRoom
+            initialLayout={options.initialLayout}
             roomId="room1"
             playerId={playerId}
             isHost={isHost}
@@ -43,7 +45,6 @@ function renderRoom(
             title={title}
             onEndGame={onEndGame}
             onReturnToLobby={onReturnToLobby}
-            announcementDelayMs={0}
         />
     ));
 
@@ -236,5 +237,81 @@ describe("YahtzeeRoom", () => {
                 data: {},
             },
         ]);
+    });
+    it("lets phones choose a category without exposing opponent controls", () => {
+        const { getByTestId, queryByTestId, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                phase: "mid_turn",
+                canScore: true,
+                potentialScores: { chance: 18 },
+                dice: [5, 5, 3, 3, 2],
+            }),
+        });
+        expect(queryByTestId("scorecard-cell-p2-chance")).toBeNull();
+        fireEvent.click(getByTestId("scorecard-cell-p1-chance"));
+        flush();
+        expect(connection.sentMessages).toEqual([
+            { type: "yahtzee:score", data: { category: "chance" } },
+        ]);
+    });
+    it("edits claim faces, resets to the real roll, and sends the selected category", () => {
+        const { getByRole, getByTestId, connection } = renderRoom({
+            initialLayout: "controller",
+            view: makeView({
+                mode: "lying",
+                phase: "mid_turn",
+                canClaim: true,
+                canScore: false,
+                dice: [2, 3, 4, 5, 6],
+            }),
+        });
+        expect(getByTestId("yahtzee-room")).toHaveAttribute(
+            "data-layout",
+            "table",
+        );
+        fireEvent.click(getByTestId("scorecard-cell-p1-chance"));
+        flush();
+        fireEvent.click(
+            getByRole("button", { name: "Change claimed die 1, showing 2" }),
+        );
+        flush();
+        fireEvent.click(getByRole("button", { name: /SEND CLAIM/ }));
+        flush();
+        expect(connection.sentMessages.at(-1)).toEqual({
+            type: "yahtzee:claim",
+            data: { category: "chance", claimedDice: [3, 3, 4, 5, 6] },
+        });
+        fireEvent.click(getByRole("button", { name: "USE REAL ROLL" }));
+        flush();
+        fireEvent.click(getByRole("button", { name: /SEND CLAIM/ }));
+        flush();
+        expect(connection.sentMessages.at(-1)).toEqual({
+            type: "yahtzee:claim",
+            data: { category: "chance", claimedDice: [2, 3, 4, 5, 6] },
+        });
+    });
+    it("keeps recorded score slots disabled and presents server errors", () => {
+        const { getByTestId, getByRole, connection } = renderRoom({
+            view: makeView({
+                phase: "mid_turn",
+                canScore: true,
+                players: [
+                    makePlayerInfo({
+                        id: "p1",
+                        name: "Alice",
+                        scorecard: { chance: 12 },
+                    }),
+                    makePlayerInfo({ id: "p2", name: "Bob" }),
+                ],
+            }),
+        });
+        expect(getByTestId("scorecard-cell-p1-chance")).toBeDisabled();
+        connection.emit({
+            type: "yahtzee:error",
+            data: { message: "Roll first" },
+        });
+        flush();
+        expect(getByRole("alert")).toHaveTextContent("Roll first");
     });
 });

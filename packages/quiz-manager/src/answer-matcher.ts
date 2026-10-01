@@ -8,12 +8,15 @@ export function checkFillIn(
         const normalized = rule.caseInsensitive
             ? userInput.toLowerCase().trim()
             : userInput.trim();
+        const pattern = rule.caseInsensitive
+            ? rule.pattern.toLowerCase().trim()
+            : rule.pattern.trim();
 
         switch (rule.matchType) {
             case "exact":
-                return normalized === rule.pattern;
+                return normalized === pattern;
             case "contains":
-                return normalized.includes(rule.pattern);
+                return normalized.includes(pattern);
             case "any":
                 return normalized.length > 0;
         }

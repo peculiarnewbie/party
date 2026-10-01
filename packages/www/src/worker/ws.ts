@@ -59,6 +59,8 @@ import { getHerdTableView } from "~/game/herd/table-view";
 import { getFunFactsTableView } from "~/game/fun-facts/table-view";
 import { getCheeseThiefTableView } from "~/game/cheese-thief/table-view";
 import { getSkullTableView } from "~/game/skull/table-view";
+import { getGoFishTableView } from "~/game/go-fish/table-view";
+import { getYahtzeeTableView } from "~/game/yahtzee/table-view";
 import { getSpicyTableView } from "~/game/spicy/table-view";
 import { getCockroachPokerTableView } from "~/game/cockroach-poker/table-view";
 
@@ -296,6 +298,14 @@ export class GameRoom extends DurableObject {
         let game: DisplayState["game"] = null;
         if (this.state.phase === "playing") {
             switch (snapshot?.gameType) {
+                case "go_fish":
+                    game = { type: "go_fish", view: getGoFishTableView(snapshot.state) };
+                    break;
+                case "yahtzee": {
+                    const view = getYahtzeeTableView(snapshot.state);
+                    if (view) game = { type: "yahtzee", view };
+                    break;
+                }
                 case "skull":
                     game = { type: "skull", view: getSkullTableView(snapshot.state) };
                     break;

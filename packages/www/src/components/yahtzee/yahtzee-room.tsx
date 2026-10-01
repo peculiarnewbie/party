@@ -1,31 +1,24 @@
 import {
-    createSignal,
     createEffect,
-    untrack,
     createMemo,
+    createSignal,
     For,
     Show,
     onCleanup,
+    untrack,
 } from "solid-js";
-import type { Component } from "solid-js";
-import { SvgDice } from "~/assets/svg-dice";
-import type {
-    Dice,
-    LyingTurnReveal,
-    ScoringCategory,
-    YahtzeePlayerView,
-} from "~/game/yahtzee";
-import {
-    CATEGORY_LABELS,
-    LOWER_CATEGORIES,
-    SCORING_CATEGORIES,
-    UPPER_BONUS_THRESHOLD,
-    UPPER_CATEGORIES,
-    calculateScore,
-} from "~/game/yahtzee";
+import { TableButton } from "~/components/casino";
+import { TableDie } from "~/components/casino/table-die";
+import { PlayerAvatar } from "~/components/casino/player-avatar";
+import { CATEGORY_LABELS, SCORING_CATEGORIES } from "~/game/yahtzee/types";
+import { calculateScore } from "~/game/yahtzee/engine";
+import { CategoryArt } from "./category-art";
+import { YahtzeeScorecard } from "./yahtzee-scorecard";
+import type { Dice, ScoringCategory } from "~/game/yahtzee";
 import type { YahtzeeConnection } from "~/game/yahtzee/connection";
+import type { PartyLayout } from "~/components/party-layout-controls";
 
-interface YahtzeeRoomProps {
+export function YahtzeeRoom(props: {
     roomId: string;
     playerId: string | null;
     isHost: boolean;
@@ -33,956 +26,553 @@ interface YahtzeeRoomProps {
     title: string;
     onEndGame: () => void;
     onReturnToLobby: () => void;
-    announcementDelayMs?: number;
-}
-
-export const YahtzeeRoom: Component<YahtzeeRoomProps> = (props) => {
-    const gameView = () => props.connection.view();
-    const [announcement, setAnnouncement] = createSignal<string | null>(null);
-    const [announcementKey, setAnnouncementKey] = createSignal(0);
-    const [selectedClaimCategory, setSelectedClaimCategory] =
-        createSignal<ScoringCategory | null>(null);
+    initialLayout?: PartyLayout;
+}) {
+    const view = () => props.connection.view();
+    const [category, setCategory] = createSignal<ScoringCategory | null>(null);
     const [claimedDice, setClaimedDice] = createSignal<Dice>([1, 1, 1, 1, 1]);
-    const [claimSeedKey, setClaimSeedKey] = createSignal("");
-
-    const showAnnouncement = (text: string) => {
-        setAnnouncement(null);
-        setAnnouncementKey((k) => k + 1);
-        const delayMs = props.announcementDelayMs ?? 30;
-        if (delayMs <= 0) {
-            setAnnouncement(text);
-            return;
-        }
-        setTimeout(() => {
-            setAnnouncement(text);
-        }, delayMs);
-    };
-
-    const playerName = (id: string) => {
-        const view = gameView();
-        if (!view) return "SOMEONE";
-        return (
-            view.players.find((p) => p.id === id)?.name?.toUpperCase() ??
-            "SOMEONE"
-        );
-    };
-
-    onCleanup(
-        props.connection.subscribe((event) => {
-            if (event.type === "yahtzee:action") {
-                const d = event.data as Record<string, any>;
-                if (d.type === "rolled" && d.playerId !== props.playerId) {
-                    showAnnouncement(`${playerName(d.playerId)} ROLLED`);
-                }
-                if (d.type === "scored") {
-                    const catLabel =
-                        CATEGORY_LABELS[d.category as ScoringCategory] ??
-                        d.category;
-                    showAnnouncement(
-                        `${playerName(d.playerId)}: ${catLabel} FOR ${d.points}`,
-                    );
-                }
-                if (d.type === "claim_submitted") {
-                    const catLabel =
-                        CATEGORY_LABELS[d.category as ScoringCategory] ??
-                        d.category;
-                    showAnnouncement(
-                        `${playerName(d.playerId)} CLAIMS ${catLabel} FOR ${d.claimedPoints}`,
-                    );
-                }
-                if (d.type === "claim_resolved") {
-                    if (d.outcome === "caught_lying") {
-                        showAnnouncement(
-                            `${playerName(d.playerId)} GOT CAUGHT LYING`,
-                        );
-                    } else if (d.outcome === "truthful_challenge") {
-                        showAnnouncement(
-                            `${playerName(d.playerId)} TOLD THE TRUTH`,
-                        );
-                    } else {
-                        const catLabel =
-                            CATEGORY_LABELS[d.category as ScoringCategory] ??
-                            d.category;
-                        showAnnouncement(
-                            `${playerName(d.playerId)} BANKS ${catLabel}`,
-                        );
-                    }
-                }
-            }
-
-            if (event.type === "yahtzee:game_over") {
-                const winners = event.data.winners;
-                const names = winners.map((id: string) => playerName(id));
-                if (winners.length === 1) {
-                    showAnnouncement(`${names[0]} WINS!`);
-                } else {
-                    showAnnouncement(`TIE: ${names.join(" & ")}`);
-                }
-            }
-        }),
-    );
-
-    createEffect(gameView, (view) =>
+    const [error, setError] = createSignal<string | null>(null);
+    createEffect(view, () => {
+        setError(null);
+    });
+    let seed = "";
+    createEffect(view, (current) =>
         untrack(() => {
-            if (
-                !view ||
-                view.mode !== "lying" ||
-                !view.isMyTurn ||
-                view.phase !== "mid_turn"
-            ) {
-                if (selectedClaimCategory() !== null) {
-                    setSelectedClaimCategory(null);
-                }
-                if (claimSeedKey()) {
-                    setClaimSeedKey("");
-                }
+            if (!current?.canClaim) {
+                seed = "";
+                setCategory(null);
                 return;
             }
-
-            const nextKey = [
-                view.currentPlayerId,
-                view.round,
-                view.phase,
-                view.dice.join(","),
-            ].join(":");
-
-            if (claimSeedKey() !== nextKey) {
-                setClaimSeedKey(nextKey);
-                setClaimedDice(
-                    view.dice.some((die) => die > 0)
-                        ? ([...view.dice] as Dice)
-                        : [1, 1, 1, 1, 1],
+            const key = `${current.round}:${current.dice.join(",")}`;
+            if (key === seed) return;
+            seed = key;
+            setClaimedDice([...current.dice] as Dice);
+            const mine = current.players.find(
+                (player) => player.id === props.playerId,
+            );
+            const open = SCORING_CATEGORIES.filter(
+                (cat) => mine?.scorecard[cat] === undefined,
+            );
+            if (!category() || !open.includes(category()!))
+                setCategory(
+                    [...open].sort(
+                        (a, b) =>
+                            calculateScore(current.dice, b) -
+                            calculateScore(current.dice, a),
+                    )[0] ?? null,
                 );
-
-                const currentCategory = selectedClaimCategory();
-                const me = view.players.find(
-                    (player) => player.id === view.myId,
-                );
-                if (
-                    currentCategory &&
-                    me?.scorecard[currentCategory] === undefined
-                ) {
-                    return;
-                }
-
-                const firstOpenCategory = SCORING_CATEGORIES.find(
-                    (category) => me?.scorecard[category] === undefined,
-                );
-                setSelectedClaimCategory(firstOpenCategory ?? null);
-            }
         }),
     );
-
-    const me = createMemo(() => {
-        const view = gameView();
-        if (!view) return null;
-        return view.players.find((p) => p.id === props.playerId) ?? null;
-    });
-
-    const currentPlayerName = createMemo(() => {
-        const view = gameView();
-        if (!view) return "";
-        const cp = view.players.find((p) => p.id === view.currentPlayerId);
-        return cp?.name ?? "";
-    });
-
-    const roll = () => {
-        if (!props.playerId) return;
-        props.connection.send({ type: "yahtzee:roll", data: {} });
-    };
-    const toggleHold = (i: number) => {
-        if (!props.playerId) return;
-        props.connection.send({
-            type: "yahtzee:toggle_hold",
-            data: { diceIndex: i },
-        });
-    };
-    const score = (category: ScoringCategory) => {
-        if (!props.playerId) return;
-        props.connection.send({
-            type: "yahtzee:score",
-            data: { category },
-        });
-    };
-    const submitClaim = () => {
-        const category = selectedClaimCategory();
-        if (!category || !props.playerId) return;
-        props.connection.send({
-            type: "yahtzee:claim",
-            data: { category, claimedDice: claimedDice() },
-        });
-    };
-    const acceptClaim = () => {
-        if (!props.playerId) return;
-        props.connection.send({ type: "yahtzee:accept_claim", data: {} });
-    };
-    const challengeClaim = () => {
-        if (!props.playerId) return;
-        props.connection.send({ type: "yahtzee:challenge_claim", data: {} });
-    };
-
-    const cycleClaimDie = (index: number) => {
+    onCleanup(
+        props.connection.subscribe((event) => {
+            if (event.type === "yahtzee:error") setError(event.data.message);
+        }),
+    );
+    const name = (id: string) =>
+        view()?.players.find((player) => player.id === id)?.name ?? "Player";
+    const mine = () =>
+        view()?.players.find((player) => player.id === props.playerId);
+    const phone = () =>
+        view()?.mode === "standard" && props.initialLayout === "controller";
+    const claimScores = createMemo(
+        () =>
+            Object.fromEntries(
+                SCORING_CATEGORIES.map((cat) => [
+                    cat,
+                    calculateScore(claimedDice(), cat),
+                ]),
+            ) as Record<ScoringCategory, number>,
+    );
+    const canHold = () => !!view()?.canRoll && view()?.phase === "mid_turn";
+    const cycle = (index: number) =>
         setClaimedDice((current) => {
             const next = [...current] as Dice;
             next[index] = next[index] === 6 ? 1 : next[index] + 1;
             return next;
         });
-    };
-
-    const useRealRollForClaim = () => {
-        const view = gameView();
-        if (!view) return;
-        setClaimedDice([...view.dice] as Dice);
-    };
-
-    const diceColor = (i: number) => {
-        const view = gameView();
-        if (!view) return "#8b7355";
-        if (view.held[i]) return "#ddd5c4";
-        return "#8b7355";
-    };
-
-    const diceDotColor = (i: number) => {
-        const view = gameView();
-        if (!view) return "white";
-        if (view.held[i]) return "#1a1a1a";
-        return "white";
-    };
-
-    const canToggle = () => {
-        const view = gameView();
-        return view?.isMyTurn && view?.phase === "mid_turn";
-    };
-
-    const claimPoints = createMemo(() => {
-        const category = selectedClaimCategory();
-        if (!category) return null;
-        return calculateScore(claimedDice(), category);
-    });
-
     return (
         <div
-            class="min-h-screen bg-[#8b2500] font-karla flex flex-col"
+            class="min-h-dvh paper font-karla text-ink"
             data-testid="yahtzee-room"
+            data-layout={phone() ? "controller" : "table"}
         >
-            <div class="flex items-center justify-between px-4 py-2 bg-[#5c1a00] border-b-[3px] border-[#3d1100]">
+            <header class="flex flex-wrap items-center justify-between gap-2 border-b-3 border-ink bg-kraft px-3 py-2">
+                <div>
+                    <h1 class="font-bebas text-2xl" data-testid="yahtzee-title">
+                        {props.title.toUpperCase()}
+                    </h1>
+                    <span
+                        class="font-bebas text-sm text-muted"
+                        data-testid="yahtzee-round"
+                    >
+                        ROUND {view()?.round ?? 1} / 13
+                    </span>
+                </div>
                 <div class="flex items-center gap-3">
                     <span
-                        class="font-bebas text-[1.1rem] tracking-[.12em] text-[#ddd5c4]"
-                        data-testid="yahtzee-title"
+                        class="font-bebas text-xl"
+                        data-testid="yahtzee-my-score"
                     >
-                        {props.title.toUpperCase()}
+                        {mine()?.totalScore ?? 0} PTS
                     </span>
-                    <Show when={gameView()}>
-                        <span
-                            class="font-bebas text-[.75rem] tracking-[.15em] text-[#e8a87c]"
-                            data-testid="yahtzee-round"
-                        >
-                            ROUND {gameView()!.round} / 13
-                        </span>
-                    </Show>
-                </div>
-                <div class="flex items-center gap-3">
-                    <Show when={me()}>
-                        <span
-                            class="font-bebas text-[.8rem] tracking-[.1em] text-[#ddd5c4]"
-                            data-testid="yahtzee-my-score"
-                        >
-                            {me()!.totalScore} PTS
-                        </span>
-                    </Show>
-                    <Show when={props.isHost}>
-                        <button
-                            class="font-bebas text-[.7rem] tracking-[.15em] text-[#c0261a] border border-[#c0261a]/40 px-2 py-0.5 hover:bg-[#c0261a]/10 transition-colors"
+                    <Show when={props.isHost && view()?.phase !== "game_over"}>
+                        <TableButton
+                            size="compact"
                             onClick={props.onEndGame}
-                            data-testid="yahtzee-end-button"
+                            testId="yahtzee-end-button"
                         >
                             END
-                        </button>
+                        </TableButton>
                     </Show>
                 </div>
-            </div>
-
-            <div class="flex flex-col items-center pt-5 pb-3 px-3">
-                <Show when={gameView()?.phase !== "game_over"}>
-                    <div class="flex gap-3 mb-3">
-                        <For each={[0, 1, 2, 3, 4]}>
-                            {(i) => (
-                                <button
-                                    class={`relative transition-all duration-150 ${
-                                        canToggle()
-                                            ? "cursor-pointer hover:scale-110 active:scale-95"
-                                            : "cursor-default"
-                                    } ${
-                                        gameView()?.held[i]
-                                            ? "-translate-y-2"
-                                            : ""
-                                    }`}
-                                    onClick={() => {
-                                        if (canToggle()) toggleHold(i);
-                                    }}
-                                    disabled={!canToggle()}
-                                    data-testid={`yahtzee-die-${i}`}
-                                    data-held={
-                                        gameView()?.held[i] ? "true" : "false"
-                                    }
-                                    data-has-value={
-                                        gameView()?.dice[i] &&
-                                        gameView()!.dice[i] > 0
-                                            ? "true"
-                                            : "false"
-                                    }
-                                >
-                                    <Show
-                                        when={
-                                            gameView()?.dice[i] &&
-                                            gameView()!.dice[i] > 0
-                                        }
-                                        fallback={
-                                            <div class="w-[56px] h-[56px] rounded-lg border-2 border-dashed border-[#ddd5c4]/20" />
-                                        }
-                                    >
-                                        <SvgDice
-                                            side={
-                                                gameView()!.dice[i] as
-                                                    | 1
-                                                    | 2
-                                                    | 3
-                                                    | 4
-                                                    | 5
-                                                    | 6
-                                            }
-                                            color={diceColor(i)}
-                                            dotColor={diceDotColor(i)}
-                                            size={56}
-                                        />
-                                    </Show>
-                                    <Show when={gameView()?.held[i]}>
-                                        <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 font-bebas text-[.5rem] tracking-[.2em] text-[#ddd5c4]">
-                                            HELD
-                                        </div>
-                                    </Show>
-                                </button>
-                            )}
-                        </For>
-                    </div>
-                </Show>
-
-                <Show when={gameView()?.canRoll}>
-                    <button
-                        class="font-bebas text-[1.2rem] tracking-[.12em] bg-[#ddd5c4] text-[#1a1a1a] border-2 border-[#1a1a1a] px-8 py-2 shadow-[3px_3px_0_#3d1100] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#3d1100] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-                        onClick={roll}
-                        data-testid="yahtzee-roll-button"
-                    >
-                        ROLL
-                        <Show when={gameView()!.rollsLeft < 3}>
-                            {" "}
-                            ({gameView()!.rollsLeft} LEFT)
-                        </Show>
-                    </button>
-                </Show>
-
-                <Show
-                    when={
-                        gameView()?.mode === "lying" &&
-                        gameView()?.phase !== "game_over" &&
-                        !gameView()?.isMyTurn &&
-                        !gameView()?.pendingClaim
-                    }
-                >
-                    <span class="font-bebas text-[.7rem] tracking-[.18em] text-[#e8a87c] mt-1">
-                        <span data-testid="yahtzee-hidden-roll-label">
-                            OPPONENT ROLL IS HIDDEN
-                        </span>
-                    </span>
-                </Show>
-
-                <Show
-                    when={
-                        gameView() &&
-                        !gameView()!.isMyTurn &&
-                        gameView()!.phase !== "game_over" &&
-                        !gameView()!.pendingClaim
-                    }
-                >
-                    <span class="font-bebas text-[.8rem] tracking-[.2em] text-[#e8a87c] mt-1">
-                        <span data-testid="yahtzee-turn-label">
-                            {currentPlayerName().toUpperCase()}'S TURN
-                        </span>
-                    </span>
-                </Show>
-            </div>
-
-            <Show when={gameView()?.mode === "lying" && gameView()?.canClaim}>
-                <div
-                    class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#5c1a00]/60 px-4 py-3"
-                    data-testid="yahtzee-claim-panel"
-                >
-                    <Show
-                        when={selectedClaimCategory()}
-                        fallback={
-                            <div class="font-bebas text-[.8rem] tracking-[.16em] text-[#e8a87c]">
-                                SELECT A SCORECARD SLOT TO MAKE YOUR CLAIM
-                            </div>
-                        }
-                    >
-                        <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
-                            <span class="font-bebas text-[.85rem] tracking-[.16em] text-[#ddd5c4]">
-                                CLAIMING{" "}
-                                {CATEGORY_LABELS[
-                                    selectedClaimCategory()!
-                                ].toUpperCase()}
-                            </span>
-                            <span class="font-bebas text-[.8rem] tracking-[.14em] text-[#e8a87c]">
-                                {claimPoints()} PTS
-                            </span>
-                        </div>
-                        <div class="flex gap-3 mb-3 flex-wrap">
-                            <For each={[0, 1, 2, 3, 4]}>
-                                {(i) => (
-                                    <button
-                                        class="transition-transform hover:scale-105 active:scale-95"
-                                        onClick={() => cycleClaimDie(i)}
-                                    >
-                                        <SvgDice
-                                            side={
-                                                claimedDice()[i] as
-                                                    | 1
-                                                    | 2
-                                                    | 3
-                                                    | 4
-                                                    | 5
-                                                    | 6
-                                            }
-                                            color="#ddd5c4"
-                                            dotColor="#1a1a1a"
-                                            size={48}
-                                        />
-                                    </button>
-                                )}
-                            </For>
-                        </div>
-                        <div class="flex gap-2 flex-wrap">
-                            <button
-                                class="font-bebas text-[.72rem] tracking-[.16em] text-[#ddd5c4] border border-[#e8a87c]/30 px-3 py-1 hover:bg-[#e8a87c]/10 transition-colors"
-                                onClick={useRealRollForClaim}
-                                data-testid="yahtzee-use-real-roll-button"
-                            >
-                                USE REAL ROLL
-                            </button>
-                            <button
-                                class="font-bebas text-[.82rem] tracking-[.16em] bg-[#ddd5c4] text-[#1a1a1a] border border-[#1a1a1a] px-4 py-1 hover:bg-white transition-colors"
-                                onClick={submitClaim}
-                                data-testid="yahtzee-send-claim-button"
-                            >
-                                SEND CLAIM
-                            </button>
-                        </div>
-                    </Show>
-                </div>
-            </Show>
-
-            <Show when={gameView()?.pendingClaim}>
-                <div
-                    class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#5c1a00]/60 px-4 py-3"
-                    data-testid="yahtzee-pending-claim"
-                >
-                    <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
-                        <span class="font-bebas text-[.9rem] tracking-[.16em] text-[#ddd5c4]">
-                            {playerName(gameView()!.pendingClaim!.playerId)}{" "}
-                            CLAIMS{" "}
-                            {CATEGORY_LABELS[
-                                gameView()!.pendingClaim!.category
-                            ].toUpperCase()}
-                        </span>
-                        <span class="font-bebas text-[.82rem] tracking-[.16em] text-[#e8a87c]">
-                            {gameView()!.pendingClaim!.claimedPoints} PTS
-                        </span>
-                    </div>
-                    <div class="flex gap-3 mb-3">
-                        <For each={gameView()!.pendingClaim!.claimedDice}>
-                            {(die) => (
-                                <SvgDice
-                                    side={die as 1 | 2 | 3 | 4 | 5 | 6}
-                                    color="#ddd5c4"
-                                    dotColor="#1a1a1a"
-                                    size={42}
-                                />
-                            )}
-                        </For>
-                    </div>
-                    <Show
-                        when={gameView()?.canAcceptClaim}
-                        fallback={
-                            <span class="font-bebas text-[.72rem] tracking-[.16em] text-[#e8a87c]">
-                                WAITING FOR RESPONSE
-                            </span>
-                        }
-                    >
-                        <div class="flex gap-2 flex-wrap">
-                            <button
-                                class="font-bebas text-[.78rem] tracking-[.16em] bg-[#ddd5c4] text-[#1a1a1a] border border-[#1a1a1a] px-4 py-1 hover:bg-white transition-colors"
-                                onClick={acceptClaim}
-                                data-testid="yahtzee-believe-button"
-                            >
-                                BELIEVE
-                            </button>
-                            <button
-                                class="font-bebas text-[.78rem] tracking-[.16em] text-[#c0261a] border border-[#c0261a]/40 px-4 py-1 hover:bg-[#c0261a]/10 transition-colors"
-                                onClick={challengeClaim}
-                                data-testid="yahtzee-liar-button"
-                            >
-                                LIAR
-                            </button>
-                        </div>
-                    </Show>
-                </div>
-            </Show>
-
-            <Show when={announcement()}>
-                <div
-                    class="text-center py-1 px-4 animate-fade-in"
-                    style={{ "--fade-key": announcementKey() } as any}
-                    data-testid="yahtzee-announcement"
-                >
-                    <span class="font-bebas text-[1.2rem] tracking-[.12em] text-[#ddd5c4] drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
-                        {announcement()}
-                    </span>
-                </div>
-            </Show>
-
-            <Show when={gameView()?.lastTurnReveal}>
-                <div
-                    class="mx-3 mb-3 border border-[#e8a87c]/20 bg-[#3d1100]/60 px-4 py-3"
-                    data-testid="yahtzee-last-turn-reveal"
-                >
-                    <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
-                        <span class="font-bebas text-[.82rem] tracking-[.16em] text-[#ddd5c4]">
-                            LAST TURN:{" "}
-                            {playerName(gameView()!.lastTurnReveal!.playerId)}{" "}
-                            ON{" "}
-                            {CATEGORY_LABELS[
-                                gameView()!.lastTurnReveal!.category
-                            ].toUpperCase()}
-                        </span>
-                        <span class="font-bebas text-[.72rem] tracking-[.16em] text-[#e8a87c]">
-                            {revealOutcomeLabel(
-                                gameView()!.lastTurnReveal!.outcome,
-                            )}
-                        </span>
-                    </div>
-                    <div class="flex gap-6 flex-wrap">
-                        <div>
-                            <div class="font-bebas text-[.62rem] tracking-[.18em] text-[#e8a87c] mb-1">
-                                CLAIMED (
-                                {gameView()!.lastTurnReveal!.claimedPoints} PTS)
-                            </div>
-                            <div class="flex gap-2">
-                                <For
-                                    each={
-                                        gameView()!.lastTurnReveal!.claimedDice
-                                    }
-                                >
-                                    {(die) => (
-                                        <SvgDice
-                                            side={die as 1 | 2 | 3 | 4 | 5 | 6}
-                                            color="#ddd5c4"
-                                            dotColor="#1a1a1a"
-                                            size={34}
-                                        />
-                                    )}
-                                </For>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="font-bebas text-[.62rem] tracking-[.18em] text-[#e8a87c] mb-1">
-                                ACTUAL
-                            </div>
-                            <div class="flex gap-2">
-                                <For
-                                    each={
-                                        gameView()!.lastTurnReveal!.actualDice
-                                    }
-                                >
-                                    {(die) => (
-                                        <SvgDice
-                                            side={die as 1 | 2 | 3 | 4 | 5 | 6}
-                                            color="#8b7355"
-                                            dotColor="white"
-                                            size={34}
-                                        />
-                                    )}
-                                </For>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </Show>
-
-            <div class="flex-1 px-3 py-2 overflow-x-auto">
-                <Show when={gameView()}>
-                    <Scorecard
-                        view={gameView()!}
-                        myId={props.playerId}
-                        canScore={gameView()!.canScore}
-                        canClaim={gameView()!.canClaim}
-                        selectedClaimCategory={selectedClaimCategory()}
-                        claimedDice={claimedDice()}
-                        onScore={score}
-                        onSelectClaim={setSelectedClaimCategory}
-                    />
-                </Show>
-            </div>
-
-            <Show when={gameView()?.phase === "game_over"}>
-                <div
-                    class="px-4 py-4 bg-[#5c1a00]/80 border-t border-[#e8a87c]/20"
-                    data-testid="yahtzee-game-over"
-                >
-                    <div class="flex flex-col items-center gap-3">
-                        <span class="font-bebas text-[1.4rem] tracking-[.12em] text-[#ddd5c4]">
-                            GAME OVER
-                        </span>
-                        <div class="flex flex-col gap-1 items-center">
-                            <For
-                                each={[...gameView()!.players].sort(
-                                    (a, b) => b.totalScore - a.totalScore,
-                                )}
-                            >
-                                {(player) => (
-                                    <div class="flex items-center gap-2">
-                                        <span
-                                            class={`font-bebas text-[.9rem] tracking-[.08em] ${
-                                                gameView()!.winners?.includes(
-                                                    player.id,
-                                                )
-                                                    ? "text-[#ffd700]"
-                                                    : "text-[#ddd5c4]"
-                                            }`}
-                                        >
-                                            {player.name.toUpperCase()}
-                                        </span>
-                                        <span class="font-bebas text-[.9rem] tracking-[.08em] text-[#e8a87c]">
-                                            {player.totalScore}
-                                        </span>
-                                        <Show
-                                            when={gameView()!.winners?.includes(
-                                                player.id,
-                                            )}
-                                        >
-                                            <span class="font-bebas text-[.7rem] tracking-[.15em] text-[#ffd700]">
-                                                WINNER
-                                            </span>
-                                        </Show>
-                                    </div>
-                                )}
-                            </For>
-                        </div>
-                        <Show when={props.isHost}>
-                            <button
-                                class="font-bebas text-[.85rem] tracking-[.12em] text-[#ddd5c4] border border-[#e8a87c]/40 px-4 py-1 hover:bg-[#e8a87c]/10 transition-colors"
-                                onClick={props.onReturnToLobby}
-                                data-testid="yahtzee-return-button"
-                            >
-                                RETURN TO LOBBY
-                            </button>
-                        </Show>
-                    </div>
-                </div>
-            </Show>
-        </div>
-    );
-};
-
-function revealOutcomeLabel(outcome: LyingTurnReveal["outcome"]) {
-    if (outcome === "caught_lying") return "CAUGHT LYING";
-    if (outcome === "truthful_challenge") return "CHALLENGE FAILED";
-    return "UNCONTESTED";
-}
-
-function Scorecard(props: {
-    view: YahtzeePlayerView;
-    myId: string | null;
-    canScore: boolean;
-    canClaim: boolean;
-    selectedClaimCategory: ScoringCategory | null;
-    claimedDice: Dice;
-    onScore: (category: ScoringCategory) => void;
-    onSelectClaim: (category: ScoringCategory) => void;
-}) {
-    const allPlayers = () => props.view.players;
-    const isSuggestedCategory = (category: ScoringCategory): boolean =>
-        props.view.mode === "standard" &&
-        props.canScore &&
-        props.view.suggestedCategories.includes(category);
-
-    const cellClass = (playerId: string, category: ScoringCategory): string => {
-        const base = "font-karla text-[.75rem] text-center px-2 py-1 ";
-        const player = allPlayers().find((p) => p.id === playerId);
-        if (!player) return base + "text-[#ddd5c4]/30";
-
-        const filled = player.scorecard[category] !== undefined;
-        if (filled) return base + "text-[#ddd5c4]";
-
-        if (props.view.mode === "standard") {
-            if (
-                playerId === props.myId &&
-                props.canScore &&
-                props.view.potentialScores
-            ) {
-                const potential = props.view.potentialScores[category];
-                if (potential !== undefined && potential > 0) {
-                    const suggested = isSuggestedCategory(category);
-                    return (
-                        base +
-                        (suggested
-                            ? "text-[#ffd700] bg-[#7a2b00]/45 shadow-[inset_0_0_0_1px_rgba(255,215,0,0.45)] cursor-pointer hover:bg-[#7a2b00]/65 transition-colors"
-                            : "text-[#e8a87c]/70 cursor-pointer hover:text-[#ffd700] hover:bg-[#5c1a00]/40 transition-colors")
-                    );
-                }
-                return (
-                    base +
-                    "text-[#ddd5c4]/20 cursor-pointer hover:text-[#ddd5c4]/40 hover:bg-[#5c1a00]/40 transition-colors"
-                );
-            }
-
-            return base + "text-[#ddd5c4]/10";
-        }
-
-        if (playerId === props.myId && props.canClaim) {
-            if (props.selectedClaimCategory === category) {
-                return (
-                    base +
-                    "text-[#ffd700] cursor-pointer bg-[#5c1a00]/50 hover:bg-[#5c1a00]/70 transition-colors"
-                );
-            }
-            const potential = calculateScore(props.claimedDice, category);
-            if (potential > 0) {
-                return (
-                    base +
-                    "text-[#e8a87c]/70 cursor-pointer hover:text-[#ffd700] hover:bg-[#5c1a00]/40 transition-colors"
-                );
-            }
-            return (
-                base +
-                "text-[#ddd5c4]/20 cursor-pointer hover:text-[#ddd5c4]/40 hover:bg-[#5c1a00]/40 transition-colors"
-            );
-        }
-
-        return base + "text-[#ddd5c4]/10";
-    };
-
-    const cellValue = (playerId: string, category: ScoringCategory): string => {
-        const player = allPlayers().find((p) => p.id === playerId);
-        if (!player) return "";
-
-        const filled = player.scorecard[category] !== undefined;
-        if (filled) return String(player.scorecard[category]);
-
-        if (props.view.mode === "standard") {
-            if (
-                playerId === props.myId &&
-                props.canScore &&
-                props.view.potentialScores
-            ) {
-                const potential = props.view.potentialScores[category];
-                if (potential !== undefined) return String(potential);
-            }
-            return "";
-        }
-
-        if (playerId === props.myId && props.canClaim) {
-            return String(calculateScore(props.claimedDice, category));
-        }
-
-        return "";
-    };
-
-    const handleCellClick = (playerId: string, category: ScoringCategory) => {
-        if (playerId !== props.myId) return;
-        const player = allPlayers().find((p) => p.id === playerId);
-        if (!player) return;
-        if (player.scorecard[category] !== undefined) return;
-
-        if (props.view.mode === "standard") {
-            if (!props.canScore) return;
-            props.onScore(category);
-            return;
-        }
-
-        if (!props.canClaim) return;
-        props.onSelectClaim(category);
-    };
-
-    return (
-        <div class="overflow-x-auto">
-            <table
-                class="w-full border-collapse min-w-[320px]"
-                data-testid="yahtzee-scorecard"
+            </header>
+            <main
+                class={`mx-auto space-y-4 p-3 pb-6 ${phone() ? "max-w-lg" : "max-w-5xl"}`}
             >
-                <thead>
-                    <tr class="border-b border-[#e8a87c]/20">
-                        <th class="font-bebas text-[.6rem] tracking-[.2em] text-[#e8a87c] text-left px-2 py-1 w-[100px]" />
-                        <For each={allPlayers()}>
-                            {(player) => (
-                                <th
-                                    class={`font-bebas text-[.6rem] tracking-[.15em] text-center px-2 py-1 min-w-[55px] ${
-                                        player.id === props.view.currentPlayerId
-                                            ? "text-[#ddd5c4]"
-                                            : "text-[#e8a87c]/70"
-                                    }`}
-                                >
-                                    {player.name.toUpperCase().slice(0, 8)}
-                                </th>
-                            )}
-                        </For>
-                    </tr>
-                </thead>
-                <tbody>
-                    <For each={UPPER_CATEGORIES}>
-                        {(cat) => (
-                            <tr class="border-b border-[#e8a87c]/10">
-                                <td class="font-bebas text-[.6rem] tracking-[.15em] text-[#e8a87c] px-2 py-1">
-                                    {CATEGORY_LABELS[cat]}
-                                </td>
-                                <For each={allPlayers()}>
-                                    {(player) => (
-                                        <td
-                                            class={cellClass(player.id, cat)}
+                <Show when={error()}>
+                    {(message) => (
+                        <p
+                            role="alert"
+                            class="border-2 border-tomato bg-cream p-3 text-tomato"
+                        >
+                            {message()}
+                        </p>
+                    )}
+                </Show>
+                <Show when={view()}>
+                    {(current) => (
+                        <>
+                            <Show when={current().phase !== "game_over"}>
+                                <section class="table-mat border-3 border-ink bg-navy p-3 text-cream shadow-ink">
+                                    <div class="mb-4 flex items-center gap-3">
+                                        <PlayerAvatar
+                                            id={current().currentPlayerId}
+                                            name={name(
+                                                current().currentPlayerId,
+                                            )}
+                                            class="h-10 w-10 text-2xl"
+                                        />
+                                        <div class="min-w-0">
+                                            <h2
+                                                data-testid="yahtzee-turn-label"
+                                                class="truncate font-bebas text-2xl"
+                                            >
+                                                {current().isMyTurn
+                                                    ? "YOUR TURN"
+                                                    : `${name(current().currentPlayerId).toUpperCase()}'S TURN`}
+                                            </h2>
+                                            <span class="font-bebas text-sm">
+                                                {current().mode === "lying" &&
+                                                !current().isMyTurn
+                                                    ? "PRIVATE ROLL"
+                                                    : `${current().rollsLeft} ROLLS LEFT`}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-center gap-1.5 pb-3">
+                                        <For
+                                            each={[0, 1, 2, 3, 4]}
+                                            keyed={false}
+                                        >
+                                            {(_, index) => (
+                                                <button
+                                                    type="button"
+                                                    disabled={!canHold()}
+                                                    aria-label={`${current().held[index] ? "Release" : "Hold"} die ${index + 1}`}
+                                                    aria-pressed={
+                                                        current().held[index]
+                                                            ? "true"
+                                                            : "false"
+                                                    }
+                                                    data-testid={`yahtzee-die-${index}`}
+                                                    data-held={String(
+                                                        current().held[index],
+                                                    )}
+                                                    data-has-value={String(
+                                                        current().dice[index] >
+                                                            0,
+                                                    )}
+                                                    onClick={() =>
+                                                        props.connection.send({
+                                                            type: "yahtzee:toggle_hold",
+                                                            data: {
+                                                                diceIndex:
+                                                                    index,
+                                                            },
+                                                        })
+                                                    }
+                                                    class="rounded-lg focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-sun"
+                                                >
+                                                    <TableDie
+                                                        value={
+                                                            current().dice[
+                                                                index
+                                                            ]
+                                                        }
+                                                        held={
+                                                            current().held[
+                                                                index
+                                                            ] &&
+                                                            current().dice[
+                                                                index
+                                                            ] > 0
+                                                        }
+                                                        hidden={
+                                                            current().mode ===
+                                                                "lying" &&
+                                                            !current().isMyTurn
+                                                        }
+                                                    />
+                                                </button>
+                                            )}
+                                        </For>
+                                    </div>
+                                    <Show when={current().canRoll}>
+                                        <TableButton
+                                            class="mt-2 w-full"
+                                            tone="sun"
                                             onClick={() =>
-                                                handleCellClick(player.id, cat)
+                                                props.connection.send({
+                                                    type: "yahtzee:roll",
+                                                    data: {},
+                                                })
                                             }
-                                            data-testid={`scorecard-cell-${player.id}-${cat}`}
-                                            data-player-id={player.id}
-                                            data-category={cat}
-                                            data-suggested={
-                                                player.id === props.myId &&
-                                                isSuggestedCategory(cat)
-                                                    ? "true"
-                                                    : "false"
-                                            }
-                                            data-selected-claim={
-                                                player.id === props.myId &&
-                                                props.selectedClaimCategory ===
-                                                    cat
-                                                    ? "true"
-                                                    : "false"
+                                            testId="yahtzee-roll-button"
+                                        >
+                                            ROLL
+                                            <Show
+                                                when={current().rollsLeft < 3}
+                                            >
+                                                {" "}
+                                                ({current().rollsLeft} LEFT)
+                                            </Show>
+                                        </TableButton>
+                                    </Show>
+                                    <Show when={canHold()}>
+                                        <p class="mt-3 text-center text-sm">
+                                            Tap dice to hold
+                                        </p>
+                                    </Show>
+                                </section>
+                            </Show>
+                            <Show when={current().pendingClaim}>
+                                {(claim) => (
+                                    <section
+                                        class="border-3 border-ink bg-sun p-3 shadow-ink"
+                                        data-testid="yahtzee-pending-claim"
+                                    >
+                                        <div class="mb-3 flex items-center gap-2">
+                                            <CategoryArt
+                                                category={claim().category}
+                                            />
+                                            <div class="flex-1 font-bebas text-xl">
+                                                {name(claim().playerId)} ·{" "}
+                                                {
+                                                    CATEGORY_LABELS[
+                                                        claim().category
+                                                    ]
+                                                }
+                                            </div>
+                                            <span class="font-bebas text-3xl">
+                                                {claim().claimedPoints}
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-center gap-1.5">
+                                            <For
+                                                each={claim().claimedDice}
+                                                keyed={false}
+                                            >
+                                                {(die) => (
+                                                    <TableDie value={die()} />
+                                                )}
+                                            </For>
+                                        </div>
+                                        <Show when={current().canAcceptClaim}>
+                                            <div class="mt-4 grid grid-cols-2 gap-3">
+                                                <TableButton
+                                                    tone="teal"
+                                                    testId="yahtzee-believe-button"
+                                                    onClick={() =>
+                                                        props.connection.send({
+                                                            type: "yahtzee:accept_claim",
+                                                            data: {},
+                                                        })
+                                                    }
+                                                >
+                                                    BELIEVE
+                                                </TableButton>
+                                                <TableButton
+                                                    tone="tomato"
+                                                    testId="yahtzee-liar-button"
+                                                    onClick={() =>
+                                                        props.connection.send({
+                                                            type: "yahtzee:challenge_claim",
+                                                            data: {},
+                                                        })
+                                                    }
+                                                >
+                                                    LIAR!
+                                                </TableButton>
+                                            </div>
+                                        </Show>
+                                    </section>
+                                )}
+                            </Show>
+                            <Show
+                                when={
+                                    current().phase !== "game_over" &&
+                                    current().lastTurnReveal
+                                }
+                            >
+                                {(reveal) => (
+                                    <section
+                                        class="border-3 border-ink bg-cream p-3 shadow-ink"
+                                        data-testid="yahtzee-last-turn-reveal"
+                                    >
+                                        <h2
+                                            data-testid="yahtzee-announcement"
+                                            class={`mb-3 font-bebas text-2xl ${reveal().outcome === "caught_lying" ? "text-tomato" : "text-teal"}`}
+                                        >
+                                            {name(
+                                                reveal().playerId,
+                                            ).toUpperCase()}{" "}
+                                            {reveal().outcome === "caught_lying"
+                                                ? "GOT CAUGHT LYING"
+                                                : reveal().outcome ===
+                                                    "truthful_challenge"
+                                                  ? "TOLD THE TRUTH"
+                                                  : "CLAIM ACCEPTED"}
+                                        </h2>
+                                        <Show
+                                            when={
+                                                reveal().penaltyPlayerId &&
+                                                reveal().penaltyPoints > 0
                                             }
                                         >
-                                            {cellValue(player.id, cat)}
-                                        </td>
-                                    )}
-                                </For>
-                            </tr>
-                        )}
-                    </For>
-
-                    <tr class="border-b-2 border-[#e8a87c]/30">
-                        <td class="font-bebas text-[.55rem] tracking-[.15em] text-[#e8a87c]/60 px-2 py-1">
-                            UPPER ({UPPER_BONUS_THRESHOLD} FOR BONUS)
-                        </td>
-                        <For each={allPlayers()}>
-                            {(player) => (
-                                <td
-                                    class={`font-karla text-[.7rem] text-center px-2 py-1 ${
-                                        player.upperTotal >=
-                                        UPPER_BONUS_THRESHOLD
-                                            ? "text-[#ffd700]"
-                                            : "text-[#e8a87c]/50"
-                                    }`}
+                                            <div
+                                                class="mb-3 inline-flex items-center gap-2 border-2 border-ink bg-kraft px-2 py-1"
+                                                aria-label={
+                                                    name(
+                                                        reveal()
+                                                            .penaltyPlayerId!,
+                                                    ) +
+                                                    " loses " +
+                                                    reveal().penaltyPoints +
+                                                    " points"
+                                                }
+                                            >
+                                                <PlayerAvatar
+                                                    id={
+                                                        reveal()
+                                                            .penaltyPlayerId!
+                                                    }
+                                                    name={name(
+                                                        reveal()
+                                                            .penaltyPlayerId!,
+                                                    )}
+                                                    class="h-7 w-7 text-lg"
+                                                />
+                                                <span class="font-bebas">
+                                                    {name(
+                                                        reveal()
+                                                            .penaltyPlayerId!,
+                                                    )}
+                                                </span>
+                                                <span class="font-bebas text-xl text-tomato">
+                                                    −{reveal().penaltyPoints}{" "}
+                                                    PTS
+                                                </span>
+                                            </div>
+                                        </Show>
+                                        <div class="flex items-center gap-2 font-bebas">
+                                            <CategoryArt
+                                                category={reveal().category}
+                                            />
+                                            {CATEGORY_LABELS[reveal().category]}
+                                        </div>
+                                        <div class="mt-3 flex flex-wrap gap-4">
+                                            <div>
+                                                <h3 class="mb-2 font-bebas text-sm">
+                                                    CLAIMED ·{" "}
+                                                    {reveal().claimedPoints} PTS
+                                                </h3>
+                                                <div class="flex gap-1">
+                                                    <For
+                                                        each={
+                                                            reveal().claimedDice
+                                                        }
+                                                        keyed={false}
+                                                    >
+                                                        {(die) => (
+                                                            <TableDie
+                                                                value={die()}
+                                                            />
+                                                        )}
+                                                    </For>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h3 class="mb-2 font-bebas text-sm">
+                                                    ACTUAL
+                                                </h3>
+                                                <div class="flex gap-1">
+                                                    <For
+                                                        each={
+                                                            reveal().actualDice
+                                                        }
+                                                        keyed={false}
+                                                    >
+                                                        {(die) => (
+                                                            <TableDie
+                                                                value={die()}
+                                                            />
+                                                        )}
+                                                    </For>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                )}
+                            </Show>
+                            <Show when={current().canClaim}>
+                                <section
+                                    class="border-3 border-ink bg-sun p-3 shadow-ink"
+                                    data-testid="yahtzee-claim-panel"
                                 >
-                                    {player.upperTotal}
-                                    <Show when={player.upperBonus > 0}>
-                                        {" "}
-                                        +{player.upperBonus}
-                                    </Show>
-                                </td>
-                            )}
-                        </For>
-                    </tr>
-
-                    <For each={LOWER_CATEGORIES}>
-                        {(cat) => (
-                            <tr class="border-b border-[#e8a87c]/10">
-                                <td class="font-bebas text-[.6rem] tracking-[.15em] text-[#e8a87c] px-2 py-1">
-                                    {CATEGORY_LABELS[cat]}
-                                </td>
-                                <For each={allPlayers()}>
-                                    {(player) => (
-                                        <td
-                                            class={cellClass(player.id, cat)}
+                                    <div class="mb-3 flex items-center justify-between gap-2">
+                                        <h2 class="font-bebas text-xl">
+                                            YOUR CLAIM
+                                        </h2>
+                                        <TableButton
+                                            size="compact"
                                             onClick={() =>
-                                                handleCellClick(player.id, cat)
-                                            }
-                                            data-testid={`scorecard-cell-${player.id}-${cat}`}
-                                            data-player-id={player.id}
-                                            data-category={cat}
-                                            data-suggested={
-                                                player.id === props.myId &&
-                                                isSuggestedCategory(cat)
-                                                    ? "true"
-                                                    : "false"
-                                            }
-                                            data-selected-claim={
-                                                player.id === props.myId &&
-                                                props.selectedClaimCategory ===
-                                                    cat
-                                                    ? "true"
-                                                    : "false"
+                                                setClaimedDice([
+                                                    ...current().dice,
+                                                ] as Dice)
                                             }
                                         >
-                                            {cellValue(player.id, cat)}
-                                        </td>
-                                    )}
-                                </For>
-                            </tr>
-                        )}
-                    </For>
-
-                    <tr class="border-b border-[#e8a87c]/10">
-                        <td class="font-bebas text-[.55rem] tracking-[.15em] text-[#e8a87c]/60 px-2 py-1">
-                            YAHTZEE BONUS
-                        </td>
-                        <For each={allPlayers()}>
-                            {(player) => (
-                                <td class="font-karla text-[.7rem] text-center px-2 py-1 text-[#ffd700]">
-                                    <Show when={player.yahtzeeBonus > 0}>
-                                        +{player.yahtzeeBonus * 100}
+                                            USE REAL ROLL
+                                        </TableButton>
+                                    </div>
+                                    <div class="flex justify-center gap-1.5">
+                                        <For each={claimedDice()} keyed={false}>
+                                            {(die, index) => (
+                                                <button
+                                                    type="button"
+                                                    aria-label={`Change claimed die ${index + 1}, showing ${die()}`}
+                                                    onClick={() => cycle(index)}
+                                                    class="rounded-lg focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-navy"
+                                                >
+                                                    <TableDie value={die()} />
+                                                </button>
+                                            )}
+                                        </For>
+                                    </div>
+                                    <p class="mt-3 text-center text-sm">
+                                        Tap dice to change · choose a category
+                                        below
+                                    </p>
+                                    <Show when={category()}>
+                                        {(cat) => (
+                                            <TableButton
+                                                class="mt-3 w-full"
+                                                onClick={() =>
+                                                    props.connection.send({
+                                                        type: "yahtzee:claim",
+                                                        data: {
+                                                            category: cat(),
+                                                            claimedDice:
+                                                                claimedDice(),
+                                                        },
+                                                    })
+                                                }
+                                            >
+                                                SEND CLAIM ·{" "}
+                                                {CATEGORY_LABELS[cat()]} ·{" "}
+                                                {claimScores()[cat()]} PTS
+                                            </TableButton>
+                                        )}
                                     </Show>
-                                </td>
-                            )}
-                        </For>
-                    </tr>
-
-                    <tr class="border-b border-[#e8a87c]/10">
-                        <td class="font-bebas text-[.55rem] tracking-[.15em] text-[#e8a87c]/60 px-2 py-1">
-                            PENALTIES
-                        </td>
-                        <For each={allPlayers()}>
-                            {(player) => (
-                                <td class="font-karla text-[.7rem] text-center px-2 py-1 text-[#c0261a]">
-                                    <Show when={player.penaltyPoints > 0}>
-                                        -{player.penaltyPoints}
+                                </section>
+                            </Show>
+                            <Show when={current().phase === "game_over"}>
+                                <section
+                                    class="border-3 border-ink bg-cream p-4 shadow-ink"
+                                    data-testid="yahtzee-game-over"
+                                >
+                                    <h2 class="font-bebas text-3xl">
+                                        GAME OVER
+                                    </h2>
+                                    <For
+                                        each={[...current().players].sort(
+                                            (a, b) =>
+                                                b.totalScore - a.totalScore,
+                                        )}
+                                        keyed={false}
+                                    >
+                                        {(player) => (
+                                            <div class="flex items-center gap-3 border-b border-ink/20 py-3 font-bebas text-xl">
+                                                <PlayerAvatar
+                                                    id={player().id}
+                                                    name={player().name}
+                                                />
+                                                <span class="min-w-0 flex-1 truncate">
+                                                    {player().name.toUpperCase()}
+                                                </span>
+                                                <span>
+                                                    {player().totalScore}
+                                                </span>
+                                                <Show
+                                                    when={current().winners?.includes(
+                                                        player().id,
+                                                    )}
+                                                >
+                                                    <span class="text-teal">
+                                                        WINNER
+                                                    </span>
+                                                </Show>
+                                            </div>
+                                        )}
+                                    </For>
+                                    <Show when={props.isHost}>
+                                        <TableButton
+                                            class="mt-4 w-full"
+                                            onClick={props.onReturnToLobby}
+                                            testId="yahtzee-return-button"
+                                        >
+                                            RETURN TO LOBBY
+                                        </TableButton>
                                     </Show>
-                                </td>
-                            )}
-                        </For>
-                    </tr>
-
-                    <tr class="border-t-2 border-[#e8a87c]/40">
-                        <td class="font-bebas text-[.7rem] tracking-[.15em] text-[#ddd5c4] px-2 py-1.5">
-                            TOTAL
-                        </td>
-                        <For each={allPlayers()}>
-                            {(player) => (
-                                <td class="font-bebas text-[.9rem] text-center px-2 py-1.5 text-[#ddd5c4]">
-                                    {player.totalScore}
-                                </td>
-                            )}
-                        </For>
-                    </tr>
-                </tbody>
-            </table>
+                                </section>
+                            </Show>
+                            <YahtzeeScorecard
+                                players={current().players}
+                                currentPlayerId={current().currentPlayerId}
+                                myId={props.playerId}
+                                phone={phone()}
+                                canChoose={
+                                    current().canScore || current().canClaim
+                                }
+                                potentialScores={
+                                    current().canClaim
+                                        ? claimScores()
+                                        : current().potentialScores
+                                }
+                                suggested={current().suggestedCategories}
+                                selected={category()}
+                                onChoose={(cat) =>
+                                    current().canClaim
+                                        ? setCategory(cat)
+                                        : props.connection.send({
+                                              type: "yahtzee:score",
+                                              data: { category: cat },
+                                          })
+                                }
+                            />
+                        </>
+                    )}
+                </Show>
+            </main>
         </div>
     );
 }

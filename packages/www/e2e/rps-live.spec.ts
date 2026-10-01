@@ -45,10 +45,8 @@ test("rps keeps throws private, reconnects, and completes a four-player tourname
     });
     const hostId = playerIds[0]!;
     await room.switchPlayer(hostId);
-    await room.sendGameMessage({
-        type: "rps:set_best_of",
-        data: { bestOf: 1 },
-    } satisfies PlayerGameMessage<RpsClientMessage>);
+    await room.waitForGameView<RpsPlayerView>(hostId);
+    await page.getByRole("button", { name: "BO1", exact: true }).click();
     await expect
         .poll(async () => (await room.waitForGameView<RpsPlayerView>()).bestOf)
         .toBe(1);

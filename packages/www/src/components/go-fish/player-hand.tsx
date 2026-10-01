@@ -94,7 +94,6 @@ const styles = stylex.create({
         columnGap: 12,
         rowGap: 28,
         flexWrap: "wrap",
-        paddingInline: 10,
         paddingTop: 28,
         paddingBottom: 10,
     },

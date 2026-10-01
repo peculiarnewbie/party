@@ -1,7 +1,13 @@
-import { createSignal, For, Show } from "solid-js";
-
-import { Schema } from "effect";
-import { MatchType, type QuestionInput } from "~/schemas";
+import {
+    createMemo,
+    createSignal,
+    For,
+    onCleanup,
+    untrack,
+    Show,
+} from "solid-js";
+import { QuestionPreview, QUESTION_TYPES } from "~/components/question-preview";
+import type { QuestionInput, MatchType } from "~/schemas";
 
 type OptionInput = NonNullable<QuestionInput["options"]>[number];
 type AcceptedAnswerInput = NonNullable<
@@ -11,310 +17,446 @@ export type QuestionFormData = Required<QuestionInput>;
 
 interface Props {
     initial?: QuestionFormData;
-    onSubmit: (data: QuestionFormData) => void;
+    onSubmit: (data: QuestionFormData, addAnother: boolean) => void;
+    onCancel?: () => void;
+    onDirty?: (dirty: boolean) => void;
     saving: boolean;
     error: string | null;
     submitLabel: string;
+    allowAddAnother?: boolean;
 }
 
-const DEFAULT_FORM: QuestionFormData = {
-    type: "open",
-    text: "",
-    options: [],
-    acceptedAnswers: [],
-};
-
 export function QuestionForm(props: Props) {
+    const initial = untrack(() => props.initial);
     const [type, setType] = createSignal<QuestionFormData["type"]>(
-        props.initial?.type ?? DEFAULT_FORM.type,
+        initial?.type ?? "multiple_choice",
     );
-    const [text, setText] = createSignal(props.initial?.text ?? "");
+    const [text, setText] = createSignal(initial?.text ?? "");
     const [options, setOptions] = createSignal<readonly OptionInput[]>(
-        props.initial?.options.length
-            ? props.initial.options
+        initial?.options.length
+            ? initial.options
             : [
-                  { text: "", isCorrect: true },
+                  { text: "", isCorrect: false },
                   { text: "", isCorrect: false },
               ],
     );
     const [answers, setAnswers] = createSignal<readonly AcceptedAnswerInput[]>(
-        props.initial?.acceptedAnswers.length
-            ? props.initial.acceptedAnswers
+        initial?.acceptedAnswers.length
+            ? initial.acceptedAnswers
             : [{ pattern: "", matchType: "exact", caseInsensitive: true }],
     );
+    const [validation, setValidation] = createSignal<string | null>(null);
+    const [preview, setPreview] = createSignal(false);
+    let dirty = false;
+    let addAnother = false;
+    const inputClass =
+        "w-full min-w-0 border-2 border-line bg-card px-3 py-3 text-ink focus:border-navy outline-none";
+    const actionClass =
+        "min-h-11 whitespace-nowrap border-2 border-ink px-4 py-2 font-bebas tracking-wide shadow-ink-sm disabled:opacity-40";
+    const draft = createMemo(
+        (): QuestionFormData => ({
+            type: type(),
+            text: text(),
+            options: options(),
+            acceptedAnswers: answers(),
+        }),
+    );
 
-    function addOption() {
-        setOptions((prev) => [...prev, { text: "", isCorrect: false }]);
+    function changed() {
+        dirty = true;
+        props.onDirty?.(true);
+        setValidation(null);
     }
-
-    function removeOption(index: number) {
-        setOptions((prev) => prev.filter((_, i) => i !== index));
-    }
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+        if (!dirty) return;
+        event.preventDefault();
+        event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    onCleanup(() => window.removeEventListener("beforeunload", beforeUnload));
 
     function updateOption<K extends keyof OptionInput>(
         index: number,
         field: K,
         value: OptionInput[K],
     ) {
-        setOptions((prev) =>
-            prev.map((opt, i) =>
-                i === index ? { ...opt, [field]: value } : opt,
+        changed();
+        setOptions((previous) =>
+            previous.map((option, i) =>
+                i === index ? { ...option, [field]: value } : option,
             ),
         );
     }
-
-    function addAnswer() {
-        setAnswers((prev) => [
-            ...prev,
-            { pattern: "", matchType: "exact", caseInsensitive: true },
-        ]);
-    }
-
-    function removeAnswer(index: number) {
-        setAnswers((prev) => prev.filter((_, i) => i !== index));
-    }
-
     function updateAnswer<K extends keyof AcceptedAnswerInput>(
         index: number,
         field: K,
         value: AcceptedAnswerInput[K],
     ) {
-        setAnswers((prev) =>
-            prev.map((a, i) => (i === index ? { ...a, [field]: value } : a)),
+        changed();
+        setAnswers((previous) =>
+            previous.map((answer, i) =>
+                i === index ? { ...answer, [field]: value } : answer,
+            ),
+        );
+    }
+    function handleSubmit(event: Event) {
+        event.preventDefault();
+        if (props.saving) return;
+        const next = addAnother;
+        addAnother = false;
+        const cleanOptions = options().map((option) => ({
+            ...option,
+            text: option.text.trim(),
+        }));
+        const cleanAnswers = answers().map((answer) => ({
+            ...answer,
+            pattern: answer.matchType === "any" ? "*" : answer.pattern.trim(),
+        }));
+        if (!text().trim()) return setValidation("Write a question first.");
+        if (type() === "multiple_choice") {
+            if (
+                cleanOptions.length < 2 ||
+                cleanOptions.some((option) => !option.text)
+            )
+                return setValidation(
+                    "Fill in at least two answers. Remove any unused options.",
+                );
+            if (!cleanOptions.some((option) => option.isCorrect))
+                return setValidation("Mark at least one answer as correct.");
+        }
+        if (
+            type() === "fill_in" &&
+            cleanAnswers.some((answer) => !answer.pattern)
+        )
+            return setValidation(
+                "Enter each accepted answer, or choose Any answer.",
+            );
+        props.onSubmit(
+            {
+                type: type(),
+                text: text().trim(),
+                options: type() === "multiple_choice" ? cleanOptions : [],
+                acceptedAnswers: type() === "fill_in" ? cleanAnswers : [],
+            },
+            next,
         );
     }
 
-    function handleSubmit(e: Event) {
-        e.preventDefault();
-        if (!text().trim()) return;
-
-        props.onSubmit({
-            type: type(),
-            text: text().trim(),
-            options:
-                type() === "multiple_choice"
-                    ? options().filter((o) => o.text.trim())
-                    : [],
-            acceptedAnswers:
-                type() === "fill_in"
-                    ? answers().filter(
-                          (a) => a.pattern.trim() || a.matchType === "any",
-                      )
-                    : [],
-        });
-    }
-
     return (
-        <form onSubmit={handleSubmit} class="space-y-6">
-            {/* Type selector */}
-            <div>
-                <label class="block font-bebas text-sm tracking-widest text-[#5a5040] mb-2">
-                    QUESTION TYPE
-                </label>
-                <div class="grid grid-cols-4 gap-2">
-                    <For
-                        each={
-                            [
-                                {
-                                    value: "multiple_choice",
-                                    label: "Multiple Choice",
-                                },
-                                { value: "fill_in", label: "Fill In" },
-                                { value: "open", label: "Open" },
-                                { value: "placeholder", label: "Placeholder" },
-                            ] as const
-                        }
-                    >
-                        {(t) => (
-                            <button
-                                type="button"
-                                onClick={() => setType(t.value)}
-                                class={`font-bebas text-sm tracking-wider py-2.5 border-2 transition-all cursor-pointer ${
-                                    type() === t.value
-                                        ? "bg-[#1a3a6e] text-[#ddd5c4] border-[#1a3a6e]"
-                                        : "bg-white text-[#5a5040] border-[#b8ae9e] hover:border-[#5a5040]"
-                                }`}
-                            >
-                                {t.label}
-                            </button>
-                        )}
-                    </For>
-                </div>
-            </div>
-
-            {/* Question text */}
-            <div>
-                <label class="block font-bebas text-sm tracking-widest text-[#5a5040] mb-2">
-                    QUESTION TEXT
-                </label>
-                <textarea
-                    value={text()}
-                    onInput={(e) => setText(e.currentTarget.value)}
-                    placeholder="Enter the question..."
-                    required
-                    rows={3}
-                    class="w-full px-4 py-3 bg-white border-2 border-[#b8ae9e] font-karla text-[#1a1a1a] focus:border-[#1a3a6e] outline-none transition-colors resize-y"
-                />
-            </div>
-
-            {/* Multiple choice options */}
-            <Show when={type() === "multiple_choice"}>
+        <form
+            onSubmit={handleSubmit}
+            class="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,.85fr)]"
+        >
+            <fieldset disabled={props.saving} class="min-w-0 space-y-5">
                 <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="font-bebas text-sm tracking-widest text-[#5a5040]">
-                            ANSWER OPTIONS
-                        </label>
-                        <button
-                            type="button"
-                            onClick={addOption}
-                            class="font-bebas text-xs tracking-widest text-[#1a3a6e] hover:text-[#c0261a] transition-colors cursor-pointer"
-                        >
-                            + ADD OPTION
-                        </button>
+                    <p class="mb-2 font-bebas text-sm tracking-widest text-muted">
+                        Question type
+                    </p>
+                    <div
+                        class="grid grid-cols-2 gap-2"
+                        role="group"
+                        aria-label="Question type"
+                    >
+                        <For each={QUESTION_TYPES}>
+                            {(entry) => (
+                                <button
+                                    type="button"
+                                    aria-pressed={
+                                        type() === entry.value
+                                            ? "true"
+                                            : "false"
+                                    }
+                                    onClick={() => {
+                                        changed();
+                                        setType(entry.value);
+                                    }}
+                                    class={`min-h-16 border-2 border-ink px-3 py-2 text-left ${type() === entry.value ? "bg-navy text-cream shadow-ink-sm" : "bg-card text-ink"}`}
+                                >
+                                    <span class="block font-bebas text-lg leading-tight">
+                                        {entry.label}
+                                    </span>
+                                    <span class="block text-xs opacity-80">
+                                        {entry.hint}
+                                    </span>
+                                </button>
+                            )}
+                        </For>
                     </div>
-                    <div class="space-y-2">
-                        <For each={options()}>
-                            {(opt, i) => (
-                                <div class="flex items-center gap-3">
+                </div>
+                <div>
+                    <label
+                        for="question-text"
+                        class="mb-2 block font-bebas text-sm tracking-widest text-muted"
+                    >
+                        {type() === "placeholder"
+                            ? "Section title"
+                            : "Question"}
+                    </label>
+                    <textarea
+                        id="question-text"
+                        value={text()}
+                        onInput={(event) => {
+                            changed();
+                            setText(event.currentTarget.value);
+                        }}
+                        placeholder="Enter the question..."
+                        required
+                        maxlength={1000}
+                        rows={3}
+                        class={`${inputClass} resize-y`}
+                    />
+                </div>
+                <Show when={type() === "multiple_choice"}>
+                    <div class="space-y-3">
+                        <p class="font-bebas text-sm tracking-widest text-muted">
+                            Answers · mark the correct ones
+                        </p>
+                        <For each={options()} keyed={false}>
+                            {(option, index) => (
+                                <div
+                                    class={`flex min-w-0 items-start gap-2 border-2 p-2 ${option().isCorrect ? "border-teal bg-teal/10" : "border-line bg-card"}`}
+                                >
+                                    <label
+                                        class={`relative flex h-12 w-11 shrink-0 cursor-pointer items-center justify-center border-2 font-bebas text-xl ${option().isCorrect ? "border-ink bg-teal text-cream" : "border-line bg-cream"}`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            aria-label={`Mark answer ${String.fromCharCode(65 + index)} correct`}
+                                            checked={option().isCorrect}
+                                            onChange={(event) =>
+                                                updateOption(
+                                                    index,
+                                                    "isCorrect",
+                                                    event.currentTarget.checked,
+                                                )
+                                            }
+                                            class="absolute inset-0 h-full w-full cursor-pointer opacity-0 peer"
+                                        />
+                                        <span class="pointer-events-none peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4">
+                                            {String.fromCharCode(65 + index)}
+                                        </span>
+                                    </label>
                                     <input
-                                        type="checkbox"
-                                        checked={opt.isCorrect}
-                                        onChange={(e) =>
+                                        aria-label={`Answer ${String.fromCharCode(65 + index)}`}
+                                        value={option().text}
+                                        onInput={(event) =>
                                             updateOption(
-                                                i(),
-                                                "isCorrect",
-                                                e.currentTarget.checked,
-                                            )
-                                        }
-                                        class="w-4 h-4 accent-[#1a3a6e]"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={opt.text}
-                                        onInput={(e) =>
-                                            updateOption(
-                                                i(),
+                                                index,
                                                 "text",
-                                                e.currentTarget.value,
+                                                event.currentTarget.value,
                                             )
                                         }
-                                        placeholder={`Option ${i() + 1}`}
-                                        class="flex-1 px-3 py-2 bg-white border-2 border-[#b8ae9e] font-karla text-sm text-[#1a1a1a] focus:border-[#1a3a6e] outline-none"
+                                        placeholder={`Answer ${String.fromCharCode(65 + index)}`}
+                                        maxlength={500}
+                                        class={`${inputClass} flex-1`}
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => removeOption(i())}
-                                        disabled={options().length <= 1}
-                                        class="font-bebas text-xs tracking-widest text-[#c0261a] hover:text-[#8b1a10] disabled:opacity-30 transition-colors cursor-pointer"
+                                        aria-label={`Remove answer ${String.fromCharCode(65 + index)}`}
+                                        disabled={options().length <= 2}
+                                        onClick={() => {
+                                            changed();
+                                            setOptions((previous) =>
+                                                previous.filter(
+                                                    (_, i) => i !== index,
+                                                ),
+                                            );
+                                        }}
+                                        class="flex h-12 w-9 shrink-0 items-center justify-center text-tomato disabled:opacity-25"
                                     >
-                                        REMOVE
+                                        <svg
+                                            aria-hidden="true"
+                                            viewBox="0 0 24 24"
+                                            class="h-5 w-5"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path d="M6 6l12 12M18 6L6 18" />
+                                        </svg>
                                     </button>
                                 </div>
                             )}
                         </For>
-                    </div>
-                    <p class="text-xs text-[#9a9080] mt-2">
-                        Check the box to mark correct answers
-                    </p>
-                </div>
-            </Show>
-
-            {/* Fill-in accepted answers */}
-            <Show when={type() === "fill_in"}>
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="font-bebas text-sm tracking-widest text-[#5a5040]">
-                            ACCEPTED ANSWERS
-                        </label>
                         <button
                             type="button"
-                            onClick={addAnswer}
-                            class="font-bebas text-xs tracking-widest text-[#1a3a6e] hover:text-[#c0261a] transition-colors cursor-pointer"
+                            disabled={options().length >= 12}
+                            onClick={() => {
+                                changed();
+                                setOptions((previous) => [
+                                    ...previous,
+                                    { text: "", isCorrect: false },
+                                ]);
+                            }}
+                            class={`${actionClass} bg-card text-navy`}
                         >
-                            + ADD ANSWER
+                            + Add answer
                         </button>
                     </div>
+                </Show>
+                <Show when={type() === "fill_in"}>
                     <div class="space-y-3">
-                        <For each={answers()}>
-                            {(ans, i) => (
-                                <div class="bg-[#f9f5ef] border border-[#e5dfd5] p-3 space-y-2">
-                                    <div class="flex items-center gap-3">
-                                        <Show when={ans.matchType !== "any"}>
-                                            <input
-                                                type="text"
-                                                value={ans.pattern}
-                                                onInput={(e) =>
-                                                    updateAnswer(
-                                                        i(),
-                                                        "pattern",
-                                                        e.currentTarget.value,
-                                                    )
-                                                }
-                                                placeholder="Answer pattern"
-                                                class="flex-1 px-3 py-2 bg-white border-2 border-[#b8ae9e] font-karla text-sm text-[#1a1a1a] focus:border-[#1a3a6e] outline-none"
-                                            />
-                                        </Show>
-                                        <select
-                                            value={ans.matchType}
-                                            onChange={(e) =>
+                        <p class="font-bebas text-sm tracking-widest text-muted">
+                            Accepted answers
+                        </p>
+                        <For each={answers()} keyed={false}>
+                            {(answer, index) => (
+                                <div class="space-y-3 border-2 border-line bg-card p-3">
+                                    <Show when={answer().matchType !== "any"}>
+                                        <input
+                                            aria-label={`Accepted answer ${index + 1}`}
+                                            value={answer().pattern}
+                                            onInput={(event) =>
                                                 updateAnswer(
-                                                    i(),
-                                                    "matchType",
-                                                    Schema.decodeUnknownSync(
-                                                        MatchType,
-                                                    )(e.currentTarget.value),
+                                                    index,
+                                                    "pattern",
+                                                    event.currentTarget.value,
                                                 )
                                             }
-                                            class="px-3 py-2 bg-white border-2 border-[#b8ae9e] font-karla text-sm text-[#1a1a1a] focus:border-[#1a3a6e] outline-none"
+                                            placeholder="e.g. Jupiter"
+                                            maxlength={500}
+                                            class={inputClass}
+                                        />
+                                    </Show>
+                                    <div class="flex flex-wrap gap-2">
+                                        <select
+                                            aria-label={`Matching rule ${index + 1}`}
+                                            value={answer().matchType}
+                                            onChange={(event) =>
+                                                updateAnswer(
+                                                    index,
+                                                    "matchType",
+                                                    event.currentTarget
+                                                        .value as MatchType,
+                                                )
+                                            }
+                                            class="min-h-11 min-w-0 flex-1 border-2 border-line bg-cream px-2"
                                         >
-                                            <option value="exact">Exact</option>
-                                            <option value="contains">
-                                                Contains
+                                            <option value="exact">
+                                                Exact answer
                                             </option>
-                                            <option value="any">Any</option>
+                                            <option value="contains">
+                                                Contains these words
+                                            </option>
+                                            <option value="any">
+                                                Any answer
+                                            </option>
                                         </select>
                                         <button
                                             type="button"
-                                            onClick={() => removeAnswer(i())}
+                                            aria-label={`Remove accepted answer ${index + 1}`}
                                             disabled={answers().length <= 1}
-                                            class="font-bebas text-xs tracking-widest text-[#c0261a] hover:text-[#8b1a10] disabled:opacity-30 transition-colors cursor-pointer"
+                                            onClick={() => {
+                                                changed();
+                                                setAnswers((previous) =>
+                                                    previous.filter(
+                                                        (_, i) => i !== index,
+                                                    ),
+                                                );
+                                            }}
+                                            class="min-h-11 px-2 font-bebas text-tomato disabled:opacity-30"
                                         >
-                                            REMOVE
+                                            Remove
                                         </button>
                                     </div>
-                                    <label class="flex items-center gap-2 text-xs text-[#5a5040]">
-                                        <input
-                                            type="checkbox"
-                                            checked={ans.caseInsensitive}
-                                            onChange={(e) =>
-                                                updateAnswer(
-                                                    i(),
-                                                    "caseInsensitive",
-                                                    e.currentTarget.checked,
-                                                )
-                                            }
-                                            class="w-3.5 h-3.5 accent-[#1a3a6e]"
-                                        />
-                                        Case insensitive
-                                    </label>
+                                    <Show when={answer().matchType !== "any"}>
+                                        <label class="flex min-h-11 items-center gap-2 text-sm text-muted">
+                                            <input
+                                                type="checkbox"
+                                                checked={
+                                                    answer().caseInsensitive
+                                                }
+                                                onChange={(event) =>
+                                                    updateAnswer(
+                                                        index,
+                                                        "caseInsensitive",
+                                                        event.currentTarget
+                                                            .checked,
+                                                    )
+                                                }
+                                                class="h-5 w-5 accent-teal"
+                                            />
+                                            Ignore capitalization
+                                        </label>
+                                    </Show>
                                 </div>
                             )}
                         </For>
+                        <button
+                            type="button"
+                            disabled={answers().length >= 50}
+                            onClick={() => {
+                                changed();
+                                setAnswers((previous) => [
+                                    ...previous,
+                                    {
+                                        pattern: "",
+                                        matchType: "exact",
+                                        caseInsensitive: true,
+                                    },
+                                ]);
+                            }}
+                            class={`${actionClass} bg-card text-navy`}
+                        >
+                            + Add accepted answer
+                        </button>
                     </div>
+                </Show>
+                <button
+                    type="button"
+                    aria-expanded={preview() ? "true" : "false"}
+                    onClick={() => setPreview(!preview())}
+                    class="min-h-11 font-bebas text-navy underline underline-offset-4 lg:hidden"
+                >
+                    {preview() ? "Hide preview" : "Show preview"}
+                </button>
+                <Show when={validation() || props.error}>
+                    <p
+                        role="alert"
+                        class="border-l-4 border-tomato bg-tomato/5 p-3 text-sm text-tomato"
+                    >
+                        {validation() || props.error}
+                    </p>
+                </Show>
+                <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t-2 border-line bg-cream py-4 sm:flex sm:flex-wrap">
+                    <button
+                        type="submit"
+                        onClick={() => {
+                            addAnother = false;
+                        }}
+                        disabled={props.saving}
+                        class={`${actionClass} col-span-2 bg-navy text-cream sm:flex-1`}
+                    >
+                        {props.saving ? "Saving…" : props.submitLabel}
+                    </button>
+                    <Show when={props.allowAddAnother}>
+                        <button
+                            type="submit"
+                            onClick={() => {
+                                addAnother = true;
+                            }}
+                            disabled={props.saving}
+                            class={`${actionClass} min-w-0 bg-sun text-ink sm:flex-1`}
+                        >
+                            Save & add another
+                        </button>
+                    </Show>
+                    <Show when={props.onCancel}>
+                        <button
+                            type="button"
+                            onClick={props.onCancel}
+                            class="min-h-11 justify-self-end px-2 font-bebas text-muted"
+                        >
+                            Cancel
+                        </button>
+                    </Show>
                 </div>
-            </Show>
-
-            <Show when={props.error}>
-                <p class="text-[#c0261a] text-sm">{props.error}</p>
-            </Show>
-
-            <button
-                type="submit"
-                disabled={props.saving || !text().trim()}
-                class="w-full font-bebas text-xl tracking-wide bg-[#1a3a6e] text-[#ddd5c4] py-3 border-2 border-[#1a1a1a] shadow-[3px_3px_0_#1a1a1a] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_#1a1a1a] transition-all disabled:opacity-40 disabled:shadow-none disabled:transform-none cursor-pointer"
+            </fieldset>
+            <div
+                class={`${preview() ? "block" : "hidden lg:block"} min-w-0 lg:sticky lg:top-6`}
             >
-                {props.saving ? "Saving..." : props.submitLabel}
-            </button>
+                <QuestionPreview question={draft()} />
+            </div>
         </form>
     );
 }
